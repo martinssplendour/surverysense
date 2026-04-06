@@ -1,0 +1,79 @@
+<mxfile host="app.diagrams.net" modified="2026-04-03T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="verbatim-app-architecture" name="Page-1">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Verbatim App: Data Ingestion &amp; Cleaning Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="480" y="20" width="640" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="orchestrator" value="Orchestrator / Router&#xa;Controls the sequence and branches based on blueprint.starting_state" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="540" y="70" width="520" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="input" value="1. Input Standardization Service&#xa;- Read bytes in memory&#xa;- Detect encoding + delimiter&#xa;- Trim headers/cells&#xa;- Cap rows" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="60" y="220" width="210" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="profiling" value="2. Column Profiling Service&#xa;- Null rate&#xa;- Uniqueness&#xa;- Avg text length&#xa;- Example values&#xa;- Duplicate headers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="330" y="220" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="architect" value="3. Architect Blueprint Service (LLM)&#xa;Returns JSON blueprint:&#xa;- starting_state&#xa;- metadata_indices&#xa;- verbatim logic&#xa;- header_rename_map" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="620" y="210" width="260" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="decision" value="starting_state?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="950" y="235" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="vertical" value="4A. Vertical Reshape Service&#xa;- Use question_col_idx&#xa;- Use answer_col_idx&#xa;- Pivot to one row per respondent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="120" width="250" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="wide" value="4B. Wide Prune Service&#xa;- Keep metadata columns&#xa;- Keep verbatim columns&#xa;- Drop everything else" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="320" width="250" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="finalclean" value="5. Final Clean Output Service&#xa;- Rename headers&#xa;- Null junk strings&#xa;- Convert verbatims to string&#xa;- Drop rows with all verbatims empty&#xa;- Validate final schema" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="210" width="260" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="output" value="Final Output&#xa;Single Pandas DataFrame&#xa;&#xa;Columns 1-N: Metadata&#xa;Columns N+: Clean Verbatim Headers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1830" y="220" width="250" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="sampleNote" value="LLM sees only a 20-row sample + column stats&#xa;Python does the real transformation" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="650" y="380" width="230" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="closedNote" value="Optional improvement: classify columns as&#xa;metadata / closed_question / verbatim" style="shape=note;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="390" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="input" target="profiling">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="profiling" target="architect">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="architect" target="decision">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="vertical" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="decision" target="vertical">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="wide" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="decision" target="wide">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="vertical" target="finalclean">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="wide" target="finalclean">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;" edge="1" parent="1" source="finalclean" target="output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;endFill=0;dashed=1;strokeWidth=2;strokeColor=#b85450;" edge="1" parent="1" source="orchestrator" target="input">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;endFill=0;dashed=1;strokeWidth=2;strokeColor=#b85450;" edge="1" parent="1" source="orchestrator" target="architect">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;endFill=0;dashed=1;strokeWidth=2;strokeColor=#b85450;" edge="1" parent="1" source="orchestrator" target="finalclean">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
