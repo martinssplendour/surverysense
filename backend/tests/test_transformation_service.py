@@ -403,6 +403,82 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
             ],
         )
 
+    def test_does_not_treat_long_question_headers_as_metadata_when_they_contain_month_or_state_substrings(self) -> None:
+        service = MetadataColumnSelectionService()
+        df = pd.DataFrame(
+            columns=[
+                "survey_month__idx_1",
+                "country__idx_2",
+                "group__idx_3",
+                "18.2 With Regards To Science We'd Love To Know Your Awareness And Usage Of The Following Brands I Have Used This Brand Within The Last 6 Months__idx_201",
+                "Which group of resources do you use most often?__idx_250",
+                "27.1 To What Extent Do The Following Statements Resonate With You When You Think Of Twinkl Made By Educators__idx_301",
+            ]
+        )
+
+        self.assertEqual(
+            service.select_columns(df),
+            [
+                "survey_month__idx_1",
+                "country__idx_2",
+                "group__idx_3",
+            ],
+        )
+
+    def test_treats_high_signal_metadata_words_as_metadata_only_when_they_stand_alone(self) -> None:
+        service = MetadataColumnSelectionService()
+        df = pd.DataFrame(
+            columns=[
+                "month__idx_1",
+                "group__idx_2",
+                "career__idx_3",
+                "Which month did you first hear about Twinkl?__idx_10",
+                "Which group best describes your needs?__idx_11",
+            ]
+        )
+
+        self.assertEqual(
+            service.select_columns(df),
+            [
+                "month__idx_1",
+                "group__idx_2",
+                "career__idx_3",
+            ],
+        )
+
+    def test_selects_expanded_metadata_library_terms(self) -> None:
+        service = MetadataColumnSelectionService()
+        df = pd.DataFrame(
+            columns=[
+                "survey_wave__idx_1",
+                "submission_date__idx_2",
+                "language__idx_3",
+                "locale__idx_4",
+                "state_code__idx_5",
+                "project_name__idx_6",
+                "nps_score__idx_7",
+                "segment__idx_8",
+                "cohort__idx_9",
+                "What language do you teach in most often?__idx_20",
+                "How would you describe your cohort this year?__idx_21",
+            ]
+        )
+
+        self.assertEqual(
+            service.select_columns(df),
+            [
+                "survey_wave__idx_1",
+                "submission_date__idx_2",
+                "language__idx_3",
+                "locale__idx_4",
+                "state_code__idx_5",
+                "project_name__idx_6",
+                "nps_score__idx_7",
+                "segment__idx_8",
+                "cohort__idx_9",
+            ],
+        )
+
 
 class AnalysisReadyDatasetServiceTests(unittest.TestCase):
     def test_build_returns_metadata_plus_selected_verbatim_columns(self) -> None:

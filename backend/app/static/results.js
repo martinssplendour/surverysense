@@ -214,7 +214,7 @@ function renderFilterBar() {
         `<option value="">Choose metadata</option>`,
         ...state.availableFilters.map((filter) => {
             const isSelected = filter.column_name === selectedColumnName ? " selected" : "";
-            return `<option value="${escapeHtml(filter.column_name)}"${isSelected}>${escapeHtml(filter.display_name || filter.column_name)}</option>`;
+            return `<option value="${escapeHtml(filter.column_name)}"${isSelected}>${escapeHtml(displayColumnLabel(filter.display_name || filter.column_name))}</option>`;
         }),
     ].join("");
 
@@ -277,7 +277,7 @@ function renderPreviewTable(preserveScroll) {
 
     const head = [
         '<th scope="col" class="row-number-header">Row</th>',
-        ...previewColumns.map((column) => `<th scope="col">${escapeHtml(column)}</th>`),
+        ...previewColumns.map((column) => `<th scope="col">${escapeHtml(displayColumnLabel(column))}</th>`),
     ].join("");
 
     const body = previewRows
@@ -344,7 +344,7 @@ function renderAnalysisSection(preserveTableScroll) {
             .slice(0, 20)
             .map((column) => `
                 <article class="analysis-item">
-                    <h4>${escapeHtml(column)}</h4>
+                    <h4>${escapeHtml(displayColumnLabel(column))}</h4>
                     <div class="analysis-meta">
                         <span>Selected as verbatim</span>
                     </div>
@@ -732,6 +732,10 @@ function escapeHtml(value) {
         .replaceAll("'", "&#39;");
 }
 
+function displayColumnLabel(value) {
+    return `${value}`.replace(/__idx_\d+$/i, "");
+}
+
 function firstPreviewValue(rows, column) {
     for (const row of rows) {
         const normalized = normalizeValue(row[column]);
@@ -762,7 +766,7 @@ function renderAnalysisPreviewTable(preserveScroll) {
 
     const head = [
         '<th scope="col" class="row-number-header">Row</th>',
-        ...analysisColumns.map((column) => `<th scope="col">${escapeHtml(column)}</th>`),
+        ...analysisColumns.map((column) => `<th scope="col">${escapeHtml(displayColumnLabel(column))}</th>`),
     ].join("");
 
     const body = resolvedRows
@@ -860,7 +864,7 @@ function renderActiveFilters() {
     elements.activeFilters.innerHTML = filterEntries
         .map(([columnName, values]) => {
             const filter = state.availableFilters.find((item) => item.column_name === columnName);
-            const label = filter?.display_name || columnName;
+            const label = displayColumnLabel(filter?.display_name || columnName);
             const value = Array.isArray(values) ? values[0] || "" : "";
             return `
                 <div class="active-filter-chip">
