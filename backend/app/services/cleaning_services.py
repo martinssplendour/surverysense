@@ -9,7 +9,22 @@ import pandas as pd
 
 
 SMART_APOSTROPHES_PATTERN = re.compile(r"[\u2018\u2019\u0060\u00B4\u2032\u0092]")
-NUMERIC_HEADER_PREFIX_PATTERN = re.compile(r"^\s*\d+\s*[:.)-]\s*")
+NUMERIC_HEADER_PREFIX_PATTERN = re.compile(r"^\s*\d+(?:\.\d+)*\s*[:.)-]\s*")
+TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN = re.compile(r"__idx_\d+$", re.IGNORECASE)
+MULTIPART_VERBATIM_SUFFIX_PATTERNS = (
+    re.compile(
+        r"^(?P<base>.+?)\s*:\s*(?P<slot_label>word|response|answer|comment|entry|part|item|text)\s*(?P<slot_index>\d+)\s*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?P<base>.+?)\s*[-/]\s*(?P<slot_label>word|response|answer|comment|entry|part|item|text)\s*(?P<slot_index>\d+)\s*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?P<base>.+?)\s*\(\s*(?P<slot_label>word|response|answer|comment|entry|part|item|text)\s*(?P<slot_index>\d+)\s*\)\s*$",
+        re.IGNORECASE,
+    ),
+)
 
 
 class TextNormalizationService:
@@ -82,6 +97,198 @@ class VerbatimQuestionCandidate:
     numeric_ratio: float
 
 
+@dataclass(slots=True)
+class MultipartVerbatimPart:
+    column_name: str
+    base_label: str
+    group_key: str
+    slot_label: str
+    slot_index: int
+    column_order: int
+
+
+class MetadataColumnSelectionService:
+    """Identifies business metadata columns to keep alongside verbatim outputs."""
+
+    METADATA_HEADER_TOKENS = {
+        "response id",
+        "user id",
+        "bundle",
+        "career",
+        "category",
+        "group",
+        "country",
+        "county",
+        "state",
+        "region",
+        "date",
+        "month",
+        "year",
+        "started",
+        "completed",
+        "time",
+    }
+
+    def select_columns(self, df: pd.DataFrame) -> list[str]:
+        return [
+            column
+            for column in df.columns
+            if self.is_metadata_column(str(column))
+        ]
+
+    def is_metadata_column(self, column_name: str) -> bool:
+        if "__idx_" not in column_name:
+            return False
+
+        normalized = self._normalize_header(column_name)
+        return any(token in normalized for token in self.METADATA_HEADER_TOKENS)
+
+    @staticmethod
+    def _normalize_header(column_name: str) -> str:
+        base_name = TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN.sub("", column_name.strip())
+        return re.sub(r"[_\W]+", " ", base_name.casefold()).strip()
+
+
+class MultipartVerbatimConsolidationService:
+    """Merges multi-part verbatim answers such as Word 1 / Word 2 / Word 3 into one column."""
+
+    WORD_SEPARATOR = ", "
+    DEFAULT_SEPARATOR = " | "
+
+    def __init__(self, text_normalizer: TextNormalizationService) -> None:
+        self.text_normalizer = text_normalizer
+
+    def consolidate(
+        self,
+        df: pd.DataFrame,
+        *,
+        metadata_columns: list[str],
+    ) -> pd.DataFrame:
+        if df.empty:
+            return df.copy()
+
+        metadata_columns = [column for column in metadata_columns if column in df.columns]
+        metadata_set = set(metadata_columns)
+        verbatim_columns = [column for column in df.columns if column not in metadata_set]
+        if len(verbatim_columns) < 2:
+            return df.copy()
+
+        part_by_column: dict[str, MultipartVerbatimPart] = {}
+        grouped_parts: dict[str, list[MultipartVerbatimPart]] = {}
+        for order, column in enumerate(verbatim_columns):
+            part = self._build_part(str(column), order)
+            if part is None:
+                continue
+            part_by_column[column] = part
+            grouped_parts.setdefault(part.group_key, []).append(part)
+
+        if not any(len(parts) >= 2 for parts in grouped_parts.values()):
+            return df.copy()
+
+        consolidated_columns: dict[str, pd.Series] = {}
+        for column in metadata_columns:
+            consolidated_columns[column] = df[column]
+
+        used_labels = set(consolidated_columns)
+        handled_groups: set[str] = set()
+        for column in verbatim_columns:
+            part = part_by_column.get(column)
+            if part is None or len(grouped_parts[part.group_key]) < 2:
+                consolidated_columns[column] = df[column]
+                used_labels.add(column)
+                continue
+
+            if part.group_key in handled_groups:
+                continue
+
+            handled_groups.add(part.group_key)
+            group_parts = sorted(
+                grouped_parts[part.group_key],
+                key=lambda item: (item.slot_index, item.column_order),
+            )
+            separator = self._separator_for_group(group_parts)
+            output_label = self._make_unique_label(part.base_label, used_labels)
+            consolidated_columns[output_label] = self._combine_columns(
+                df,
+                [item.column_name for item in group_parts],
+                separator,
+            )
+
+        return pd.DataFrame(consolidated_columns, index=df.index)
+
+    def _build_part(self, column_name: str, column_order: int) -> MultipartVerbatimPart | None:
+        normalized = self.text_normalizer.normalize_scalar(column_name)
+        normalized = str(normalized) if normalized not in (None, "") else column_name.strip()
+        normalized = TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN.sub("", normalized).strip()
+        normalized = NUMERIC_HEADER_PREFIX_PATTERN.sub("", normalized).strip()
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+
+        for pattern in MULTIPART_VERBATIM_SUFFIX_PATTERNS:
+            match = pattern.match(normalized)
+            if not match:
+                continue
+
+            base_label = match.group("base").strip()
+            slot_label = match.group("slot_label").casefold()
+            slot_index = int(match.group("slot_index"))
+            if not base_label:
+                return None
+
+            return MultipartVerbatimPart(
+                column_name=column_name,
+                base_label=base_label,
+                group_key=base_label.casefold(),
+                slot_label=slot_label,
+                slot_index=slot_index,
+                column_order=column_order,
+            )
+        return None
+
+    def _separator_for_group(self, group_parts: list[MultipartVerbatimPart]) -> str:
+        if all(part.slot_label == "word" for part in group_parts):
+            return self.WORD_SEPARATOR
+        return self.DEFAULT_SEPARATOR
+
+    def _combine_columns(
+        self,
+        df: pd.DataFrame,
+        column_names: list[str],
+        separator: str,
+    ) -> pd.Series:
+        return df[column_names].apply(
+            lambda row: self._combine_row_values(row.tolist(), separator),
+            axis=1,
+        )
+
+    @staticmethod
+    def _combine_row_values(values: list[Any], separator: str) -> str | None:
+        combined_values: list[str] = []
+        for value in values:
+            if value is None or pd.isna(value):
+                continue
+            text = str(value).strip()
+            if not text:
+                continue
+            combined_values.append(text)
+        if not combined_values:
+            return None
+        return separator.join(combined_values)
+
+    @staticmethod
+    def _make_unique_label(label: str, used_labels: set[str]) -> str:
+        if label not in used_labels:
+            used_labels.add(label)
+            return label
+
+        suffix = 2
+        while True:
+            candidate = f"{label} ({suffix})"
+            if candidate not in used_labels:
+                used_labels.add(candidate)
+                return candidate
+            suffix += 1
+
+
 class VerbatimHeaderCleaningService:
     def __init__(self, text_normalizer: TextNormalizationService) -> None:
         self.text_normalizer = text_normalizer
@@ -140,6 +347,7 @@ class VerbatimHeaderCleaningService:
     def _build_header_info(self, header: str) -> VerbatimHeaderInfo:
         normalized = self.text_normalizer.normalize_scalar(header)
         normalized = str(normalized) if normalized not in (None, "") else str(header).strip()
+        normalized = TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN.sub("", normalized).strip()
         normalized = NUMERIC_HEADER_PREFIX_PATTERN.sub("", normalized).strip()
 
         subject: str | None = None
@@ -175,35 +383,14 @@ class VerbatimHeaderCleaningService:
 
 
 class VerbatimQuestionSelectionService:
-    OPEN_ENDED_HEADER_TOKENS = {
-        "what more",
-        "tell us more",
-        "please tell",
-        "how can",
-        "why",
-        "comment",
-        "feedback",
-        "describe",
-        "explain",
-        "share",
-        "support you",
-        "improve your experience",
-    }
-    CLOSED_ENDED_HEADER_TOKENS = {
-        "how important",
-        "how well",
-        "how likely",
-        "hours a week",
-        "give permission",
-        "permission",
-        "are you happy",
-        "marketing",
-        "awareness",
-        "usage",
-        "better than",
-        "less well",
-        "the same as",
-    }
+    HIGH_VARIATION_UNIQUE_RATIO_MIN = 0.35
+    HIGH_VARIATION_TOP10_COVERAGE_MAX = 0.55
+    HIGH_VARIATION_UNIQUE_COUNT_MIN = 10
+    MIN_VARIATION_ROW_COUNT = 20
+    LOW_VARIATION_UNIQUE_COUNT_MAX = 12
+    LOW_VARIATION_UNIQUE_RATIO_MAX = 0.1
+    LOW_VARIATION_TOP5_COVERAGE_MIN = 0.65
+    LOW_VARIATION_TOP10_COVERAGE_MIN = 0.8
 
     def score_columns(
         self,
@@ -272,62 +459,97 @@ class VerbatimQuestionSelectionService:
         avg_length = float(non_blank.str.len().mean())
         long_text_ratio = float((non_blank.str.len() >= 25).mean())
         numeric_ratio = float(pd.to_numeric(non_blank, errors="coerce").notna().mean())
-        top_value_ratio = float(non_blank.value_counts(normalize=True, dropna=True).iloc[0])
-        short_value_ratio = float((non_blank.str.len() <= 5).mean())
+        text_value_ratio = float(non_blank.str.contains(r"[^\W\d_]", regex=True).mean())
+        unique_count = int(non_blank.nunique(dropna=True))
+        value_distribution = non_blank.value_counts(normalize=True, dropna=True)
+        top5_coverage = float(value_distribution.head(5).sum())
+        top10_coverage = float(value_distribution.head(10).sum())
 
-        score = 0.0
-        if any(token in normalized_header for token in self.OPEN_ENDED_HEADER_TOKENS):
-            score += 2.5
-            reasons.append("header looks open-ended")
-        if any(token in normalized_header for token in self.CLOSED_ENDED_HEADER_TOKENS):
-            score -= 2.5
-            reasons.append("header looks closed-ended or rating-based")
-        if "|" in column_name:
-            score -= 2.0
-            reasons.append("matrix-style header pattern")
+        if numeric_ratio >= 1.0:
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["column is entirely numeric"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
 
-        if avg_length >= 40:
-            score += 2.0
-            reasons.append("answers are long-form")
-        elif avg_length >= 20:
-            score += 1.0
-            reasons.append("answers are moderately long")
-        else:
-            score -= 1.0
-            reasons.append("answers are short")
+        if text_value_ratio <= 0.0:
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["column does not contain text responses"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
 
-        if long_text_ratio >= 0.35:
-            score += 1.5
-            reasons.append("many answers are long text")
-        elif long_text_ratio >= 0.15:
-            score += 0.5
-
-        if unique_ratio >= 0.65:
-            score += 1.5
+        if self._looks_like_high_variation_text(
+            non_blank_count=int(len(non_blank)),
+            unique_count=unique_count,
+            unique_ratio=unique_ratio,
+            top10_coverage=top10_coverage,
+        ):
+            reasons.append("column contains text responses")
             reasons.append("answers are highly varied")
-        elif unique_ratio >= 0.35:
-            score += 0.75
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=10.0,
+                is_selected=True,
+                reasons=reasons,
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
 
-        if numeric_ratio <= 0.1:
-            score += 0.5
-        else:
-            score -= 2.0
-            reasons.append("answers are mostly numeric/coded")
+        if "|" in column_name:
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["pipe-separated matrix header"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
 
-        if top_value_ratio <= 0.3:
-            score += 0.75
-        elif top_value_ratio >= 0.6:
-            score -= 1.5
-            reasons.append("answers are dominated by one repeated value")
+        if self._looks_like_fixed_response_text(
+            non_blank_count=int(len(non_blank)),
+            unique_count=unique_count,
+            unique_ratio=unique_ratio,
+            top5_coverage=top5_coverage,
+            top10_coverage=top10_coverage,
+        ):
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["answers look like a fixed-response text set"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
 
-        if short_value_ratio >= 0.7:
-            score -= 1.0
-            reasons.append("most answers are very short")
+        reasons.append("column contains text responses")
+        reasons.append("answers are sufficiently varied")
 
         return VerbatimQuestionCandidate(
             column_name=column_name,
-            score=score,
-            is_selected=score >= min_score,
+            score=10.0,
+            is_selected=True,
             reasons=reasons,
             non_blank_count=int(len(non_blank)),
             unique_ratio=unique_ratio,
@@ -335,6 +557,77 @@ class VerbatimQuestionSelectionService:
             long_text_ratio=long_text_ratio,
             numeric_ratio=numeric_ratio,
         )
+
+    def _looks_like_high_variation_text(
+        self,
+        *,
+        non_blank_count: int,
+        unique_count: int,
+        unique_ratio: float,
+        top10_coverage: float,
+    ) -> bool:
+        if non_blank_count < self.MIN_VARIATION_ROW_COUNT:
+            return False
+
+        if unique_count < self.HIGH_VARIATION_UNIQUE_COUNT_MIN:
+            return False
+
+        return (
+            unique_ratio >= self.HIGH_VARIATION_UNIQUE_RATIO_MIN
+            or top10_coverage <= self.HIGH_VARIATION_TOP10_COVERAGE_MAX
+        )
+
+    def _looks_like_fixed_response_text(
+        self,
+        *,
+        non_blank_count: int,
+        unique_count: int,
+        unique_ratio: float,
+        top5_coverage: float,
+        top10_coverage: float,
+    ) -> bool:
+        if non_blank_count < self.MIN_VARIATION_ROW_COUNT:
+            return False
+
+        return (
+            (unique_count <= self.LOW_VARIATION_UNIQUE_COUNT_MAX and top5_coverage >= self.LOW_VARIATION_TOP5_COVERAGE_MIN)
+            or
+            (unique_ratio <= self.LOW_VARIATION_UNIQUE_RATIO_MAX and top10_coverage >= self.LOW_VARIATION_TOP10_COVERAGE_MIN)
+        )
+
+
+class AnalysisReadyDatasetService:
+    """Builds the final analysis-ready slice from a transformed dataframe."""
+
+    def __init__(
+        self,
+        metadata_selector: MetadataColumnSelectionService,
+        verbatim_selector: VerbatimQuestionSelectionService,
+        multipart_verbatim_consolidator: MultipartVerbatimConsolidationService,
+    ) -> None:
+        self.metadata_selector = metadata_selector
+        self.verbatim_selector = verbatim_selector
+        self.multipart_verbatim_consolidator = multipart_verbatim_consolidator
+
+    def build(self, df: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[str]]:
+        if df.empty:
+            metadata_columns = self.metadata_selector.select_columns(df)
+            return df.copy(), metadata_columns, []
+
+        metadata_columns = self.metadata_selector.select_columns(df)
+        working_df = self.multipart_verbatim_consolidator.consolidate(
+            df,
+            metadata_columns=metadata_columns,
+        )
+        verbatim_columns = self.verbatim_selector.select_columns(
+            working_df,
+            metadata_columns=metadata_columns,
+        )
+        selected_columns = metadata_columns + [
+            column for column in verbatim_columns
+            if column not in set(metadata_columns)
+        ]
+        return working_df[selected_columns].copy(), metadata_columns, verbatim_columns
 
 
 class VerticalRecordFilterService:

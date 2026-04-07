@@ -5,3 +5,7 @@ backend/.env
 .venv/
 venv/
 bq-results-20260213-113630-1770982673076.csv
+client_secret_*.json
+*.transformed.csv
+testfile2.csv
+backend/app/services/archserve

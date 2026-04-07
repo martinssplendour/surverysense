@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verbatim App Login</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="login-page">
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="brand-lockup">
+                <div class="brand-mark" aria-hidden="true">V</div>
+                <div>
+                    <p class="brand-name">Verbatim App</p>
+                </div>
+            </div>
+            <div class="step-pill">Google Sign-In</div>
+        </header>
+
+        <main class="workflow">
+            <section class="view upload-view is-active" aria-label="Google login">
+                <section class="upload-card login-card">
+                    <p class="panel-kicker">Access</p>
+                    <h2 class="login-title">Sign in with Google</h2>
+                    <div class="google-signin-wrap">
+                        <div id="google-signin-button"></div>
+                    </div>
+                    <p class="status-message status-neutral" id="login-status">Checking Google sign-in configuration.</p>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="/static/login.js" defer></script>
+</body>
+</html>

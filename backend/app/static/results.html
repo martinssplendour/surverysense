@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verbatim App Results</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="results-page">
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="brand-lockup">
+                <div class="brand-mark" aria-hidden="true">V</div>
+                <div>
+                    <p class="brand-name">Verbatim App</p>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <a class="button button-ghost topbar-link" href="/auth/logout">Sign Out</a>
+                <div class="step-pill">Step 2 of 2</div>
+            </div>
+        </header>
+
+        <main class="workflow">
+            <section class="view results-view" aria-label="Transformed data">
+                <section class="panel empty-state-panel" id="empty-state" hidden>
+                    <p class="panel-kicker">No Data</p>
+                    <h2 class="empty-state-title">No processed file is loaded.</h2>
+                    <p class="empty-state-text">Go back to the upload page, process a CSV, and the transformed result will open here.</p>
+                    <a class="button button-primary empty-state-action" href="/">Back to Upload</a>
+                </section>
+
+                <div class="results-header" id="results-header">
+                    <button type="button" class="button button-ghost" id="reset-btn">Process Another File</button>
+                </div>
+
+                <div class="summary-strip" id="summary-strip"></div>
+
+                <section class="panel preview-panel">
+                    <div class="section-heading">
+                        <div>
+                            <p class="panel-kicker">Preview</p>
+                            <h3>Transformed Data</h3>
+                        </div>
+                        <button type="button" class="button button-primary" id="analyze-btn">Analyze Verbatim Columns</button>
+                    </div>
+
+                    <div class="filter-bar" id="filter-bar" hidden>
+                        <div class="filter-bar-header">
+                            <p class="filter-bar-title">Filter By Metadata</p>
+                            <button type="button" class="button button-ghost filter-reset-button" id="clear-filters-btn">Clear Filters</button>
+                        </div>
+                        <div class="filter-controls-row">
+                            <label class="filter-field filter-field-wide" for="filter-column-select">
+                                <span class="filter-label">Metadata</span>
+                                <select id="filter-column-select"></select>
+                            </label>
+                            <label class="filter-field filter-field-wide" for="filter-value-select">
+                                <span class="filter-label">Filter</span>
+                                <select id="filter-value-select"></select>
+                            </label>
+                            <button type="button" class="button button-secondary filter-add-button" id="add-filter-btn">Add Filter</button>
+                        </div>
+                        <div class="active-filters" id="active-filters" hidden></div>
+                        <p class="filter-active-note" id="filter-active-note" hidden></p>
+                    </div>
+
+                    <div class="table-controls" id="table-controls" hidden>
+                        <label class="preview-toggle" for="verbatim-only-toggle">
+                            <input type="checkbox" id="verbatim-only-toggle">
+                            <span>Show only verbatim columns</span>
+                        </label>
+                        <div class="table-row-status" id="table-row-status" aria-live="polite"></div>
+                        <div class="table-scroll-control" id="table-scroll-control">
+                            <label class="table-slider-label" for="table-slider">Slide across columns</label>
+                            <input type="range" id="table-slider" min="0" max="0" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="table-empty" id="table-empty">The API did not return preview rows for this file.</div>
+                    <div class="table-wrap" id="table-wrap" hidden>
+                        <table id="preview-table"></table>
+                    </div>
+                </section>
+
+                <section class="panel analysis-panel" id="analysis-panel" hidden>
+                    <div class="section-heading">
+                        <div>
+                            <p class="panel-kicker">Analysis</p>
+                            <h3>Verbatim Column Insights</h3>
+                        </div>
+                    </div>
+
+                    <div class="analysis-summary" id="analysis-summary"></div>
+                    <div class="analysis-list" id="analysis-list"></div>
+                    <div class="table-row-status analysis-row-status" id="analysis-row-status" aria-live="polite"></div>
+
+                    <div class="table-empty analysis-table-empty" id="analysis-table-empty">The analysis-ready dataset does not contain preview rows.</div>
+                    <div class="table-wrap analysis-table-wrap" id="analysis-table-wrap" hidden>
+                        <table id="analysis-preview-table"></table>
+                    </div>
+                </section>
+
+                <details class="panel details-panel" id="details-panel">
+                    <summary>API Details</summary>
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Filename</span>
+                            <strong id="detail-filename">-</strong>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Encoding</span>
+                            <strong id="detail-encoding">-</strong>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Raw Rows</span>
+                            <strong id="detail-raw-rows">-</strong>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Raw Columns</span>
+                            <strong id="detail-raw-columns">-</strong>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Sample Rows</span>
+                            <strong id="detail-sample-rows">-</strong>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Architect Rows</span>
+                            <strong id="detail-architect-rows">-</strong>
+                        </div>
+                    </div>
+
+                    <div class="manifest-block">
+                        <p class="manifest-title">Transformation Manifest</p>
+                        <pre id="manifest-preview">{}</pre>
+                    </div>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/results.js" defer></script>
+</body>
+</html>

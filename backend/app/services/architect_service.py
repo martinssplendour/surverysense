@@ -258,12 +258,17 @@ class ManifestArchitectService:
             return None
 
         best_candidate: dict[str, Any] | None = None
-        best_score = 0.0
+        best_rank = (0.0, 0.0)
         for record_key_idx, question_idx, answer_idx in itertools.permutations(range(n_cols), 3):
             candidate = self._score_vertical_candidate(df_sample, record_key_idx, question_idx, answer_idx)
-            if candidate["score"] > best_score:
+            question_header_score = self._score_question_header_column(
+                df_sample.iloc[:, question_idx],
+                str(df_sample.columns[question_idx]),
+            )
+            candidate_rank = (candidate["score"], question_header_score)
+            if candidate_rank > best_rank:
                 best_candidate = candidate
-                best_score = candidate["score"]
+                best_rank = candidate_rank
 
         if not best_candidate or best_candidate["score"] < 6.5:
             return None
@@ -346,10 +351,7 @@ class ManifestArchitectService:
             record_key_header,
             {"response_id", "respondent", "submission", "record", "user_id", "id"},
         ) * 2.0
-        score += self._header_hint_score(
-            question_header,
-            {"question", "prompt", "item", "topic", "title", "full_title", "main_title", "sub_title"},
-        ) * 1.5
+        score += self._question_header_name_score(question_header)
         score += self._header_hint_score(
             answer_header,
             {"answer", "response", "comment", "feedback", "verbatim", "text", "value"},
@@ -378,9 +380,10 @@ class ManifestArchitectService:
                 scored_columns.append((idx, score))
 
         scored_columns.sort(key=lambda item: (-item[1], item[0]))
-        ordered = [primary_question_idx]
-        ordered.extend(idx for idx, _ in scored_columns if idx != primary_question_idx)
-        return list(dict.fromkeys(ordered))
+        ordered = [idx for idx, _ in scored_columns]
+        if primary_question_idx not in ordered:
+            ordered.insert(0, primary_question_idx)
+        return ordered
 
     def _detect_helper_indices(self, df_sample: pd.DataFrame, *, exclude_indices: set[int]) -> list[int]:
         helper_indices: list[int] = []
@@ -451,17 +454,25 @@ class ManifestArchitectService:
         if avg_length >= 20:
             score += 0.5
 
+        return score + ManifestArchitectService._question_header_name_score(header_name)
+
+    @staticmethod
+    def _question_header_name_score(header_name: str) -> float:
         normalized_header = header_name.strip().casefold()
+        score = 0.0
+        if "survey_title" in normalized_header or normalized_header in {"survey name", "survey_name"}:
+            score -= 3.0
         if "full_title" in normalized_header:
             score += 2.5
         if "main_title" in normalized_header:
             score += 1.75
         if "sub_title" in normalized_header:
             score += 1.25
-        score += ManifestArchitectService._header_hint_score(
-            normalized_header,
-            {"question", "prompt", "item", "topic", "title"},
-        )
+        if any(
+            token in normalized_header
+            for token in {"question_text", "question", "prompt", "item", "topic"}
+        ):
+            score += 1.0
         return score
 
     @staticmethod

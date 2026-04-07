@@ -7,6 +7,7 @@ from app.models.manifest import LayoutState, TransformationManifest
 from app.services.cleaning_services import (
     DuplicateAnswerResolutionService,
     MetadataConsolidationService,
+    MultipartVerbatimConsolidationService,
     NullScrubbingService,
     QuestionHeaderResolutionService,
     TextNormalizationService,
@@ -32,6 +33,7 @@ class DataTransformationService:
         null_scrubber: NullScrubbingService,
         question_header_resolver: QuestionHeaderResolutionService,
         verbatim_header_cleaner: VerbatimHeaderCleaningService,
+        multipart_verbatim_consolidator: MultipartVerbatimConsolidationService,
         vertical_record_filter: VerticalRecordFilterService,
         duplicate_answer_resolver: DuplicateAnswerResolutionService,
         metadata_consolidator: MetadataConsolidationService,
@@ -42,6 +44,7 @@ class DataTransformationService:
         self.null_scrubber = null_scrubber
         self.question_header_resolver = question_header_resolver
         self.verbatim_header_cleaner = verbatim_header_cleaner
+        self.multipart_verbatim_consolidator = multipart_verbatim_consolidator
         self.vertical_record_filter = vertical_record_filter
         self.duplicate_answer_resolver = duplicate_answer_resolver
         self.metadata_consolidator = metadata_consolidator
@@ -60,6 +63,10 @@ class DataTransformationService:
 
         transformed_df = self.text_normalizer.clean_dataframe(transformed_df)
         transformed_df = self.null_scrubber.scrub_dataframe(transformed_df, manifest.null_equivalents)
+        transformed_df = self.multipart_verbatim_consolidator.consolidate(
+            transformed_df,
+            metadata_columns=metadata_columns,
+        )
         transformed_df = self.verbatim_header_cleaner.clean_and_sort(
             transformed_df,
             metadata_columns=metadata_columns,

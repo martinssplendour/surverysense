@@ -1,0 +1,43 @@
+import unittest
+
+from fastapi.testclient import TestClient
+
+from app.main import create_app
+
+
+class AuthRedirectTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(create_app())
+
+    def test_root_redirects_to_login_when_not_authenticated(self) -> None:
+        response = self.client.get(
+            "/",
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers.get("location"), "/login")
+
+    def test_results_redirects_to_login_when_not_authenticated(self) -> None:
+        response = self.client.get(
+            "/results",
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers.get("location"), "/login")
+
+    def test_api_request_stays_unauthorized_instead_of_html_redirect(self) -> None:
+        response = self.client.get(
+            "/result-rows/example?dataset=transformed&offset=0&limit=10",
+            headers={"accept": "application/json"},
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+
+if __name__ == "__main__":
+    unittest.main()
