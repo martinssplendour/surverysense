@@ -33,6 +33,20 @@ from app.services.encoding_service import EncodingDetectionService
 from app.services.google_oauth_service import GoogleOAuthService
 from app.services.metadata_filter_service import MetadataFilterService
 from app.services.result_store_service import ResultStoreService
+from app.services.topic_analysis_services import (
+    BertopicAnalysisService,
+    HdbscanAnalysisService,
+    KMeansAnalysisService,
+    NgramAnalysisService,
+    RepresentativeExampleSelectionService,
+    SentenceEmbeddingService,
+    TopicAnalysisConfig,
+    TopicAnalysisInputValidationService,
+    TopicAnalysisKeywordService,
+    TopicAnalysisNarrativeService,
+    TopicAnalysisService,
+    TopicAnalysisTextPreparationService,
+)
 from app.services.transformation_service import DataTransformationService
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -98,8 +112,41 @@ def create_app() -> FastAPI:
         metadata_selector=MetadataColumnSelectionService(),
         verbatim_selector=VerbatimQuestionSelectionService(),
         multipart_verbatim_consolidator=MultipartVerbatimConsolidationService(text_normalizer),
+        row_filter=VerbatimRowFilterService(),
     )
-    result_store_service = ResultStoreService(MetadataFilterService())
+    result_store_service = ResultStoreService(
+        MetadataFilterService(),
+        analysis_ready_service=analysis_ready_service,
+    )
+    keyword_service = TopicAnalysisKeywordService()
+    narrative_service = TopicAnalysisNarrativeService(keyword_service)
+    topic_analysis_service = TopicAnalysisService(
+        config=TopicAnalysisConfig(
+            embedding_model=settings.topic_embedding_model,
+            kmeans_clusters=settings.topic_kmeans_clusters,
+            kmeans_random_state=settings.topic_kmeans_random_state,
+            hdbscan_min_cluster_size=settings.topic_hdbscan_min_cluster_size,
+            hdbscan_min_samples=settings.topic_hdbscan_min_samples,
+            hdbscan_metric=settings.topic_hdbscan_metric,
+            bertopic_language=settings.topic_bertopic_language,
+            top_terms_per_group=settings.topic_top_terms,
+            top_ngrams_per_bucket=settings.topic_top_ngrams,
+            representative_examples_per_group=settings.topic_representative_examples,
+            max_document_chars=settings.topic_max_document_chars,
+        ),
+        input_validation_service=TopicAnalysisInputValidationService(),
+        text_preparation_service=TopicAnalysisTextPreparationService(
+            max_document_chars=settings.topic_max_document_chars,
+        ),
+        keyword_service=keyword_service,
+        narrative_service=narrative_service,
+        representative_example_service=RepresentativeExampleSelectionService(),
+        embedding_service=SentenceEmbeddingService(),
+        ngram_service=NgramAnalysisService(keyword_service),
+        kmeans_service=KMeansAnalysisService(),
+        hdbscan_service=HdbscanAnalysisService(),
+        bertopic_service=BertopicAnalysisService(),
+    )
 
     app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
     app.add_middleware(AuthRedirectMiddleware)
@@ -117,8 +164,10 @@ def create_app() -> FastAPI:
             architect_service=architect_service,
             transformation_service=transformation_service,
             analysis_ready_service=analysis_ready_service,
+            topic_analysis_service=topic_analysis_service,
             result_store_service=result_store_service,
             preview_size=settings.transformed_preview_size,
+            architect_sample_size=settings.architect_sample_size,
         )
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -139,7 +188,7 @@ def create_app() -> FastAPI:
     async def results(request: Request):
         if get_authenticated_user(request) is None:
             return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-        return FileResponse(STATIC_DIR / "results.html")
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:

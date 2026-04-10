@@ -1,23 +1,31 @@
 from __future__ import annotations
 
 import json
+import logging
 
-import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
 
 from app.core.auth import require_authenticated_user
 from app.core.exceptions import CsvDecodeError, IngestionError, RowLimitExceededError
 from app.models.api import (
+    AnalysisRunRequest,
+    AnalysisRunResponse,
+    ColumnRoleUpdateRequest,
+    ColumnRoleUpdateResponse,
+    DiagnosticConfigResponse,
     MetadataFilterDefinitionModel,
     MetadataFilterOptionModel,
     ResultRowsResponse,
     UploadIngestResponse,
 )
-from app.services.architect_service import ManifestArchitectService
+from app.services.architect_service import DiagnosticMode, ManifestArchitectService
 from app.services.cleaning_services import AnalysisReadyDatasetService
 from app.services.csv_ingestion_service import CsvIngestionService
 from app.services.result_store_service import ResultNotFoundError, ResultStoreService
+from app.services.topic_analysis_services import TopicAnalysisService
 from app.services.transformation_service import DataTransformationService
+
+logger = logging.getLogger(__name__)
 
 
 def build_ingest_router(
@@ -25,8 +33,10 @@ def build_ingest_router(
     architect_service: ManifestArchitectService,
     transformation_service: DataTransformationService,
     analysis_ready_service: AnalysisReadyDatasetService,
+    topic_analysis_service: TopicAnalysisService,
     result_store_service: ResultStoreService,
     preview_size: int,
+    architect_sample_size: int,
 ) -> APIRouter:
     router = APIRouter(tags=["ingestion"])
 
@@ -81,8 +91,22 @@ def build_ingest_router(
             normalized[key] = values
         return normalized
 
+    @router.get("/diagnostic-config", response_model=DiagnosticConfigResponse)
+    async def diagnostic_config(request: Request) -> DiagnosticConfigResponse:
+        require_authenticated_user(request)
+        default_mode = architect_service.default_diagnostic_mode()
+        return DiagnosticConfigResponse(
+            ai_available=architect_service.is_ai_available(),
+            default_diagnostic_mode=default_mode.value,
+            architect_row_count=architect_sample_size,
+        )
+
     @router.post("/upload-ingest", response_model=UploadIngestResponse)
-    async def upload_ingest(request: Request, file: UploadFile = File(...)) -> UploadIngestResponse:
+    async def upload_ingest(
+        request: Request,
+        file: UploadFile = File(...),
+        diagnostic_mode: DiagnosticMode = Form(DiagnosticMode.AI),
+    ) -> UploadIngestResponse:
         require_authenticated_user(request)
         if file.filename and not file.filename.lower().endswith(".csv"):
             raise HTTPException(
@@ -99,9 +123,21 @@ def build_ingest_router(
 
         try:
             ingested = ingestion_service.ingest(payload)
+            logger.info(
+                "Upload ingest started for file=%s with diagnostic_mode=%s.",
+                file.filename or "upload.csv",
+                diagnostic_mode.value,
+            )
             manifest = architect_service.get_transformation_manifest(
                 ingested.architect_df,
                 ingested.column_index_map,
+                diagnostic_mode=diagnostic_mode,
+            )
+            logger.info(
+                "Manifest built for file=%s using source=%s and layout=%s.",
+                file.filename or "upload.csv",
+                manifest.diagnostic_source,
+                manifest.layout_state,
             )
             transformed_df = transformation_service.transform(ingested.dataframe, manifest)
             analysis_df, analysis_metadata_columns, analysis_verbatim_columns = analysis_ready_service.build(
@@ -111,14 +147,13 @@ def build_ingest_router(
                 transformed_df,
                 analysis_df,
                 metadata_columns=analysis_metadata_columns,
+                verbatim_columns=analysis_verbatim_columns,
             )
         except (CsvDecodeError, RowLimitExceededError, IngestionError) as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
-        preview_df = transformed_df.head(preview_size).where(pd.notna(transformed_df.head(preview_size)), None)
-        analysis_preview_df = analysis_df.head(preview_size).where(pd.notna(analysis_df.head(preview_size)), None)
         return UploadIngestResponse(
             result_id=result_id,
             filename=file.filename or "upload.csv",
@@ -132,12 +167,66 @@ def build_ingest_router(
             manifest=manifest,
             transformed_row_count=int(len(transformed_df)),
             transformed_column_names=transformed_df.columns.tolist(),
-            transformed_preview_rows=preview_df.to_dict(orient="records"),
+            transformed_preview_rows=[],
             analysis_metadata_column_names=analysis_metadata_columns,
             analysis_verbatim_column_names=analysis_verbatim_columns,
             analysis_row_count=int(len(analysis_df)),
             analysis_column_names=analysis_df.columns.tolist(),
-            analysis_preview_rows=analysis_preview_df.to_dict(orient="records"),
+            analysis_preview_rows=[],
+            available_filters=serialize_filters(result_id),
+        )
+
+    @router.post("/run-analysis/{result_id}", response_model=AnalysisRunResponse)
+    async def run_analysis(
+        request: Request,
+        result_id: str,
+        analysis_request: AnalysisRunRequest,
+    ) -> AnalysisRunResponse:
+        require_authenticated_user(request)
+        try:
+            selection = result_store_service.get_dataset(
+                result_id,
+                dataset="analysis",
+                filters=analysis_request.filters,
+            )
+        except ResultNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        result = topic_analysis_service.run(
+            result_id=result_id,
+            dataframe=selection.dataframe,
+            model_key=analysis_request.model_key,
+            text_column_name=analysis_request.text_column_name,
+            available_verbatim_columns=selection.verbatim_columns,
+        )
+        return AnalysisRunResponse.model_validate(result)
+
+    @router.post("/result-columns/{result_id}", response_model=ColumnRoleUpdateResponse)
+    async def update_result_columns(
+        request: Request,
+        result_id: str,
+        update_request: ColumnRoleUpdateRequest,
+    ) -> ColumnRoleUpdateResponse:
+        require_authenticated_user(request)
+        try:
+            stored = result_store_service.update_column_role(
+                result_id,
+                column_name=update_request.column_name,
+                role=update_request.role,
+            )
+        except ResultNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        return ColumnRoleUpdateResponse(
+            result_id=result_id,
+            analysis_metadata_column_names=list(stored.metadata_columns),
+            analysis_verbatim_column_names=list(stored.verbatim_columns),
+            analysis_row_count=int(len(stored.analysis_df)),
+            analysis_column_names=stored.analysis_df.columns.tolist(),
             available_filters=serialize_filters(result_id),
         )
 

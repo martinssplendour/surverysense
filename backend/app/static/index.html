@@ -16,8 +16,8 @@
                 </div>
             </div>
             <div class="topbar-actions">
+                <button type="button" class="button button-ghost topbar-link" id="upload-data-btn" hidden>Upload Data</button>
                 <a class="button button-ghost topbar-link" href="/auth/logout">Sign Out</a>
-                <div class="step-pill" id="step-pill">Step 1 of 2</div>
             </div>
         </header>
 
@@ -32,16 +32,182 @@
                     </label>
 
                     <div class="upload-actions">
-                        <button type="button" class="button button-secondary" id="choose-file-btn">Choose File</button>
                         <button type="submit" class="button button-primary" id="process-btn" disabled>Process File</button>
                     </div>
 
                     <p class="status-message status-neutral" id="status-message">Waiting for a CSV upload.</p>
                 </form>
             </section>
+
+            <section class="view results-view" id="results-view" aria-label="Processed data" hidden>
+                <section class="panel dashboard-panel" id="dashboard-panel">
+                    <div class="dashboard-upload-card">
+                        <div class="dashboard-ready-block">
+                            <div class="dashboard-upload-status">
+                                <span class="dashboard-upload-check" aria-hidden="true">✓</span>
+                                <h2 class="dashboard-ready-title">Your data is ready</h2>
+                            </div>
+                            <p class="dashboard-upload-filename" id="dashboard-file-name">upload.csv</p>
+                        </div>
+
+                        <div class="dashboard-divider" aria-hidden="true"></div>
+
+                        <div class="dashboard-actions">
+                            <button type="button" class="button button-primary dashboard-primary-action" id="open-analysis-btn">Analyze Verbatim Columns</button>
+                        </div>
+
+                        <div class="dashboard-divider" aria-hidden="true"></div>
+
+                        <div class="dashboard-summary-section">
+                            <h3 class="dashboard-summary-title">Data Summary</h3>
+                            <div class="dashboard-metrics" id="dashboard-metrics"></div>
+                            <button type="button" class="dashboard-data-link" id="open-data-btn">Clean data <span aria-hidden="true">&rarr;</span></button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel analysis-panel" id="analysis-panel" hidden>
+                    <div class="section-heading">
+                        <div>
+                            <p class="panel-kicker">Analysis</p>
+                            <h3>Analyze Data</h3>
+                        </div>
+                        <button type="button" class="button button-ghost" id="back-to-dashboard-analysis-btn">Back To Dashboard</button>
+                    </div>
+
+                    <div class="analysis-controls">
+                        <label class="filter-field filter-field-wide" for="analysis-column-select">
+                            <span class="filter-label">Verbatim Question</span>
+                            <select id="analysis-column-select"></select>
+                        </label>
+                        <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
+                    </div>
+
+                    <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
+                    <p class="analysis-help" id="analysis-help">
+                        Choose one verbatim question, pick one analysis method, and run it.
+                    </p>
+                    <div class="analysis-message" id="analysis-message" hidden></div>
+                    <div class="analysis-summary" id="analysis-summary"></div>
+                    <div class="analysis-chart" id="analysis-chart" hidden></div>
+                    <div class="analysis-list" id="analysis-list"></div>
+                    <div class="analysis-ngram-grid" id="analysis-ngram-grid"></div>
+                </section>
+
+                <section class="panel preview-panel" id="data-panel" hidden>
+                    <div class="section-heading">
+                        <div>
+                            <p class="panel-kicker">Data</p>
+                            <h3>Clean Data</h3>
+                        </div>
+                        <div class="workspace-actions">
+                            <button type="button" class="button button-primary" id="data-analyse-btn">Analyze Data</button>
+                            <button type="button" class="button button-ghost" id="edit-columns-btn">Edit Columns</button>
+                            <button type="button" class="button button-ghost" id="back-to-dashboard-data-btn">Back To Dashboard</button>
+                        </div>
+                    </div>
+
+                    <section class="filter-bar" id="filter-bar">
+                        <div class="filter-chip-row">
+                            <span class="filter-chip-row-label">Filters:</span>
+                            <div class="active-filters" id="active-filters" hidden></div>
+                            <button type="button" class="button button-ghost filter-open-button" id="open-filter-modal-btn">+ Add Filter</button>
+                        </div>
+                        <p class="filter-active-note" id="filter-active-note">Metadata filters apply to both the data table and analysis.</p>
+                    </section>
+
+                    <div class="table-controls" id="table-controls" hidden>
+                        <label class="preview-toggle" for="verbatim-toggle">
+                            <input type="checkbox" id="verbatim-toggle">
+                            <span>Show only verbatim columns</span>
+                        </label>
+                        <div class="table-row-status" id="table-row-status" aria-live="polite"></div>
+                        <div class="table-scroll-control" id="table-scroll-control">
+                            <label class="table-slider-label" id="table-slider-label" for="table-slider">Slide across columns</label>
+                            <input type="range" id="table-slider" min="0" max="0" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="table-empty" id="table-empty">The API did not return preview rows for this file.</div>
+                    <div class="table-wrap" id="table-wrap" hidden>
+                        <table id="preview-table"></table>
+                    </div>
+                </section>
+            </section>
         </main>
     </div>
 
+    <div class="modal-shell" id="filter-modal" hidden>
+        <div class="modal-backdrop" id="filter-backdrop"></div>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
+            <div class="modal-header">
+                <div>
+                    <p class="panel-kicker">Filters</p>
+                    <h3 id="filter-modal-title">Add Filter</h3>
+                </div>
+                <button type="button" class="button button-ghost" id="close-filter-modal-btn">Close</button>
+            </div>
+
+            <div class="modal-body">
+                <label class="filter-field" for="filter-column-select">
+                    <span class="filter-label">Metadata</span>
+                    <select id="filter-column-select"></select>
+                </label>
+                <label class="filter-field filter-field-wide" for="filter-value-select">
+                    <span class="filter-label">Filter</span>
+                    <select id="filter-value-select"></select>
+                </label>
+                <div class="modal-role-controls">
+                    <div></div>
+                    <button type="button" class="button button-primary filter-add-button" id="add-filter-btn">Add Filter</button>
+                </div>
+                <div class="analysis-message" id="filter-modal-message" hidden></div>
+            </div>
+        </section>
+    </div>
+
+    <div class="modal-shell" id="column-role-modal" hidden>
+        <div class="modal-backdrop" id="column-role-backdrop"></div>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="column-role-title">
+            <div class="modal-header">
+                <div>
+                    <p class="panel-kicker">Columns</p>
+                    <h3 id="column-role-title">Edit Column Headers</h3>
+                </div>
+                <button type="button" class="button button-ghost" id="close-column-role-modal-btn">Close</button>
+            </div>
+
+            <div class="modal-body">
+                <label class="filter-field filter-field-wide" for="column-role-search">
+                    <span class="filter-label">Search Columns</span>
+                    <input type="search" id="column-role-search" class="modal-search-input" placeholder="Search for a column">
+                </label>
+
+                <label class="filter-field filter-field-wide" for="column-role-select">
+                    <span class="filter-label">Columns</span>
+                    <select id="column-role-select" size="10" class="modal-column-select"></select>
+                </label>
+
+                <p class="modal-current-role" id="column-role-current">Current role: not assigned</p>
+
+                <div class="modal-role-controls">
+                    <label class="filter-field" for="column-role-type-select">
+                        <span class="filter-label">Assign As</span>
+                        <select id="column-role-type-select">
+                            <option value="verbatim">Verbatim</option>
+                            <option value="metadata">Metadata</option>
+                        </select>
+                    </label>
+                    <button type="button" class="button button-primary" id="apply-column-role-btn">Add</button>
+                </div>
+
+                <div class="analysis-message" id="column-role-message" hidden></div>
+            </div>
+        </section>
+    </div>
+
     <script src="/static/upload.js" defer></script>
+    <script src="/static/results.js" defer></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
 </body>
 </html>

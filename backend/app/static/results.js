@@ -1,12 +1,24 @@
+(function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
 const ROW_PAGE_SIZE = 250;
 const INITIAL_VISIBLE_ROW_TARGET = 250;
+const FULL_DATA_ROW_PAGE_SIZE = 50;
+const FULL_DATA_INITIAL_VISIBLE_ROW_TARGET = 50;
+const FULL_DATA_VISIBLE_COLUMN_COUNT = 12;
+const ANALYSIS_MODE_OPTIONS = [
+    { key: "bertopic", label: "BERTopic", description: "AI-generated themes and representative responses." },
+    { key: "kmeans", label: "K-means", description: "Group similar responses into clear categories." },
+    { key: "hdbscan", label: "HDBSCAN", description: "Find natural response groups and outliers." },
+    { key: "ngrams", label: "N-grams", description: "Show the most common words and phrases." },
+];
 
 const state = {
     response: null,
     resultId: null,
     analysisMetadataColumns: [],
     analysisVerbatimColumns: [],
+    transformedColumnNames: [],
+    analysisColumnNames: [],
     availableFilters: [],
     selectedFilterColumn: "",
     selectedFilterValue: "",
@@ -22,66 +34,155 @@ const state = {
     analysisHasMore: false,
     transformedLoading: false,
     analysisLoading: false,
+    selectedAnalysisColumn: "",
+    selectedAnalysisModel: "bertopic",
+    analysisResult: null,
+    analysisRunning: false,
+    currentWorkspace: "dashboard",
+    previewColumnOffset: 0,
+    columnSearchTerm: "",
 };
 
 const elements = {
     emptyState: document.getElementById("empty-state"),
-    resultsHeader: document.getElementById("results-header"),
-    summaryStrip: document.getElementById("summary-strip"),
+    uploadView: document.getElementById("upload-view"),
+    resultsView: document.getElementById("results-view"),
+    stepPill: document.getElementById("step-pill"),
+    uploadDataButton: document.getElementById("upload-data-btn"),
+    dashboardPanel: document.getElementById("dashboard-panel"),
+    dashboardFileName: document.getElementById("dashboard-file-name"),
+    dashboardMetrics: document.getElementById("dashboard-metrics"),
+    openAnalysisButton: document.getElementById("open-analysis-btn"),
+    openDataButton: document.getElementById("open-data-btn"),
     filterBar: document.getElementById("filter-bar"),
+    openFilterModalButton: document.getElementById("open-filter-modal-btn"),
     filterColumnSelect: document.getElementById("filter-column-select"),
     filterValueSelect: document.getElementById("filter-value-select"),
     addFilterButton: document.getElementById("add-filter-btn"),
     activeFilters: document.getElementById("active-filters"),
     filterActiveNote: document.getElementById("filter-active-note"),
-    clearFiltersButton: document.getElementById("clear-filters-btn"),
+    filterModal: document.getElementById("filter-modal"),
+    filterBackdrop: document.getElementById("filter-backdrop"),
+    closeFilterModalButton: document.getElementById("close-filter-modal-btn"),
+    filterModalMessage: document.getElementById("filter-modal-message"),
     tableControls: document.getElementById("table-controls"),
+    verbatimToggle: document.getElementById("verbatim-toggle"),
     tableScrollControl: document.getElementById("table-scroll-control"),
+    tableSliderLabel: document.getElementById("table-slider-label"),
     tableRowStatus: document.getElementById("table-row-status"),
-    previewToggle: document.getElementById("verbatim-only-toggle"),
     tableSlider: document.getElementById("table-slider"),
     tableEmpty: document.getElementById("table-empty"),
     tableWrap: document.getElementById("table-wrap"),
     previewTable: document.getElementById("preview-table"),
-    analyzeButton: document.getElementById("analyze-btn"),
+    dataPanel: document.getElementById("data-panel"),
+    dataAnalyseButton: document.getElementById("data-analyse-btn"),
+    editColumnsButton: document.getElementById("edit-columns-btn"),
+    backToDashboardDataButton: document.getElementById("back-to-dashboard-data-btn"),
+    columnRoleModal: document.getElementById("column-role-modal"),
+    columnRoleBackdrop: document.getElementById("column-role-backdrop"),
+    closeColumnRoleModalButton: document.getElementById("close-column-role-modal-btn"),
+    columnRoleSearch: document.getElementById("column-role-search"),
+    columnRoleSelect: document.getElementById("column-role-select"),
+    columnRoleCurrent: document.getElementById("column-role-current"),
+    columnRoleTypeSelect: document.getElementById("column-role-type-select"),
+    applyColumnRoleButton: document.getElementById("apply-column-role-btn"),
+    columnRoleMessage: document.getElementById("column-role-message"),
     analysisPanel: document.getElementById("analysis-panel"),
+    backToDashboardAnalysisButton: document.getElementById("back-to-dashboard-analysis-btn"),
+    analysisColumnSelect: document.getElementById("analysis-column-select"),
+    analysisMethods: document.getElementById("analysis-methods"),
+    analysisHelp: document.getElementById("analysis-help"),
+    analysisMessage: document.getElementById("analysis-message"),
     analysisSummary: document.getElementById("analysis-summary"),
+    analysisChart: document.getElementById("analysis-chart"),
     analysisList: document.getElementById("analysis-list"),
-    analysisRowStatus: document.getElementById("analysis-row-status"),
-    analysisTableEmpty: document.getElementById("analysis-table-empty"),
-    analysisTableWrap: document.getElementById("analysis-table-wrap"),
-    analysisPreviewTable: document.getElementById("analysis-preview-table"),
-    resetButton: document.getElementById("reset-btn"),
-    detailsPanel: document.getElementById("details-panel"),
-    detailFilename: document.getElementById("detail-filename"),
-    detailEncoding: document.getElementById("detail-encoding"),
-    detailRawRows: document.getElementById("detail-raw-rows"),
-    detailRawColumns: document.getElementById("detail-raw-columns"),
-    detailSampleRows: document.getElementById("detail-sample-rows"),
-    detailArchitectRows: document.getElementById("detail-architect-rows"),
-    manifestPreview: document.getElementById("manifest-preview"),
+    analysisNgramGrid: document.getElementById("analysis-ngram-grid"),
+    runAnalysisButton: document.getElementById("run-analysis-btn"),
 };
 
-bindEvents();
-loadResultsPage();
+if (elements.dashboardPanel && elements.openAnalysisButton && elements.openDataButton) {
+    bindEvents();
+    void loadResultsPage();
+    window.verbatimApplyProcessedResult = applyPayload;
+    window.verbatimShowUploadState = resetToUploadState;
+    window.addEventListener("verbatim:result-ready", (event) => {
+        const payload = event instanceof CustomEvent ? event.detail : null;
+        if (isValidStoredPayload(payload)) {
+            applyPayload(payload);
+            return;
+        }
+        void loadResultsPage();
+    });
+}
 
 function bindEvents() {
-    elements.resetButton.addEventListener("click", () => {
-        sessionStorage.removeItem(RESULT_STORAGE_KEY);
-        window.location.assign("/");
+    elements.uploadDataButton?.addEventListener("click", () => {
+        resetToUploadState();
     });
-
-    elements.analyzeButton.addEventListener("click", renderAnalysis);
-    elements.previewToggle.addEventListener("change", handlePreviewToggle);
+    elements.openAnalysisButton.addEventListener("click", () => {
+        void openWorkspace("analysis");
+    });
+    elements.openDataButton.addEventListener("click", () => {
+        void openWorkspace("data");
+    });
+    elements.dataAnalyseButton?.addEventListener("click", () => {
+        void openWorkspace("analysis");
+    });
+    elements.openFilterModalButton?.addEventListener("click", () => {
+        openFilterModal();
+    });
+    elements.editColumnsButton?.addEventListener("click", () => {
+        openColumnRoleModal();
+    });
+    elements.backToDashboardAnalysisButton.addEventListener("click", () => {
+        openWorkspace("dashboard");
+    });
+    elements.backToDashboardDataButton.addEventListener("click", () => {
+        openWorkspace("dashboard");
+    });
+    elements.columnRoleBackdrop?.addEventListener("click", closeColumnRoleModal);
+    elements.closeColumnRoleModalButton?.addEventListener("click", closeColumnRoleModal);
+    elements.columnRoleSearch?.addEventListener("input", handleColumnRoleSearch);
+    elements.columnRoleSelect?.addEventListener("change", renderColumnRoleSelectionState);
+    elements.applyColumnRoleButton?.addEventListener("click", () => {
+        void applyColumnRoleChange();
+    });
+    elements.filterBackdrop?.addEventListener("click", closeFilterModal);
+    elements.closeFilterModalButton?.addEventListener("click", closeFilterModal);
+    elements.filterColumnSelect?.addEventListener("change", handleFilterColumnChange);
+    elements.filterValueSelect?.addEventListener("change", handleFilterValueChange);
+    elements.addFilterButton?.addEventListener("click", () => {
+        void handleAddFilter();
+    });
+    elements.activeFilters?.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const removeButton = target.closest("[data-remove-filter]");
+        if (!(removeButton instanceof HTMLElement)) {
+            return;
+        }
+        const columnName = removeButton.dataset.removeFilter;
+        if (!columnName) {
+            return;
+        }
+        if (columnName === "__all__") {
+            void handleClearFilters();
+            return;
+        }
+        void removeActiveFilter(columnName);
+    });
+    elements.verbatimToggle?.addEventListener("change", () => {
+        void handlePreviewModeChange();
+    });
     elements.tableSlider.addEventListener("input", handleSliderInput);
     elements.tableWrap.addEventListener("scroll", handlePreviewTableScroll);
-    elements.analysisTableWrap.addEventListener("scroll", handleAnalysisTableScroll);
-    elements.filterColumnSelect.addEventListener("change", handleFilterColumnChange);
-    elements.filterValueSelect.addEventListener("change", handleFilterValueChange);
-    elements.addFilterButton.addEventListener("click", handleAddFilter);
-    elements.activeFilters.addEventListener("click", handleRemoveFilter);
-    elements.clearFiltersButton.addEventListener("click", clearAllFilters);
+    elements.analysisColumnSelect.addEventListener("change", handleAnalysisColumnChange);
+    elements.analysisMethods.addEventListener("click", handleAnalysisMethodClick);
+    elements.runAnalysisButton.addEventListener("click", handleRunAnalysis);
     window.addEventListener("resize", syncSliderRange);
+    window.addEventListener("resize", resizeAnalysisPlots);
 }
 
 async function loadResultsPage() {
@@ -91,6 +192,10 @@ async function loadResultsPage() {
         return;
     }
 
+    applyPayload(payload);
+}
+
+function applyPayload(payload) {
     state.response = payload;
     state.resultId = typeof payload.result_id === "string" ? payload.result_id : null;
     state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
@@ -98,6 +203,12 @@ async function loadResultsPage() {
         : [];
     state.analysisVerbatimColumns = Array.isArray(payload.analysis_verbatim_column_names)
         ? payload.analysis_verbatim_column_names
+        : [];
+    state.transformedColumnNames = Array.isArray(payload.transformed_column_names)
+        ? payload.transformed_column_names
+        : [];
+    state.analysisColumnNames = Array.isArray(payload.analysis_column_names)
+        ? payload.analysis_column_names
         : [];
     state.availableFilters = Array.isArray(payload.available_filters)
         ? payload.available_filters
@@ -119,9 +230,16 @@ async function loadResultsPage() {
     state.analysisHasMore = state.analysisRows.length < state.analysisTotalRows;
     state.transformedLoading = false;
     state.analysisLoading = false;
+    state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
+    state.selectedAnalysisModel = "bertopic";
+    state.analysisResult = null;
+    state.analysisRunning = false;
+    state.currentWorkspace = "dashboard";
+    state.showOnlyVerbatim = false;
+    state.previewColumnOffset = 0;
+    state.columnSearchTerm = "";
 
     renderResults(payload);
-    await warmInitialRows();
 }
 
 function readStoredPayload() {
@@ -132,7 +250,7 @@ function readStoredPayload() {
 
     try {
         const parsed = JSON.parse(raw);
-        if (!parsed || !Array.isArray(parsed.transformed_column_names)) {
+        if (!isValidStoredPayload(parsed)) {
             return null;
         }
         return parsed;
@@ -141,118 +259,352 @@ function readStoredPayload() {
     }
 }
 
+function isValidStoredPayload(payload) {
+    return Boolean(payload) && Array.isArray(payload.transformed_column_names);
+}
+
 function showEmptyState() {
-    elements.emptyState.hidden = false;
-    elements.resultsHeader.hidden = true;
-    elements.summaryStrip.hidden = true;
-    elements.filterBar.hidden = true;
-    elements.activeFilters.hidden = true;
-    elements.filterActiveNote.hidden = true;
+    document.body.classList.remove("data-workspace-active");
+    closeFilterModal();
+    closeColumnRoleModal();
+    if (elements.uploadView && elements.resultsView) {
+        elements.uploadView.hidden = false;
+        elements.resultsView.hidden = true;
+        if (elements.uploadDataButton) {
+            elements.uploadDataButton.hidden = true;
+        }
+        if (elements.stepPill) {
+            elements.stepPill.textContent = "Step 1 of 2";
+        }
+        if (elements.emptyState) {
+            elements.emptyState.hidden = true;
+        }
+    } else if (elements.emptyState) {
+        elements.emptyState.hidden = false;
+    }
+    elements.dashboardPanel.hidden = true;
     elements.tableControls.hidden = true;
     elements.tableRowStatus.textContent = "";
-    elements.previewToggle.checked = false;
     elements.tableEmpty.hidden = true;
     elements.tableWrap.hidden = true;
-    elements.analyzeButton.disabled = true;
-    elements.detailsPanel.hidden = true;
+    elements.dataPanel.hidden = true;
+    elements.analysisPanel.hidden = true;
 }
 
 function renderResults(payload) {
-    const layout = payload.manifest?.layout_state || "Unknown";
-
-    elements.emptyState.hidden = true;
-    elements.resultsHeader.hidden = false;
-    elements.summaryStrip.hidden = false;
-    elements.detailsPanel.hidden = false;
-    elements.analysisPanel.hidden = true;
-    elements.analysisSummary.innerHTML = "";
-    elements.analysisList.innerHTML = "";
-    elements.analysisPreviewTable.innerHTML = "";
-    elements.analysisTableWrap.hidden = true;
-    elements.analysisTableEmpty.hidden = true;
-    elements.analyzeButton.disabled = false;
-    elements.analyzeButton.textContent = "Analyze Verbatim Columns";
-    state.showOnlyVerbatim = false;
-    elements.previewToggle.checked = false;
-
-    renderSummaryStrip(payload, layout);
-    renderFilterBar();
-    renderPreviewTable(false);
-    renderApiDetails(payload);
+    if (elements.emptyState) {
+        elements.emptyState.hidden = true;
+    }
+    document.body.classList.remove("data-workspace-active");
+    if (elements.uploadView) {
+        elements.uploadView.hidden = true;
+    }
+    if (elements.resultsView) {
+        elements.resultsView.hidden = false;
+    }
+    if (elements.uploadDataButton) {
+        elements.uploadDataButton.hidden = false;
+    }
+    if (elements.stepPill) {
+        elements.stepPill.textContent = "Step 2 of 2";
+    }
+    renderDashboard(payload);
+    updateWorkspaceVisibility();
+    closeFilterModal();
+    closeColumnRoleModal();
 }
 
-function renderSummaryStrip(payload, layout) {
-    const chips = [
-        chip("File", escapeHtml(payload.filename)),
-        chip("Layout", `<span class="layout-badge">${escapeHtml(layout)}</span>`),
-        chip("Rows", `${payload.transformed_row_count}`),
-        chip("Verbatim Columns", `${state.analysisVerbatimColumns.length}`),
+function resetToUploadState() {
+    sessionStorage.removeItem(RESULT_STORAGE_KEY);
+    state.response = null;
+    state.resultId = null;
+    state.analysisResult = null;
+    state.analysisRows = [];
+    state.transformedRows = [];
+    state.currentWorkspace = "dashboard";
+    showEmptyState();
+    window.dispatchEvent(new CustomEvent("verbatim:upload-reset"));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderDashboard(payload) {
+    const filename = typeof payload.filename === "string" && payload.filename.trim()
+        ? payload.filename.trim()
+        : "upload.csv";
+    const rowCount = Number(payload.transformed_row_count || 0);
+    const columnCount = Array.isArray(payload.transformed_column_names) ? payload.transformed_column_names.length : 0;
+    const verbatimCount = state.analysisVerbatimColumns.length;
+
+    elements.dashboardFileName.textContent = filename;
+
+    const metrics = [
+        summaryMetric("rows", "Rows", formatNumber(rowCount)),
+        summaryMetric("columns", "Columns", formatNumber(columnCount)),
+        summaryMetric("verbatim", "Verbatim Columns", formatNumber(verbatimCount)),
     ];
-    elements.summaryStrip.innerHTML = chips.join("");
+    elements.dashboardMetrics.innerHTML = metrics.join("");
+    elements.openAnalysisButton.disabled = !verbatimCount;
+    elements.openDataButton.disabled = !verbatimCount;
+}
+
+async function openWorkspace(nextWorkspace) {
+    state.currentWorkspace = nextWorkspace;
+
+    if (nextWorkspace === "data") {
+        renderFilterBar();
+        const dataset = currentPreviewDataset();
+        await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));
+        renderPreviewTable(false);
+        syncSliderRange();
+    } else if (nextWorkspace === "analysis") {
+        renderAnalysisPanel();
+    }
+
+    updateWorkspaceVisibility();
+}
+
+function updateWorkspaceVisibility() {
+    elements.dashboardPanel.hidden = state.currentWorkspace !== "dashboard";
+    elements.dataPanel.hidden = state.currentWorkspace !== "data";
+    elements.analysisPanel.hidden = state.currentWorkspace !== "analysis" || !state.analysisVerbatimColumns.length;
+    document.body.classList.toggle("data-workspace-active", state.currentWorkspace === "data");
 }
 
 function renderFilterBar() {
-    if (!state.availableFilters.length) {
-        elements.filterBar.hidden = true;
-        elements.activeFilters.hidden = true;
-        elements.filterActiveNote.hidden = true;
+    if (!elements.filterBar) {
         return;
     }
 
-    const selectedColumnName = state.selectedFilterColumn || "";
-    const selectedFilter = state.availableFilters.find((filter) => filter.column_name === selectedColumnName) || null;
-    const availableValues = selectedFilter && Array.isArray(selectedFilter.options) ? selectedFilter.options : [];
-    if (
-        state.selectedFilterValue
-        && !availableValues.some((option) => option.value === state.selectedFilterValue)
-    ) {
-        state.selectedFilterValue = "";
+    const filters = Array.isArray(state.availableFilters) ? state.availableFilters : [];
+    elements.filterBar.hidden = filters.length === 0;
+    if (!filters.length) {
+        return;
     }
 
-    elements.filterBar.hidden = false;
-    elements.filterColumnSelect.innerHTML = [
-        `<option value="">Choose metadata</option>`,
-        ...state.availableFilters.map((filter) => {
-            const isSelected = filter.column_name === selectedColumnName ? " selected" : "";
-            return `<option value="${escapeHtml(filter.column_name)}"${isSelected}>${escapeHtml(displayColumnLabel(filter.display_name || filter.column_name))}</option>`;
-        }),
-    ].join("");
+    if (!state.selectedFilterColumn || !filters.some((definition) => definition.column_name === state.selectedFilterColumn)) {
+        state.selectedFilterColumn = filters[0]?.column_name || "";
+    }
 
-    if (!selectedFilter) {
-        elements.filterValueSelect.innerHTML = '<option value="">Choose metadata first</option>';
-        elements.filterValueSelect.disabled = true;
-        elements.addFilterButton.disabled = true;
-    } else {
-        elements.filterValueSelect.disabled = false;
-        elements.filterValueSelect.innerHTML = [
-            `<option value="">Choose value</option>`,
-            ...availableValues.map((option) => {
+    const selectedDefinition = getFilterDefinition(state.selectedFilterColumn);
+    const selectedOptions = Array.isArray(selectedDefinition?.options) ? selectedDefinition.options : [];
+    if (!state.selectedFilterValue || !selectedOptions.some((option) => option.value === state.selectedFilterValue)) {
+        state.selectedFilterValue = selectedOptions[0]?.value || "";
+    }
+
+    elements.openFilterModalButton.disabled = filters.length === 0;
+
+    elements.filterColumnSelect.innerHTML = filters
+        .map((definition) => {
+            const isSelected = definition.column_name === state.selectedFilterColumn ? " selected" : "";
+            return `<option value="${escapeHtml(definition.column_name)}"${isSelected}>${escapeHtml(displayFilterName(definition))}</option>`;
+        })
+        .join("");
+
+    elements.filterValueSelect.innerHTML = selectedOptions.length
+        ? selectedOptions
+            .map((option) => {
                 const isSelected = option.value === state.selectedFilterValue ? " selected" : "";
-                return `<option value="${escapeHtml(option.value)}"${isSelected}>${escapeHtml(option.value)} (${option.count})</option>`;
-            }),
-        ].join("");
-        elements.addFilterButton.disabled = !state.selectedFilterValue;
+                const optionLabel = `${option.value} (${formatNumber(option.count || 0)})`;
+                return `<option value="${escapeHtml(option.value)}"${isSelected}>${escapeHtml(optionLabel)}</option>`;
+            })
+            .join("")
+        : '<option value="">No values available</option>';
+
+    elements.filterValueSelect.disabled = !selectedOptions.length;
+    elements.addFilterButton.disabled = !state.selectedFilterColumn || !state.selectedFilterValue;
+    elements.verbatimToggle.checked = state.showOnlyVerbatim;
+
+    const activeEntries = Object.entries(state.activeFilters);
+    elements.activeFilters.hidden = activeEntries.length === 0;
+    const activeChips = activeEntries
+        .map(([columnName, values]) => {
+            const definition = getFilterDefinition(columnName);
+            const valueLabel = Array.isArray(values) ? values.join(", ") : "";
+            return `
+                <div class="active-filter-chip">
+                    <span class="active-filter-text">${escapeHtml(displayFilterName(definition))}: ${escapeHtml(valueLabel)}</span>
+                    <button type="button" class="active-filter-remove" data-remove-filter="${escapeHtml(columnName)}">Remove</button>
+                </div>
+            `;
+        });
+    if (activeEntries.length > 1) {
+        activeChips.push(`
+            <div class="active-filter-chip active-filter-chip-clear">
+                <span class="active-filter-text">Clear all</span>
+                <button type="button" class="active-filter-remove" data-remove-filter="__all__">Remove</button>
+            </div>
+        `);
+    }
+    elements.activeFilters.innerHTML = activeChips.join("");
+
+    elements.filterActiveNote.textContent = hasActiveFilters()
+        ? "Active metadata filters apply to both the data table and analysis."
+        : "Metadata filters apply to both the data table and analysis.";
+}
+
+function openFilterModal() {
+    if (!elements.filterModal || elements.openFilterModalButton?.disabled) {
+        return;
+    }
+    hideFilterModalMessage();
+    elements.filterModal.hidden = false;
+    renderFilterBar();
+    requestAnimationFrame(() => {
+        elements.filterColumnSelect?.focus();
+    });
+}
+
+function closeFilterModal() {
+    if (!elements.filterModal) {
+        return;
+    }
+    elements.filterModal.hidden = true;
+    hideFilterModalMessage();
+}
+
+function openColumnRoleModal() {
+    if (!elements.columnRoleModal) {
+        return;
+    }
+    state.columnSearchTerm = "";
+    elements.columnRoleSearch.value = "";
+    elements.columnRoleMessage.hidden = true;
+    elements.columnRoleModal.hidden = false;
+    renderColumnRoleModal();
+    requestAnimationFrame(() => {
+        elements.columnRoleSearch?.focus();
+    });
+}
+
+function closeColumnRoleModal() {
+    if (!elements.columnRoleModal) {
+        return;
+    }
+    elements.columnRoleModal.hidden = true;
+    hideColumnRoleMessage();
+}
+
+function renderColumnRoleModal() {
+    const allColumns = Array.isArray(state.transformedColumnNames) ? state.transformedColumnNames : [];
+    const searchTerm = state.columnSearchTerm.trim().toLowerCase();
+    const filteredColumns = allColumns.filter((column) => displayColumnLabel(column).toLowerCase().includes(searchTerm));
+    const currentValue = elements.columnRoleSelect.value;
+    const selectedValue = filteredColumns.includes(currentValue)
+        ? currentValue
+        : (filteredColumns[0] || "");
+
+    elements.columnRoleSelect.innerHTML = filteredColumns
+        .map((column) => `<option value="${escapeHtml(column)}">${escapeHtml(displayColumnLabel(column))}</option>`)
+        .join("");
+    if (selectedValue) {
+        elements.columnRoleSelect.value = selectedValue;
+    }
+    elements.applyColumnRoleButton.disabled = !selectedValue;
+    renderColumnRoleSelectionState();
+}
+
+function renderColumnRoleSelectionState() {
+    const columnName = elements.columnRoleSelect.value;
+    if (!columnName) {
+        elements.columnRoleCurrent.textContent = "Current role: no matching column";
+        elements.applyColumnRoleButton.disabled = true;
+        return;
     }
 
-    renderActiveFilters();
-    elements.clearFiltersButton.disabled = !hasActiveFilters();
+    const currentRole = getColumnRole(columnName);
+    elements.columnRoleCurrent.textContent = `Current role: ${currentRole}`;
+    if (currentRole === "metadata" || currentRole === "verbatim") {
+        elements.columnRoleTypeSelect.value = currentRole;
+    }
+    elements.applyColumnRoleButton.disabled = false;
+}
+
+function handleColumnRoleSearch(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+        return;
+    }
+    state.columnSearchTerm = target.value;
+    renderColumnRoleModal();
+}
+
+async function applyColumnRoleChange() {
+    const columnName = elements.columnRoleSelect.value;
+    const role = elements.columnRoleTypeSelect.value;
+    if (!columnName || !role || !state.resultId) {
+        return;
+    }
+
+    elements.applyColumnRoleButton.disabled = true;
+    showColumnRoleMessage("neutral", "Updating column assignment...");
+
+    try {
+        const response = await fetch(`/result-columns/${encodeURIComponent(state.resultId)}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                column_name: columnName,
+                role,
+            }),
+        });
+        if (response.status === 401) {
+            sessionStorage.removeItem(RESULT_STORAGE_KEY);
+            window.location.assign("/login");
+            return;
+        }
+        const payload = await parseJson(response);
+        if (!response.ok) {
+            throw new Error(payload.detail || "Unable to update the column assignment.");
+        }
+
+        state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
+            ? payload.analysis_metadata_column_names
+            : [];
+        state.analysisVerbatimColumns = Array.isArray(payload.analysis_verbatim_column_names)
+            ? payload.analysis_verbatim_column_names
+            : [];
+        state.analysisColumnNames = Array.isArray(payload.analysis_column_names)
+            ? payload.analysis_column_names
+            : [];
+        state.analysisTotalRows = Number(payload.analysis_row_count || 0);
+        state.availableFilters = Array.isArray(payload.available_filters)
+            ? payload.available_filters
+            : [];
+        pruneInvalidActiveFilters();
+        if (!state.analysisVerbatimColumns.includes(state.selectedAnalysisColumn)) {
+            state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
+        }
+        state.analysisResult = null;
+        await refreshFilteredDatasets();
+        persistCurrentPayload();
+        renderDashboard(state.response || {});
+        renderColumnRoleModal();
+        showColumnRoleMessage("success", "Column assignment updated.");
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to update the column assignment.";
+        showColumnRoleMessage("error", message);
+    } finally {
+        renderColumnRoleSelectionState();
+    }
 }
 
 function renderPreviewTable(preserveScroll) {
-    const transformedColumns = Array.isArray(state.response?.transformed_column_names)
-        ? state.response.transformed_column_names
-        : [];
-    const hasBasePreview = transformedColumns.length > 0;
-    const previewColumns = state.showOnlyVerbatim
+    renderFilterBar();
+
+    const dataset = currentPreviewDataset();
+    const allColumns = dataset === "analysis"
         ? state.analysisVerbatimColumns
-        : transformedColumns;
-    const previewRows = state.showOnlyVerbatim
+        : state.transformedColumnNames;
+    const previewColumns = getVisiblePreviewColumns(allColumns, dataset);
+    const previewRows = dataset === "analysis"
         ? state.analysisRows
         : state.transformedRows;
     const scrollTop = preserveScroll ? elements.tableWrap.scrollTop : 0;
-    const scrollLeft = preserveScroll ? elements.tableWrap.scrollLeft : 0;
+    const scrollLeft = preserveScroll && dataset === "analysis" ? elements.tableWrap.scrollLeft : 0;
 
-    if (!hasBasePreview) {
+    if (!allColumns.length || !previewColumns.length) {
         elements.tableControls.hidden = true;
         elements.tableRowStatus.textContent = "";
         elements.tableEmpty.hidden = false;
@@ -301,133 +653,666 @@ function renderPreviewTable(preserveScroll) {
     requestAnimationFrame(() => {
         if (preserveScroll) {
             elements.tableWrap.scrollTop = scrollTop;
-            elements.tableWrap.scrollLeft = scrollLeft;
+            if (dataset === "analysis") {
+                elements.tableWrap.scrollLeft = scrollLeft;
+            }
         }
         syncSliderRange();
     });
 }
 
-async function renderAnalysis() {
-    if (!state.response) {
+function renderAnalysisPanel() {
+    const hasVerbatimColumns = state.analysisVerbatimColumns.length > 0;
+    elements.analysisPanel.hidden = !hasVerbatimColumns;
+    if (!hasVerbatimColumns) {
         return;
     }
 
-    elements.analysisPanel.hidden = false;
-    elements.analyzeButton.textContent = "Refresh Verbatim Analysis";
-    renderAnalysisSection(false);
-    await warmAnalysisRows();
-    if (state.showOnlyVerbatim) {
-        renderPreviewTable(true);
+    if (!state.selectedAnalysisColumn || !state.analysisVerbatimColumns.includes(state.selectedAnalysisColumn)) {
+        state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
     }
-    renderAnalysisSection(true);
-    elements.analysisPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!ANALYSIS_MODE_OPTIONS.some((option) => option.key === state.selectedAnalysisModel)) {
+        state.selectedAnalysisModel = "bertopic";
+    }
+
+    renderAnalysisControls();
+    renderAnalysisOutput();
 }
 
-function renderAnalysisSection(preserveTableScroll) {
-    elements.analysisSummary.innerHTML = [
-        analysisCard("Metadata Columns", `${state.analysisMetadataColumns.length}`),
-        analysisCard("Verbatim Columns", `${state.analysisVerbatimColumns.length}`),
-        analysisCard("Analysis Columns", `${(state.response?.analysis_column_names || []).length}`),
-        analysisCard("Analysis Rows", `${state.analysisTotalRows || 0}`),
-    ].join("");
+function renderAnalysisControls() {
+    elements.analysisColumnSelect.innerHTML = state.analysisVerbatimColumns
+        .map((column) => {
+            const isSelected = column === state.selectedAnalysisColumn ? " selected" : "";
+            return `<option value="${escapeHtml(column)}"${isSelected}>${escapeHtml(displayColumnLabel(column))}</option>`;
+        })
+        .join("");
+    elements.analysisMethods.innerHTML = ANALYSIS_MODE_OPTIONS
+        .map((option) => {
+            const isSelected = option.key === state.selectedAnalysisModel;
+            return `
+                <button
+                    type="button"
+                    class="analysis-method${isSelected ? " analysis-method-active" : ""}"
+                    data-model-key="${escapeHtml(option.key)}"
+                    aria-pressed="${isSelected ? "true" : "false"}"
+                >
+                    <span class="analysis-method-title">${escapeHtml(option.label)}</span>
+                    <span class="analysis-method-copy">${escapeHtml(option.description)}</span>
+                </button>
+            `;
+        })
+        .join("");
+    elements.runAnalysisButton.disabled = state.analysisRunning || !state.selectedAnalysisColumn;
+    elements.runAnalysisButton.textContent = state.analysisRunning ? "Running Analysis..." : "Run Analysis";
+}
 
-    if (!state.analysisVerbatimColumns.length) {
+function renderAnalysisOutput() {
+    elements.analysisHelp.textContent = "Choose one verbatim question, choose one method, and run the analysis.";
+
+    if (!state.analysisResult) {
+        elements.analysisSummary.innerHTML = "";
+        clearAnalysisChart();
+        elements.analysisList.innerHTML = "";
+        elements.analysisNgramGrid.innerHTML = "";
+        elements.analysisMessage.hidden = true;
+        return;
+    }
+
+    const result = state.analysisResult;
+    if (!result.ok) {
+        elements.analysisSummary.innerHTML = "";
+        clearAnalysisChart();
         elements.analysisList.innerHTML = `
             <div class="analysis-item">
-                <h4>No verbatim columns detected</h4>
-                <p class="analysis-sample">The backend selection service did not identify any verbatim columns in the transformed dataset.</p>
+                <h4>Analysis could not run</h4>
+                <p class="analysis-sample">${escapeHtml(result.error || "The selected analysis failed.")}</p>
             </div>
         `;
-    } else {
-        const previewRows = state.analysisRows;
-        const itemsHtml = state.analysisVerbatimColumns
-            .slice(0, 20)
-            .map((column) => `
-                <article class="analysis-item">
-                    <h4>${escapeHtml(displayColumnLabel(column))}</h4>
-                    <div class="analysis-meta">
-                        <span>Selected as verbatim</span>
-                    </div>
-                    <p class="analysis-sample">${escapeHtml(firstPreviewValue(previewRows, column))}</p>
-                </article>
-            `)
-            .join("");
-
-        const overflowNote = state.analysisVerbatimColumns.length > 20
-            ? `
-                <article class="analysis-item">
-                    <h4>Additional columns</h4>
-                    <p class="analysis-sample">
-                        Showing the first 20 selected verbatim columns.
-                        ${state.analysisVerbatimColumns.length - 20} more column${state.analysisVerbatimColumns.length - 20 === 1 ? "" : "s"} are available in the analysis-ready dataset.
-                    </p>
-                </article>
-            `
-            : "";
-
-        elements.analysisList.innerHTML = itemsHtml + overflowNote;
+        elements.analysisNgramGrid.innerHTML = "";
+        renderAnalysisMessage("error", result.error || "The selected analysis failed.");
+        return;
     }
 
-    renderAnalysisPreviewTable(preserveTableScroll);
+    const summaryCards = [
+        analysisCard("View", escapeHtml(result.model_label || displayAnalysisMode(result.model_key))),
+        analysisCard("Question", escapeHtml(displayColumnLabel(result.text_column_name || ""))),
+        analysisCard("Filtered Rows", `${result.filtered_row_count || 0}`),
+        analysisCard("Usable Responses", `${result.valid_document_count || 0}`),
+        analysisCard("Skipped", `${result.skipped_document_count || 0}`),
+    ];
+    if (Array.isArray(result.groups) && result.groups.length) {
+        summaryCards.push(analysisCard("Groups", `${result.groups.length}`));
+    } else if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
+        summaryCards.push(analysisCard("N-gram Buckets", `${result.ngram_buckets.length}`));
+    }
+    elements.analysisSummary.innerHTML = summaryCards.join("");
+
+    const warningMessage = Array.isArray(result.warnings) && result.warnings.length
+        ? result.warnings.join(" ")
+        : `${displayAnalysisMode(result.model_key)} completed successfully.`;
+    renderAnalysisMessage(result.warnings?.length ? "warning" : "success", warningMessage);
+
+    if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
+        elements.analysisList.innerHTML = "";
+        elements.analysisNgramGrid.innerHTML = result.ngram_buckets
+            .map((bucket, index) => renderNgramBucket(bucket, index))
+            .join("");
+        renderNgramCharts(result.ngram_buckets);
+        return;
+    }
+
+    const groups = Array.isArray(result.groups) ? result.groups : [];
+    elements.analysisNgramGrid.innerHTML = "";
+    elements.analysisList.innerHTML = groups.length
+        ? groups.map((group, index) => renderAnalysisGroup(group, index)).join("")
+        : `
+            <div class="analysis-item">
+                <h4>No groups were returned</h4>
+                <p class="analysis-sample">The analysis completed, but it did not produce any usable themes or groups for the current filtered sample.</p>
+            </div>
+        `;
+    renderAnalysisChart(groups);
 }
 
-function renderApiDetails(payload) {
-    elements.detailFilename.textContent = payload.filename;
-    elements.detailEncoding.textContent = payload.encoding;
-    elements.detailRawRows.textContent = `${payload.raw_row_count}`;
-    elements.detailRawColumns.textContent = `${payload.raw_column_count}`;
-    elements.detailSampleRows.textContent = `${payload.sample_row_count}`;
-    elements.detailArchitectRows.textContent = `${payload.architect_row_count}`;
-    elements.manifestPreview.textContent = JSON.stringify(payload.manifest, null, 2);
+function renderAnalysisMessage(kind, message) {
+    elements.analysisMessage.hidden = false;
+    elements.analysisMessage.className = `analysis-message analysis-message-${kind}`;
+    elements.analysisMessage.textContent = message;
 }
 
-function chip(label, value) {
+function renderAnalysisChart(groups) {
+    if (!groups.length) {
+        clearAnalysisChart();
+        return;
+    }
+
+    const modelKey = state.analysisResult?.model_key || state.selectedAnalysisModel;
+    const isThemeView = modelKey === "bertopic";
+    const subjectLabel = isThemeView ? "theme" : "group";
+    const yAxisLabel = isThemeView ? "Theme name" : "Group name";
+    const chartTitle = isThemeView
+        ? "How responses are spread across themes"
+        : "How responses are spread across groups";
+    const chartCaption = `Hover to see the number of responses in each ${subjectLabel}. Click a bar to jump to the matching ${subjectLabel} details below.`;
+
+    elements.analysisChart.hidden = false;
+    elements.analysisChart.innerHTML = `
+        <div class="analysis-chart-copy">
+            <h4 class="analysis-chart-title">${escapeHtml(chartTitle)}</h4>
+            <p class="analysis-chart-caption">${escapeHtml(chartCaption)}</p>
+        </div>
+        <div class="analysis-plot-shell">
+            <div class="analysis-plot-surface" id="analysis-group-plot"></div>
+        </div>
+    `;
+
+    const plotContainer = document.getElementById("analysis-group-plot");
+    const rendered = renderInteractiveGroupChart(plotContainer, groups, {
+        chartTitle,
+        yAxisLabel,
+    });
+    if (!rendered && plotContainer instanceof HTMLElement) {
+        plotContainer.outerHTML = renderFallbackGroupChart(groups);
+    }
+}
+
+function renderAnalysisGroup(group, index) {
+    const terms = Array.isArray(group.terms) ? group.terms : [];
+    const examples = Array.isArray(group.examples) ? group.examples : [];
+    const count = Number(group.count || 0);
+    const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
+    const comment = normalizeValue(group.comment);
+
+    const termsMarkup = terms.length
+        ? terms.map((term) => `<span>${escapeHtml(term)}</span>`).join("")
+        : "<span>No terms returned</span>";
+    const examplesMarkup = examples.length
+        ? examples.map((example) => `
+            <blockquote class="analysis-example">
+                <span class="analysis-example-row">Row ${Number(example.row_number || 0)}</span>
+                <p>${escapeHtml(example.text || "")}</p>
+            </blockquote>
+        `).join("")
+        : "<p class=\"analysis-sample\">No representative examples were returned for this group.</p>";
+
     return `
-        <div class="summary-chip">
-            <span class="summary-label">${escapeHtml(label)}</span>
-            <span class="summary-value">${value}</span>
+        <article class="analysis-item" id="analysis-group-card-${index}">
+            <div class="analysis-item-header">
+                <h4>${escapeHtml(group.label || "Unlabelled group")}</h4>
+                <div class="analysis-item-count">${count} responses${percent ? ` | ${percent}%` : ""}</div>
+            </div>
+            ${comment ? `<p class="analysis-comment">${escapeHtml(comment)}</p>` : ""}
+            <div class="analysis-meta">${termsMarkup}</div>
+            <div class="analysis-examples">${examplesMarkup}</div>
+        </article>
+    `;
+}
+
+function renderNgramBucket(bucket, index) {
+    const items = Array.isArray(bucket.items) ? bucket.items : [];
+    const listMarkup = items.length
+        ? items.map((item) => `
+            <li class="analysis-ngram-item">
+                <span class="analysis-ngram-term">${escapeHtml(item.term || "")}</span>
+                <span class="analysis-ngram-count">${Number(item.count || 0)}</span>
+            </li>
+        `).join("")
+        : "<li class=\"analysis-ngram-item\"><span class=\"analysis-ngram-term\">No repeated terms found</span><span class=\"analysis-ngram-count\">0</span></li>";
+
+    return `
+        <article class="analysis-ngram-panel" id="analysis-ngram-panel-${index}">
+            <h4>${escapeHtml(bucket.label || `${bucket.ngram_size}-grams`)}</h4>
+            <ul class="analysis-ngram-list">${listMarkup}</ul>
+        </article>
+    `;
+}
+
+function renderNgramCharts(buckets) {
+    if (!Array.isArray(buckets) || !buckets.length) {
+        clearAnalysisChart();
+        return;
+    }
+
+    elements.analysisChart.hidden = false;
+    elements.analysisChart.innerHTML = `
+        <div class="analysis-chart-copy">
+            <h4 class="analysis-chart-title">Most common words and phrases in the selected responses</h4>
+            <p class="analysis-chart-caption">Hover to see how often each word or phrase appears. Click a bar to jump to the matching phrase list below.</p>
+        </div>
+        <div class="analysis-plot-grid">
+            ${buckets
+                .map((bucket, index) => `
+                    <div class="analysis-plot-card">
+                        <h4>${escapeHtml(bucket.label || `${bucket.ngram_size}-grams`)}</h4>
+                        <div class="analysis-plot-surface" id="analysis-ngram-plot-${index}"></div>
+                    </div>
+                `)
+                .join("")}
+        </div>
+    `;
+
+    const plotly = getPlotly();
+    if (!plotly) {
+        elements.analysisChart.insertAdjacentHTML(
+            "beforeend",
+            '<p class="analysis-chart-fallback">Interactive charts are unavailable right now, but the phrase lists below still show the same results.</p>',
+        );
+        return;
+    }
+
+    buckets.forEach((bucket, index) => {
+        const plotContainer = document.getElementById(`analysis-ngram-plot-${index}`);
+        renderInteractiveNgramChart(plotContainer, bucket, index);
+    });
+}
+
+function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisLabel }) {
+    const plotly = getPlotly();
+    if (!plotly || !(plotContainer instanceof HTMLElement)) {
+        return false;
+    }
+
+    const sortedGroups = groups
+        .map((group, index) => ({ group, index }))
+        .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
+    const subjectLabel = yAxisLabel === "Theme name" ? "theme" : "group";
+    const figureHeight = Math.max(320, sortedGroups.length * 58);
+
+    const plotPromise = plotly.newPlot(
+        plotContainer,
+        [
+            {
+                type: "bar",
+                orientation: "h",
+                y: sortedGroups.map(({ group }) => wrapPlotLabel(group.label || "Unlabelled group", 28)),
+                x: sortedGroups.map(({ group }) => Number(group.count || 0)),
+                marker: {
+                    color: sortedGroups.map(({ group }) => group.is_noise ? "#b8ac9f" : "#4f7a63"),
+                    line: {
+                        color: sortedGroups.map(({ group }) => group.is_noise ? "#8d8275" : "#355847"),
+                        width: 1,
+                    },
+                },
+                customdata: sortedGroups.map(({ group, index }) => ([
+                    index,
+                    group.label || "Unlabelled group",
+                    buildPercentLabel(group.share),
+                    buildExampleRowLabel(group.examples),
+                    normalizeValue(group.comment),
+                ])),
+                hovertemplate: [
+                    "<b>%{customdata[1]}</b>",
+                    "Number of responses: %{x}",
+                    "Share of usable responses: %{customdata[2]}",
+                    "Representative rows: %{customdata[3]}",
+                    "%{customdata[4]}",
+                    "<extra></extra>",
+                ].join("<br>"),
+            },
+        ],
+        {
+            title: {
+                text: chartTitle,
+                x: 0,
+                xanchor: "left",
+            },
+            height: figureHeight,
+            margin: {
+                t: 56,
+                r: 24,
+                b: 70,
+                l: 260,
+            },
+            paper_bgcolor: "rgba(0, 0, 0, 0)",
+            plot_bgcolor: "rgba(255, 250, 242, 0.72)",
+            font: {
+                family: "\"Segoe UI\", Aptos, sans-serif",
+                color: "#3d352d",
+                size: 13,
+            },
+            bargap: 0.28,
+            xaxis: {
+                title: {
+                    text: "Number of responses",
+                },
+                gridcolor: "rgba(89, 68, 42, 0.1)",
+                zeroline: false,
+            },
+            yaxis: {
+                title: {
+                    text: yAxisLabel,
+                },
+                automargin: true,
+                autorange: "reversed",
+            },
+        },
+        {
+            displaylogo: false,
+            responsive: true,
+            modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
+            toImageButtonOptions: {
+                filename: `verbatim-${subjectLabel}-distribution`,
+            },
+        },
+    );
+
+    if (plotPromise && typeof plotPromise.then === "function") {
+        plotPromise.then(() => {
+            if (typeof plotContainer.on === "function") {
+                plotContainer.on("plotly_click", (event) => {
+                    const point = event?.points?.[0];
+                    const groupIndex = Number(point?.customdata?.[0]);
+                    if (Number.isFinite(groupIndex)) {
+                        focusAnalysisTarget(`analysis-group-card-${groupIndex}`);
+                    }
+                });
+            }
+        });
+    }
+
+    return true;
+}
+
+function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
+    const plotly = getPlotly();
+    if (!plotly || !(plotContainer instanceof HTMLElement)) {
+        return false;
+    }
+
+    const items = Array.isArray(bucket.items) ? bucket.items.slice(0, 10) : [];
+    const label = bucket.label || `${bucket.ngram_size}-grams`;
+    const itemTypeLabel = Number(bucket.ngram_size || 0) === 1 ? "Word" : "Phrase";
+    const figureHeight = Math.max(280, items.length * 42 + 120);
+    const colorsBySize = {
+        1: "#4f7a63",
+        2: "#c7923f",
+        3: "#b7685f",
+    };
+
+    const plotPromise = plotly.newPlot(
+        plotContainer,
+        [
+            {
+                type: "bar",
+                orientation: "h",
+                y: items.map((item) => wrapPlotLabel(item.term || "", 24)),
+                x: items.map((item) => Number(item.count || 0)),
+                marker: {
+                    color: colorsBySize[Number(bucket.ngram_size || 0)] || "#7a6b5e",
+                },
+                customdata: items.map((item) => [item.term || "", label]),
+                hovertemplate: [
+                    "<b>%{customdata[0]}</b>",
+                    "Number of times it appears: %{x}",
+                    "Phrase list: %{customdata[1]}",
+                    "<extra></extra>",
+                ].join("<br>"),
+            },
+        ],
+        {
+            title: {
+                text: label,
+                x: 0,
+                xanchor: "left",
+            },
+            height: figureHeight,
+            margin: {
+                t: 54,
+                r: 22,
+                b: 70,
+                l: 170,
+            },
+            paper_bgcolor: "rgba(0, 0, 0, 0)",
+            plot_bgcolor: "rgba(255, 250, 242, 0.72)",
+            font: {
+                family: "\"Segoe UI\", Aptos, sans-serif",
+                color: "#3d352d",
+                size: 13,
+            },
+            bargap: 0.26,
+            xaxis: {
+                title: {
+                    text: "Number of times the phrase appears",
+                },
+                gridcolor: "rgba(89, 68, 42, 0.1)",
+                zeroline: false,
+            },
+            yaxis: {
+                title: {
+                    text: itemTypeLabel,
+                },
+                automargin: true,
+                autorange: "reversed",
+            },
+        },
+        {
+            displaylogo: false,
+            responsive: true,
+            modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
+            toImageButtonOptions: {
+                filename: `verbatim-${label.toLowerCase().replaceAll(" ", "-")}`,
+            },
+        },
+    );
+
+    if (plotPromise && typeof plotPromise.then === "function") {
+        plotPromise.then(() => {
+            if (typeof plotContainer.on === "function") {
+                plotContainer.on("plotly_click", () => {
+                    focusAnalysisTarget(`analysis-ngram-panel-${bucketIndex}`);
+                });
+            }
+        });
+    }
+
+    return true;
+}
+
+function renderFallbackGroupChart(groups) {
+    const maxCount = Math.max(...groups.map((group) => Number(group.count || 0)), 1);
+
+    return `
+        <div class="analysis-chart-fallback">
+            <p class="analysis-chart-fallback-note">Interactive charts are unavailable right now, so this plain view is shown instead.</p>
+            ${groups
+                .map((group) => {
+                    const count = Number(group.count || 0);
+                    const width = Math.max(6, Math.round((count / maxCount) * 100));
+                    const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
+                    return `
+                        <div class="analysis-bar">
+                            <div class="analysis-bar-header">
+                                <span class="analysis-bar-label">${escapeHtml(group.label)}</span>
+                                <span class="analysis-bar-value">${count} responses${percent ? ` | ${percent}%` : ""}</span>
+                            </div>
+                            <div class="analysis-bar-track">
+                                <div class="analysis-bar-fill${group.is_noise ? " analysis-bar-fill-noise" : ""}" style="width:${width}%"></div>
+                            </div>
+                        </div>
+                    `;
+                })
+                .join("")}
         </div>
     `;
 }
 
+function clearAnalysisChart() {
+    purgePlotlyCharts(elements.analysisChart);
+    elements.analysisChart.hidden = true;
+    elements.analysisChart.innerHTML = "";
+}
+
+function purgePlotlyCharts(container) {
+    const plotly = getPlotly();
+    if (!plotly || !(container instanceof HTMLElement)) {
+        return;
+    }
+
+    container.querySelectorAll(".analysis-plot-surface").forEach((plotSurface) => {
+        try {
+            plotly.purge(plotSurface);
+        } catch (_error) {
+            // Ignore Plotly cleanup issues when the chart has already been discarded.
+        }
+    });
+}
+
+function resizeAnalysisPlots() {
+    const plotly = getPlotly();
+    if (!plotly || elements.analysisChart.hidden) {
+        return;
+    }
+
+    elements.analysisChart.querySelectorAll(".analysis-plot-surface").forEach((plotSurface) => {
+        try {
+            plotly.Plots.resize(plotSurface);
+        } catch (_error) {
+            // Ignore resize failures for charts that are being re-rendered.
+        }
+    });
+}
+
+function getPlotly() {
+    return typeof window !== "undefined" && typeof window.Plotly !== "undefined"
+        ? window.Plotly
+        : null;
+}
+
+function buildPercentLabel(share) {
+    if (typeof share !== "number" || Number.isNaN(share)) {
+        return "Not available";
+    }
+    return `${Math.round(share * 100)}%`;
+}
+
+function buildExampleRowLabel(examples) {
+    if (!Array.isArray(examples) || !examples.length) {
+        return "No representative rows";
+    }
+
+    const labels = examples
+        .map((example) => Number(example.row_number || 0))
+        .filter((rowNumber) => rowNumber > 0)
+        .map((rowNumber) => `Row ${rowNumber}`);
+
+    return labels.length ? labels.join(", ") : "No representative rows";
+}
+
+function wrapPlotLabel(value, maxLineLength = 28) {
+    const words = normalizeValue(value).split(/\s+/).filter(Boolean);
+    if (!words.length) {
+        return "Untitled";
+    }
+
+    const lines = [];
+    let currentLine = "";
+    words.forEach((word) => {
+        const nextValue = currentLine ? `${currentLine} ${word}` : word;
+        if (nextValue.length <= maxLineLength || !currentLine) {
+            currentLine = nextValue;
+            return;
+        }
+        lines.push(currentLine);
+        currentLine = word;
+    });
+
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+
+    return lines.join("<br>");
+}
+
+function focusAnalysisTarget(targetId) {
+    if (!targetId) {
+        return;
+    }
+
+    elements.analysisPanel
+        .querySelectorAll(".analysis-item-active, .analysis-ngram-panel-active")
+        .forEach((element) => {
+            element.classList.remove("analysis-item-active", "analysis-ngram-panel-active");
+        });
+
+    const target = document.getElementById(targetId);
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+
+    const activeClass = target.classList.contains("analysis-ngram-panel")
+        ? "analysis-ngram-panel-active"
+        : "analysis-item-active";
+    target.classList.add(activeClass);
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => {
+        target.classList.remove(activeClass);
+    }, 2200);
+}
+
+function summaryMetric(kind, label, value) {
+    return `
+        <div class="dashboard-metric">
+            <div class="dashboard-metric-top">
+                <span class="dashboard-metric-icon" aria-hidden="true">${dashboardMetricIcon(kind)}</span>
+                <span class="dashboard-metric-value">${escapeHtml(value)}</span>
+            </div>
+            <span class="dashboard-metric-label">${escapeHtml(label)}</span>
+        </div>
+    `;
+}
+
+function dashboardMetricIcon(kind) {
+    const icons = {
+        rows: `
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                <path d="M3 10.5h18M8.5 10.5V21M15.5 10.5V21"></path>
+                <path d="M3 15.75h18"></path>
+                <path d="M7 3.5h10"></path>
+            </svg>
+        `,
+        columns: `
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                <path d="M9 5v14M15 5v14"></path>
+                <path d="M3 10h18M3 14h18"></path>
+            </svg>
+        `,
+        verbatim: `
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M6 5h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4.5 3V17H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"></path>
+                <path d="M8 9.5h8M8 12.5h6"></path>
+            </svg>
+        `,
+    };
+    return icons[kind] || "";
+}
+
 function handleSliderInput(event) {
-    elements.tableWrap.scrollLeft = Number(event.target.value);
+    if (currentPreviewDataset() === "analysis") {
+        elements.tableWrap.scrollLeft = Number(event.target.value);
+        return;
+    }
+
+    state.previewColumnOffset = Number(event.target.value);
+    renderPreviewTable(true);
 }
 
 function handlePreviewTableScroll() {
-    syncSliderToScroll();
+    if (currentPreviewDataset() === "analysis") {
+        syncSliderToScroll();
+    }
     void maybeLoadMorePreviewRows();
 }
 
-function handleAnalysisTableScroll() {
-    void maybeLoadMoreAnalysisRows();
-}
-
-function handlePreviewToggle(event) {
-    state.showOnlyVerbatim = event.target.checked;
-    elements.tableWrap.scrollLeft = 0;
-    elements.tableWrap.scrollTop = 0;
-    elements.tableSlider.value = "0";
-    renderPreviewTable(false);
-    if (state.showOnlyVerbatim) {
-        void warmAnalysisRows().then(() => {
-            if (state.showOnlyVerbatim) {
-                renderPreviewTable(true);
-            }
-        });
-    }
-}
-
-async function handleFilterColumnChange(event) {
+function handleFilterColumnChange(event) {
     const target = event.target;
     if (!(target instanceof HTMLSelectElement)) {
         return;
     }
-
     state.selectedFilterColumn = target.value;
-    state.selectedFilterValue = state.selectedFilterColumn
-        ? (state.activeFilters[state.selectedFilterColumn]?.[0] || "")
-        : "";
+    const selectedDefinition = getFilterDefinition(state.selectedFilterColumn);
+    state.selectedFilterValue = selectedDefinition?.options?.[0]?.value || "";
     renderFilterBar();
 }
 
@@ -436,9 +1321,7 @@ function handleFilterValueChange(event) {
     if (!(target instanceof HTMLSelectElement)) {
         return;
     }
-
     state.selectedFilterValue = target.value;
-    renderFilterBar();
 }
 
 async function handleAddFilter() {
@@ -446,54 +1329,103 @@ async function handleAddFilter() {
         return;
     }
 
-    state.activeFilters[state.selectedFilterColumn] = [state.selectedFilterValue];
-    state.selectedFilterColumn = "";
-    state.selectedFilterValue = "";
-    renderFilterBar();
-    await reloadRowsForActiveFilters();
+    showFilterModalMessage("neutral", "Applying filter...");
+    const nextFilters = {
+        ...state.activeFilters,
+        [state.selectedFilterColumn]: [state.selectedFilterValue],
+    };
+    try {
+        state.activeFilters = nextFilters;
+        state.analysisResult = null;
+        await refreshFilteredDatasets();
+        closeFilterModal();
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to apply the filter.";
+        showFilterModalMessage("error", message);
+    }
 }
 
-async function handleRemoveFilter(event) {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-        return;
-    }
-
-    const button = target.closest("button[data-filter-column]");
-    if (!(button instanceof HTMLButtonElement)) {
-        return;
-    }
-
-    const columnName = button.dataset.filterColumn;
-    if (!columnName || !state.activeFilters[columnName]) {
-        return;
-    }
-
-    delete state.activeFilters[columnName];
-    if (state.selectedFilterColumn === columnName) {
-        state.selectedFilterColumn = "";
-        state.selectedFilterValue = "";
-    }
-    renderFilterBar();
-    await reloadRowsForActiveFilters();
-}
-
-async function clearAllFilters() {
+async function handleClearFilters() {
     if (!hasActiveFilters()) {
-        state.selectedFilterColumn = "";
-        state.selectedFilterValue = "";
-        renderFilterBar();
         return;
     }
 
-    state.selectedFilterColumn = "";
-    state.selectedFilterValue = "";
-    state.activeFilters = {};
-    renderFilterBar();
-    await reloadRowsForActiveFilters();
+    try {
+        state.activeFilters = {};
+        state.analysisResult = null;
+        await refreshFilteredDatasets();
+        closeFilterModal();
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to clear filters.";
+        showFilterModalMessage("error", message);
+    }
+}
+
+async function removeActiveFilter(columnName) {
+    if (!(columnName in state.activeFilters)) {
+        return;
+    }
+
+    const nextFilters = { ...state.activeFilters };
+    delete nextFilters[columnName];
+    try {
+        state.activeFilters = nextFilters;
+        state.analysisResult = null;
+        await refreshFilteredDatasets();
+        closeFilterModal();
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+async function handlePreviewModeChange() {
+    state.showOnlyVerbatim = Boolean(elements.verbatimToggle.checked);
+    state.previewColumnOffset = 0;
+    const dataset = currentPreviewDataset();
+    await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));
+    renderPreviewTable(false);
+    syncSliderRange();
+}
+
+function handleAnalysisColumnChange(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement)) {
+        return;
+    }
+    state.selectedAnalysisColumn = target.value;
+    state.analysisResult = null;
+    renderAnalysisControls();
+    renderAnalysisOutput();
+}
+
+function handleAnalysisMethodClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+    const methodButton = target.closest("[data-model-key]");
+    if (!(methodButton instanceof HTMLElement)) {
+        return;
+    }
+    const modelKey = methodButton.dataset.modelKey || "bertopic";
+    if (modelKey === state.selectedAnalysisModel) {
+        return;
+    }
+    state.selectedAnalysisModel = modelKey;
+    state.analysisResult = null;
+    renderAnalysisControls();
+    renderAnalysisOutput();
+}
+
+async function handleRunAnalysis() {
+    await runAnalysis({ scrollIntoView: true });
 }
 
 function syncSliderToScroll() {
+    if (currentPreviewDataset() !== "analysis") {
+        elements.tableSlider.value = `${state.previewColumnOffset}`;
+        return;
+    }
     elements.tableSlider.value = `${Math.round(elements.tableWrap.scrollLeft)}`;
 }
 
@@ -503,9 +1435,24 @@ function syncSliderRange() {
         return;
     }
 
+    if (currentPreviewDataset() !== "analysis") {
+        const totalColumns = state.transformedColumnNames.length;
+        const maxOffset = Math.max(0, totalColumns - FULL_DATA_VISIBLE_COLUMN_COUNT);
+        elements.tableSlider.max = `${maxOffset}`;
+        elements.tableSlider.value = `${Math.min(state.previewColumnOffset, maxOffset)}`;
+        if (elements.tableSliderLabel) {
+            elements.tableSliderLabel.textContent = "Choose which columns to show";
+        }
+        elements.tableScrollControl.hidden = maxOffset <= 0;
+        return;
+    }
+
     const maxScroll = Math.max(0, elements.tableWrap.scrollWidth - elements.tableWrap.clientWidth);
     elements.tableSlider.max = `${Math.round(maxScroll)}`;
     elements.tableSlider.value = `${Math.min(Math.round(elements.tableWrap.scrollLeft), Math.round(maxScroll))}`;
+    if (elements.tableSliderLabel) {
+        elements.tableSliderLabel.textContent = "Slide across columns";
+    }
     elements.tableScrollControl.hidden = maxScroll <= 0;
 }
 
@@ -514,7 +1461,7 @@ function isNearBottom(element) {
 }
 
 async function maybeLoadMorePreviewRows() {
-    const dataset = state.showOnlyVerbatim ? "analysis" : "transformed";
+    const dataset = currentPreviewDataset();
     if (dataset === "analysis") {
         await maybeLoadMoreAnalysisRows();
         return;
@@ -527,13 +1474,7 @@ async function maybeLoadMorePreviewRows() {
 }
 
 async function maybeLoadMoreAnalysisRows() {
-    if (!state.analysisHasMore || state.analysisLoading) {
-        return;
-    }
-
-    const shouldLoadForPreview = state.showOnlyVerbatim && !elements.tableWrap.hidden && isNearBottom(elements.tableWrap);
-    const shouldLoadForAnalysisPanel = !elements.analysisTableWrap.hidden && isNearBottom(elements.analysisTableWrap);
-    if (!shouldLoadForPreview && !shouldLoadForAnalysisPanel) {
+    if (!state.analysisHasMore || state.analysisLoading || !isNearBottom(elements.tableWrap)) {
         return;
     }
 
@@ -541,12 +1482,9 @@ async function maybeLoadMoreAnalysisRows() {
     if (state.showOnlyVerbatim) {
         renderPreviewTable(true);
     }
-    if (!elements.analysisTableWrap.hidden) {
-        renderAnalysisSection(true);
-    }
 }
 
-async function loadMoreRows(dataset, limit = ROW_PAGE_SIZE) {
+async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
     if (dataset === "transformed" && state.transformedLoading) {
         return;
     }
@@ -563,50 +1501,35 @@ async function loadMoreRows(dataset, limit = ROW_PAGE_SIZE) {
     }
 
     const offset = dataset === "transformed" ? state.transformedRows.length : state.analysisRows.length;
-    const query = new URLSearchParams({
-        dataset,
-        offset: `${offset}`,
-        limit: `${limit}`,
-    });
-    if (hasActiveFilters()) {
-        query.set("filters", JSON.stringify(state.activeFilters));
-    }
-
     if (dataset === "transformed") {
         state.transformedLoading = true;
         updatePreviewRowStatus();
     } else {
         state.analysisLoading = true;
         updatePreviewRowStatus();
-        updateAnalysisRowStatus();
     }
 
     try {
-        const response = await fetch(`/result-rows/${encodeURIComponent(state.resultId)}?${query.toString()}`);
-        if (response.status === 401) {
-            sessionStorage.removeItem(RESULT_STORAGE_KEY);
-            window.location.assign("/login");
-            return;
-        }
-        const payload = await response.json();
-        if (!response.ok) {
-            throw new Error(payload.detail || "Unable to load additional rows.");
-        }
+        const payload = await fetchRowsPage(dataset, offset, limit);
 
         if (dataset === "transformed") {
             state.transformedRows = state.transformedRows.concat(payload.rows || []);
             state.transformedHasMore = Boolean(payload.has_more);
             state.transformedTotalRows = Number(payload.total_row_count || 0);
             state.transformedUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-            updatePreviewRowStatus();
+            if (Array.isArray(payload.column_names) && payload.column_names.length) {
+                state.transformedColumnNames = payload.column_names;
+            }
         } else {
             state.analysisRows = state.analysisRows.concat(payload.rows || []);
             state.analysisHasMore = Boolean(payload.has_more);
             state.analysisTotalRows = Number(payload.total_row_count || 0);
             state.analysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-            updatePreviewRowStatus();
-            updateAnalysisRowStatus();
+            if (Array.isArray(payload.column_names) && payload.column_names.length) {
+                state.analysisColumnNames = payload.column_names;
+            }
         }
+        updatePreviewRowStatus();
     } catch (error) {
         if (dataset === "transformed") {
             state.transformedHasMore = false;
@@ -617,22 +1540,11 @@ async function loadMoreRows(dataset, limit = ROW_PAGE_SIZE) {
     } finally {
         if (dataset === "transformed") {
             state.transformedLoading = false;
-            updatePreviewRowStatus();
         } else {
             state.analysisLoading = false;
-            updatePreviewRowStatus();
-            updateAnalysisRowStatus();
         }
+        updatePreviewRowStatus();
     }
-}
-
-async function warmInitialRows() {
-    if (!state.resultId) {
-        return;
-    }
-
-    await ensureDatasetRowCount("transformed", INITIAL_VISIBLE_ROW_TARGET);
-    renderPreviewTable(false);
 }
 
 async function ensureDatasetRowCount(dataset, targetCount) {
@@ -655,38 +1567,93 @@ async function warmAnalysisRows() {
     await ensureDatasetRowCount("analysis", INITIAL_VISIBLE_ROW_TARGET);
 }
 
-async function reloadRowsForActiveFilters() {
-    state.transformedRows = [];
-    state.analysisRows = [];
-    state.transformedHasMore = true;
-    state.analysisHasMore = true;
-    state.transformedLoading = false;
-    state.analysisLoading = false;
-    state.transformedTotalRows = hasActiveFilters() ? 0 : Number(state.response?.transformed_row_count || 0);
-    state.analysisTotalRows = hasActiveFilters() ? 0 : Number(state.response?.analysis_row_count || 0);
-    state.transformedUnfilteredTotalRows = Number(state.response?.transformed_row_count || 0);
-    state.analysisUnfilteredTotalRows = Number(state.response?.analysis_row_count || 0);
+async function refreshFilteredDatasets() {
+    if (!state.resultId) {
+        renderFilterBar();
+        renderPreviewTable(false);
+        return;
+    }
 
-    elements.tableWrap.scrollTop = 0;
-    elements.tableWrap.scrollLeft = 0;
-    elements.analysisTableWrap.scrollTop = 0;
-    elements.analysisTableWrap.scrollLeft = 0;
-    elements.tableSlider.value = "0";
+    resetDatasetRows("transformed");
+    resetDatasetRows("analysis");
 
-    renderPreviewTable(false);
-    renderAnalysisPreviewTable(false);
+    try {
+        const [transformedPayload, analysisPayload] = await Promise.all([
+            fetchRowsPage("transformed", 0, FULL_DATA_INITIAL_VISIBLE_ROW_TARGET),
+            fetchRowsPage("analysis", 0, INITIAL_VISIBLE_ROW_TARGET),
+        ]);
+        applyRowsPayload("transformed", transformedPayload);
+        applyRowsPayload("analysis", analysisPayload);
+    } catch (error) {
+        console.error(error);
+    }
 
-    await ensureDatasetRowCount("transformed", INITIAL_VISIBLE_ROW_TARGET);
-    renderPreviewTable(false);
+    renderFilterBar();
+    if (state.currentWorkspace === "data") {
+        renderPreviewTable(false);
+        syncSliderRange();
+    }
+    if (state.currentWorkspace === "analysis") {
+        renderAnalysisPanel();
+    }
+}
 
-    if (state.showOnlyVerbatim || !elements.analysisPanel.hidden) {
-        await warmAnalysisRows();
-        if (state.showOnlyVerbatim) {
-            renderPreviewTable(false);
+async function runAnalysis({ scrollIntoView = false } = {}) {
+    if (!state.resultId || !state.selectedAnalysisColumn) {
+        return;
+    }
+
+    state.analysisRunning = true;
+    renderAnalysisControls();
+    renderAnalysisMessage("neutral", "Analysing the selected question on the current filtered dataset...");
+
+    try {
+        const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model_key: state.selectedAnalysisModel,
+                text_column_name: state.selectedAnalysisColumn,
+                filters: state.activeFilters,
+            }),
+        });
+        if (response.status === 401) {
+            sessionStorage.removeItem(RESULT_STORAGE_KEY);
+            window.location.assign("/login");
+            return;
         }
-        if (!elements.analysisPanel.hidden) {
-            renderAnalysisSection(false);
+        const payload = await parseJson(response);
+        if (!response.ok) {
+            throw new Error(payload.detail || "Unable to run analysis.");
         }
+
+        state.analysisResult = payload;
+        renderAnalysisOutput();
+        if (scrollIntoView) {
+            elements.analysisPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to run analysis.";
+        state.analysisResult = {
+            ok: false,
+            result_id: state.resultId,
+            model_key: state.selectedAnalysisModel,
+            model_label: displayAnalysisMode(state.selectedAnalysisModel),
+            text_column_name: state.selectedAnalysisColumn,
+            filtered_row_count: 0,
+            valid_document_count: 0,
+            skipped_document_count: 0,
+            warnings: [],
+            error: message,
+            groups: [],
+            ngram_buckets: [],
+        };
+        renderAnalysisOutput();
+    } finally {
+        state.analysisRunning = false;
+        renderAnalysisControls();
     }
 }
 
@@ -709,6 +1676,11 @@ function analysisCard(label, value) {
             <span class="analysis-card-value">${value}</span>
         </div>
     `;
+}
+
+function formatNumber(value) {
+    const numericValue = Number(value || 0);
+    return new Intl.NumberFormat("en-GB").format(numericValue);
 }
 
 function normalizeValue(value) {
@@ -736,87 +1708,23 @@ function displayColumnLabel(value) {
     return `${value}`.replace(/__idx_\d+$/i, "");
 }
 
-function firstPreviewValue(rows, column) {
-    for (const row of rows) {
-        const normalized = normalizeValue(row[column]);
-        if (normalized) {
-            return normalized;
-        }
-    }
-    return "No non-empty preview value returned for this column.";
-}
-
-function renderAnalysisPreviewTable(preserveScroll) {
-    const analysisColumns = Array.isArray(state.response?.analysis_column_names)
-        ? state.response.analysis_column_names
-        : [];
-    const scrollTop = preserveScroll ? elements.analysisTableWrap.scrollTop : 0;
-    const scrollLeft = preserveScroll ? elements.analysisTableWrap.scrollLeft : 0;
-    const resolvedRows = state.analysisRows;
-
-    if (!resolvedRows.length || !analysisColumns.length) {
-        updateAnalysisRowStatus();
-        elements.analysisTableEmpty.hidden = false;
-        elements.analysisTableWrap.hidden = true;
-        elements.analysisPreviewTable.innerHTML = "";
-        return;
-    }
-
-    updateAnalysisRowStatus();
-
-    const head = [
-        '<th scope="col" class="row-number-header">Row</th>',
-        ...analysisColumns.map((column) => `<th scope="col">${escapeHtml(displayColumnLabel(column))}</th>`),
-    ].join("");
-
-    const body = resolvedRows
-        .map((row, index) => {
-            const cells = analysisColumns
-                .map((column) => `<td>${formatCell(row[column])}</td>`)
-                .join("");
-            return `<tr><th scope="row" class="row-number-cell">${index + 1}</th>${cells}</tr>`;
-        })
-        .join("");
-
-    elements.analysisPreviewTable.innerHTML = `
-        <thead>
-            <tr>${head}</tr>
-        </thead>
-        <tbody>${body}</tbody>
-    `;
-    elements.analysisTableEmpty.hidden = true;
-    elements.analysisTableWrap.hidden = false;
-    requestAnimationFrame(() => {
-        if (preserveScroll) {
-            elements.analysisTableWrap.scrollTop = scrollTop;
-            elements.analysisTableWrap.scrollLeft = scrollLeft;
-        }
-    });
+function displayAnalysisMode(modelKey) {
+    return ANALYSIS_MODE_OPTIONS.find((option) => option.key === modelKey)?.label || modelKey;
 }
 
 function buildPreviewEmptyMessage() {
-    if (hasActiveFilters()) {
-        return state.showOnlyVerbatim
-            ? "No rows match the current metadata filters for the selected verbatim columns."
-            : "No rows match the current metadata filters.";
+    const dataset = currentPreviewDataset();
+    const isLoading = dataset === "analysis" ? state.analysisLoading : state.transformedLoading;
+    if (isLoading) {
+        return dataset === "analysis" ? "Loading verbatim data..." : "Loading processed data...";
     }
-    if (state.showOnlyVerbatim) {
-        return state.analysisLoading
-            ? "Loading verbatim preview rows..."
-            : "No selected verbatim columns are available in the preview.";
-    }
-    return state.transformedLoading
-        ? "Loading transformed preview rows..."
-        : "The API did not return preview rows for this file.";
+    return dataset === "analysis"
+        ? "No verbatim data is available for this file."
+        : "No processed data is available for this file.";
 }
 
 function updatePreviewRowStatus() {
-    const dataset = state.showOnlyVerbatim ? "analysis" : "transformed";
-    elements.tableRowStatus.textContent = buildRowStatusText(dataset);
-}
-
-function updateAnalysisRowStatus() {
-    elements.analysisRowStatus.textContent = buildRowStatusText("analysis");
+    elements.tableRowStatus.textContent = buildRowStatusText(currentPreviewDataset());
 }
 
 function buildRowStatusText(dataset) {
@@ -850,38 +1758,179 @@ function hasActiveFilters() {
     return Object.keys(state.activeFilters).length > 0;
 }
 
-function renderActiveFilters() {
-    const filterEntries = Object.entries(state.activeFilters);
-    if (!filterEntries.length) {
-        elements.activeFilters.hidden = true;
-        elements.activeFilters.innerHTML = "";
-        elements.filterActiveNote.hidden = true;
-        elements.filterActiveNote.textContent = "";
+function currentPreviewDataset() {
+    return state.showOnlyVerbatim ? "analysis" : "transformed";
+}
+
+function getRowPageSize(dataset) {
+    return dataset === "transformed" ? FULL_DATA_ROW_PAGE_SIZE : ROW_PAGE_SIZE;
+}
+
+function getInitialVisibleRowTarget(dataset) {
+    return dataset === "transformed" ? FULL_DATA_INITIAL_VISIBLE_ROW_TARGET : INITIAL_VISIBLE_ROW_TARGET;
+}
+
+function getVisiblePreviewColumns(columns, dataset) {
+    if (dataset === "analysis") {
+        return columns;
+    }
+
+    const maxOffset = Math.max(0, columns.length - FULL_DATA_VISIBLE_COLUMN_COUNT);
+    const start = Math.min(state.previewColumnOffset, maxOffset);
+    state.previewColumnOffset = start;
+    return columns.slice(start, start + FULL_DATA_VISIBLE_COLUMN_COUNT);
+}
+
+function getFilterDefinition(columnName) {
+    return state.availableFilters.find((definition) => definition.column_name === columnName) || null;
+}
+
+function displayFilterName(definition) {
+    if (!definition) {
+        return "";
+    }
+    return definition.display_name || definition.column_name;
+}
+
+function getColumnRole(columnName) {
+    if (state.analysisVerbatimColumns.includes(columnName)) {
+        return "verbatim";
+    }
+    if (state.analysisMetadataColumns.includes(columnName)) {
+        return "metadata";
+    }
+    return "not assigned";
+}
+
+function pruneInvalidActiveFilters() {
+    const allowedColumns = new Set(state.availableFilters.map((definition) => definition.column_name));
+    const nextFilters = {};
+    Object.entries(state.activeFilters).forEach(([columnName, values]) => {
+        if (allowedColumns.has(columnName)) {
+            nextFilters[columnName] = values;
+        }
+    });
+    state.activeFilters = nextFilters;
+}
+
+function showColumnRoleMessage(kind, message) {
+    if (!elements.columnRoleMessage) {
+        return;
+    }
+    elements.columnRoleMessage.hidden = false;
+    elements.columnRoleMessage.className = `analysis-message analysis-message-${kind}`;
+    elements.columnRoleMessage.textContent = message;
+}
+
+function hideColumnRoleMessage() {
+    if (!elements.columnRoleMessage) {
+        return;
+    }
+    elements.columnRoleMessage.hidden = true;
+    elements.columnRoleMessage.textContent = "";
+    elements.columnRoleMessage.className = "analysis-message";
+}
+
+function showFilterModalMessage(kind, message) {
+    if (!elements.filterModalMessage) {
+        return;
+    }
+    elements.filterModalMessage.hidden = false;
+    elements.filterModalMessage.className = `analysis-message analysis-message-${kind}`;
+    elements.filterModalMessage.textContent = message;
+}
+
+function hideFilterModalMessage() {
+    if (!elements.filterModalMessage) {
+        return;
+    }
+    elements.filterModalMessage.hidden = true;
+    elements.filterModalMessage.textContent = "";
+    elements.filterModalMessage.className = "analysis-message";
+}
+
+function persistCurrentPayload() {
+    if (!state.response) {
         return;
     }
 
-    elements.activeFilters.hidden = false;
-    elements.activeFilters.innerHTML = filterEntries
-        .map(([columnName, values]) => {
-            const filter = state.availableFilters.find((item) => item.column_name === columnName);
-            const label = displayColumnLabel(filter?.display_name || columnName);
-            const value = Array.isArray(values) ? values[0] || "" : "";
-            return `
-                <div class="active-filter-chip">
-                    <span class="active-filter-text">${escapeHtml(label)}: ${escapeHtml(value)}</span>
-                    <button
-                        type="button"
-                        class="active-filter-remove"
-                        data-filter-column="${escapeHtml(columnName)}"
-                        aria-label="Remove ${escapeHtml(label)} filter"
-                    >
-                        Remove
-                    </button>
-                </div>
-            `;
-        })
-        .join("");
-
-    elements.filterActiveNote.hidden = false;
-    elements.filterActiveNote.textContent = `${filterEntries.length} filter${filterEntries.length === 1 ? "" : "s"} applied`;
+    state.response.analysis_metadata_column_names = [...state.analysisMetadataColumns];
+    state.response.analysis_verbatim_column_names = [...state.analysisVerbatimColumns];
+    state.response.analysis_row_count = state.analysisTotalRows;
+    state.response.analysis_column_names = [...state.analysisColumnNames];
+    state.response.available_filters = [...state.availableFilters];
+    try {
+        sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(state.response));
+    } catch (error) {
+        console.warn("[Verbatim App] Unable to update cached processed result.", error);
+    }
 }
+
+function resetDatasetRows(dataset) {
+    if (dataset === "transformed") {
+        state.transformedRows = [];
+        state.transformedHasMore = false;
+        state.transformedLoading = false;
+        state.transformedTotalRows = 0;
+        return;
+    }
+
+    state.analysisRows = [];
+    state.analysisHasMore = false;
+    state.analysisLoading = false;
+    state.analysisTotalRows = 0;
+}
+
+function applyRowsPayload(dataset, payload) {
+    if (dataset === "transformed") {
+        state.transformedRows = Array.isArray(payload.rows) ? payload.rows : [];
+        state.transformedHasMore = Boolean(payload.has_more);
+        state.transformedTotalRows = Number(payload.total_row_count || 0);
+        state.transformedUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
+        if (Array.isArray(payload.column_names) && payload.column_names.length) {
+            state.transformedColumnNames = payload.column_names;
+        }
+        return;
+    }
+
+    state.analysisRows = Array.isArray(payload.rows) ? payload.rows : [];
+    state.analysisHasMore = Boolean(payload.has_more);
+    state.analysisTotalRows = Number(payload.total_row_count || 0);
+    state.analysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
+    if (Array.isArray(payload.column_names) && payload.column_names.length) {
+        state.analysisColumnNames = payload.column_names;
+    }
+}
+
+async function fetchRowsPage(dataset, offset, limit) {
+    const query = new URLSearchParams({
+        dataset,
+        offset: `${offset}`,
+        limit: `${limit}`,
+    });
+    if (hasActiveFilters()) {
+        query.set("filters", JSON.stringify(state.activeFilters));
+    }
+
+    const response = await fetch(`/result-rows/${encodeURIComponent(state.resultId)}?${query.toString()}`);
+    if (response.status === 401) {
+        sessionStorage.removeItem(RESULT_STORAGE_KEY);
+        window.location.assign("/login");
+        throw new Error("Session expired.");
+    }
+
+    const payload = await parseJson(response);
+    if (!response.ok) {
+        throw new Error(payload.detail || "Unable to load rows.");
+    }
+    return payload;
+}
+
+async function parseJson(response) {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+}
+})();

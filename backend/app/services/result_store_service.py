@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pandas as pd
 
+from app.services.cleaning_services import AnalysisReadyDatasetService
 from app.services.metadata_filter_service import MetadataFilterDefinition, MetadataFilterService
 
 
@@ -18,6 +19,8 @@ DatasetName = Literal["transformed", "analysis"]
 class StoredResultDatasets:
     transformed_df: pd.DataFrame
     analysis_df: pd.DataFrame
+    metadata_columns: list[str]
+    verbatim_columns: list[str]
     available_filters: list[MetadataFilterDefinition]
 
 
@@ -34,6 +37,16 @@ class ResultRowsPage:
     rows: list[dict[str, object]]
 
 
+@dataclass(slots=True)
+class StoredDatasetSelection:
+    result_id: str
+    dataset: DatasetName
+    dataframe: pd.DataFrame
+    total_row_count: int
+    metadata_columns: list[str]
+    verbatim_columns: list[str]
+
+
 class ResultNotFoundError(KeyError):
     """Raised when a stored transformation result is unavailable."""
 
@@ -45,9 +58,11 @@ class ResultStoreService:
         self,
         metadata_filter_service: MetadataFilterService,
         *,
+        analysis_ready_service: AnalysisReadyDatasetService,
         max_results: int = 8,
     ) -> None:
         self.metadata_filter_service = metadata_filter_service
+        self.analysis_ready_service = analysis_ready_service
         self.max_results = max_results
         self._results: OrderedDict[str, StoredResultDatasets] = OrderedDict()
         self._lock = Lock()
@@ -58,11 +73,14 @@ class ResultStoreService:
         analysis_df: pd.DataFrame,
         *,
         metadata_columns: list[str],
+        verbatim_columns: list[str],
     ) -> str:
         result_id = uuid4().hex
         stored = StoredResultDatasets(
             transformed_df=transformed_df.copy(),
             analysis_df=analysis_df.copy(),
+            metadata_columns=list(metadata_columns),
+            verbatim_columns=list(verbatim_columns),
             available_filters=self.metadata_filter_service.build_definitions(
                 transformed_df,
                 metadata_columns=metadata_columns,
@@ -86,6 +104,79 @@ class ResultStoreService:
 
         return stored.available_filters
 
+    def update_column_role(
+        self,
+        result_id: str,
+        *,
+        column_name: str,
+        role: Literal["metadata", "verbatim"],
+    ) -> StoredResultDatasets:
+        with self._lock:
+            stored = self._results.get(result_id)
+            if stored is None:
+                raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
+
+            if column_name not in stored.transformed_df.columns:
+                raise ValueError(f"Column '{column_name}' is not present in the transformed dataset.")
+
+            metadata_columns = [column for column in stored.metadata_columns if column != column_name]
+            verbatim_columns = [column for column in stored.verbatim_columns if column != column_name]
+            if role == "metadata":
+                metadata_columns.append(column_name)
+            else:
+                verbatim_columns.append(column_name)
+
+            analysis_df, resolved_metadata, resolved_verbatim = self.analysis_ready_service.build_from_assignments(
+                stored.transformed_df,
+                metadata_columns=metadata_columns,
+                verbatim_columns=verbatim_columns,
+            )
+            available_filters = self.metadata_filter_service.build_definitions(
+                stored.transformed_df,
+                metadata_columns=resolved_metadata,
+            )
+
+            stored.analysis_df = analysis_df
+            stored.metadata_columns = resolved_metadata
+            stored.verbatim_columns = resolved_verbatim
+            stored.available_filters = available_filters
+            self._results.move_to_end(result_id)
+            return StoredResultDatasets(
+                transformed_df=stored.transformed_df.copy(),
+                analysis_df=stored.analysis_df.copy(),
+                metadata_columns=list(stored.metadata_columns),
+                verbatim_columns=list(stored.verbatim_columns),
+                available_filters=list(stored.available_filters),
+            )
+
+    def get_dataset(
+        self,
+        result_id: str,
+        *,
+        dataset: DatasetName,
+        filters: dict[str, list[str]] | None = None,
+    ) -> StoredDatasetSelection:
+        with self._lock:
+            stored = self._results.get(result_id)
+
+        if stored is None:
+            raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
+
+        unfiltered_df = stored.transformed_df if dataset == "transformed" else stored.analysis_df
+        filtered_df = self.metadata_filter_service.apply_filters(
+            unfiltered_df,
+            filters=filters,
+            allowed_columns={definition.column_name for definition in stored.available_filters},
+        )
+        return StoredDatasetSelection(
+            result_id=result_id,
+            dataset=dataset,
+            dataframe=filtered_df.copy(),
+            total_row_count=int(len(unfiltered_df)),
+            metadata_columns=list(stored.metadata_columns),
+            verbatim_columns=list(stored.verbatim_columns),
+        )
+
     def get_page(
         self,
         result_id: str,
@@ -104,12 +195,13 @@ class ResultStoreService:
         if stored is None:
             raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
 
-        unfiltered_df = stored.transformed_df if dataset == "transformed" else stored.analysis_df
-        dataframe = self.metadata_filter_service.apply_filters(
-            unfiltered_df,
+        selection = self.get_dataset(
+            result_id,
+            dataset=dataset,
             filters=filters,
-            allowed_columns={definition.column_name for definition in stored.available_filters},
         )
+        unfiltered_df = stored.transformed_df if dataset == "transformed" else stored.analysis_df
+        dataframe = selection.dataframe
         total_row_count = int(len(dataframe))
         unfiltered_row_count = int(len(unfiltered_df))
         normalized_offset = max(0, offset)

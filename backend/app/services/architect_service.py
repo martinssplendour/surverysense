@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import itertools
 import json
+import logging
+import re
 import urllib.request
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 import pandas as pd
@@ -13,6 +16,8 @@ from app.models.manifest import LayoutState, TransformationManifest
 
 
 DEFAULT_NULL_EQUIVALENTS = ["", "n/a", "na", "none", "null", ".", "-", "<na>", "nan"]
+IDENTIFIER_VALUE_PATTERN = re.compile(r"^[0-9a-f]{6,}(?:-[0-9a-f]{2,}){2,}$", re.IGNORECASE)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -24,20 +29,46 @@ class ManifestArchitectConfig:
     row_limit: int
 
 
+class DiagnosticMode(str, Enum):
+    AI = "ai"
+    RULE_BASED = "rule_based"
+
+
 class ManifestArchitectService:
     def __init__(self, config: ManifestArchitectConfig) -> None:
         self.config = config
+
+    def is_ai_available(self) -> bool:
+        return bool(self.config.gemini_api_key)
+
+    def default_diagnostic_mode(self) -> DiagnosticMode:
+        return DiagnosticMode.AI if self.is_ai_available() else DiagnosticMode.RULE_BASED
 
     def get_transformation_manifest(
         self,
         df_sample: pd.DataFrame,
         column_index_map: dict[int, str],
+        *,
+        diagnostic_mode: DiagnosticMode | None = None,
     ) -> TransformationManifest:
-        if self.config.gemini_api_key:
+        mode = diagnostic_mode or self.default_diagnostic_mode()
+        logger.info(
+            "Building transformation manifest with %s on %s sampled rows and %s columns.",
+            "AI diagnosis" if mode == DiagnosticMode.AI else "rule-based diagnosis",
+            len(df_sample),
+            len(column_index_map),
+        )
+        if mode == DiagnosticMode.AI:
+            if not self.is_ai_available():
+                raise ManifestBuildError(
+                    "AI diagnosis is not configured on this server. Add GEMINI_API_KEY or switch to rule-based diagnosis."
+                )
             try:
                 return self._build_manifest_with_gemini(df_sample, column_index_map)
-            except Exception:
-                pass
+            except ManifestBuildError:
+                raise
+            except Exception as exc:
+                raise ManifestBuildError(f"AI diagnosis failed: {exc}") from exc
         return self._build_manifest_heuristically(df_sample, column_index_map)
 
     def _build_manifest_with_gemini(
@@ -80,7 +111,13 @@ class ManifestArchitectService:
         raw_manifest = json.loads(text)
         raw_manifest["diagnostic_source"] = "gemini"
         raw_manifest["row_limit"] = self.config.row_limit
-        return TransformationManifest.model_validate(raw_manifest)
+        manifest = TransformationManifest.model_validate(raw_manifest)
+        logger.info(
+            "AI diagnosis completed with layout=%s and source=%s.",
+            manifest.layout_state,
+            manifest.diagnostic_source,
+        )
+        return manifest
 
     def _build_manifest_heuristically(
         self,
@@ -89,7 +126,7 @@ class ManifestArchitectService:
     ) -> TransformationManifest:
         vertical_candidate = self._detect_vertical_layout(df_sample)
         if vertical_candidate is not None:
-            return TransformationManifest(
+            manifest = TransformationManifest(
                 diagnostic_source="heuristic",
                 layout_state=LayoutState.VERTICAL,
                 metadata_indices=vertical_candidate["metadata_indices"],
@@ -106,17 +143,23 @@ class ManifestArchitectService:
                 null_equivalents=DEFAULT_NULL_EQUIVALENTS,
                 row_limit=self.config.row_limit,
                 notes=[
-                    "Manifest generated heuristically because Gemini was unavailable.",
+                    "Manifest generated using rule-based diagnosis.",
                     "Vertical layout detected from repeated respondent/question patterns.",
                 ],
             )
+            logger.info(
+                "Rule-based diagnosis completed with layout=%s and source=%s.",
+                manifest.layout_state,
+                manifest.diagnostic_source,
+            )
+            return manifest
 
         verbatim_indices = self._detect_wide_verbatim_indices(df_sample)
         metadata_indices = [
             idx for idx in column_index_map
             if idx not in set(verbatim_indices)
         ]
-        return TransformationManifest(
+        manifest = TransformationManifest(
             diagnostic_source="heuristic",
             layout_state=LayoutState.WIDE,
             metadata_indices=metadata_indices,
@@ -125,10 +168,16 @@ class ManifestArchitectService:
             null_equivalents=DEFAULT_NULL_EQUIVALENTS,
             row_limit=self.config.row_limit,
             notes=[
-                "Manifest generated heuristically because Gemini was unavailable.",
+                "Manifest generated using rule-based diagnosis.",
                 "Wide layout assumed because no strong vertical verbatim signature was found.",
             ],
         )
+        logger.info(
+            "Rule-based diagnosis completed with layout=%s and source=%s.",
+            manifest.layout_state,
+            manifest.diagnostic_source,
+        )
+        return manifest
 
     def _build_gemini_prompt(
         self,
@@ -330,6 +379,9 @@ class ManifestArchitectService:
         record_key_header = str(df_sample.columns[record_key_idx])
         question_header = str(df_sample.columns[question_idx])
         answer_header = str(df_sample.columns[answer_idx])
+        record_key_identifier_ratio = self._identifier_like_ratio(subset["record_key"])
+        answer_identifier_ratio = self._identifier_like_ratio(subset["answer_value"])
+        question_identifier_ratio = self._identifier_like_ratio(subset["question_value"])
 
         score = 0.0
         if record_key_unique and row_count / record_key_unique >= 1.5:
@@ -346,16 +398,18 @@ class ManifestArchitectService:
             score += 0.5
         if avg_answer_length >= avg_question_length:
             score += 0.5
+        if record_key_identifier_ratio >= 0.6:
+            score += 1.0
+        if answer_identifier_ratio >= 0.6:
+            score -= 3.0
+        if question_identifier_ratio >= 0.2:
+            score -= 2.0
 
-        score += self._header_hint_score(
-            record_key_header,
-            {"response_id", "respondent", "submission", "record", "user_id", "id"},
-        ) * 2.0
+        score += self._record_key_header_score(record_key_header) * 2.0
         score += self._question_header_name_score(question_header)
-        score += self._header_hint_score(
-            answer_header,
-            {"answer", "response", "comment", "feedback", "verbatim", "text", "value"},
-        ) * 1.5
+        score += self._answer_header_score(answer_header) * 1.5
+        score -= self._helper_header_penalty(record_key_header) * 2.0
+        score -= self._helper_header_penalty(answer_header) * 1.5
 
         return {
             "score": score,
@@ -474,6 +528,68 @@ class ManifestArchitectService:
         ):
             score += 1.0
         return score
+
+    @staticmethod
+    def _record_key_header_score(header_name: str) -> float:
+        tokens = ManifestArchitectService._header_tokens(header_name)
+        score = 0.0
+        if "id" in tokens:
+            score += 1.0
+        if {"response", "id"} <= tokens:
+            score += 1.5
+        if {"user", "id"} <= tokens:
+            score += 1.0
+        if {"record", "id"} <= tokens or {"submission", "id"} <= tokens:
+            score += 1.0
+        if "respondent" in tokens:
+            score += 0.75
+        return score
+
+    @staticmethod
+    def _answer_header_score(header_name: str) -> float:
+        tokens = ManifestArchitectService._header_tokens(header_name)
+        score = 0.0
+        if "answer" in tokens:
+            score += 1.0
+        if "value" in tokens:
+            score += 0.75
+        if "response" in tokens and "id" not in tokens:
+            score += 0.5
+        if tokens & {"comment", "comments", "feedback", "verbatim", "text"}:
+            score += 1.0
+        if "id" in tokens:
+            score -= 1.0
+        return score
+
+    @staticmethod
+    def _helper_header_penalty(header_name: str) -> float:
+        tokens = ManifestArchitectService._header_tokens(header_name)
+        return 1.0 if tokens & {"order", "sequence", "number", "code", "rank", "position"} else 0.0
+
+    @staticmethod
+    def _header_tokens(header_name: str) -> set[str]:
+        return {
+            token
+            for token in re.split(r"[_\W]+", header_name.casefold())
+            if token
+        }
+
+    @staticmethod
+    def _identifier_like_ratio(series: pd.Series) -> float:
+        if series.empty:
+            return 0.0
+
+        def looks_like_identifier(value: str) -> bool:
+            text = str(value).strip()
+            if not text or " " in text:
+                return False
+            if IDENTIFIER_VALUE_PATTERN.fullmatch(text):
+                return True
+            has_digit = any(char.isdigit() for char in text)
+            has_alpha = any(char.isalpha() for char in text)
+            return len(text) >= 12 and has_digit and has_alpha and text.count("-") >= 1
+
+        return float(series.astype(str).map(looks_like_identifier).mean())
 
     @staticmethod
     def _header_hint_score(header_name: str, tokens: set[str]) -> float:

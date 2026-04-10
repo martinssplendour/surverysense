@@ -6,3 +6,10 @@ chardet
 python-dotenv
 google-auth
 requests
+itsdangerous
+numpy
+scikit-learn
+sentence-transformers
+hdbscan
+umap-learn
+bertopic

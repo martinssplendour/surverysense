@@ -34,8 +34,8 @@ class CsvIngestionService:
     def ingest(self, payload: bytes) -> IngestedCsv:
         encoding_result = self.encoding_service.detect(payload)
         dataframe = self._read_csv(payload, encoding_result.encoding)
-        sample_df = self._sample_dataframe(dataframe, self.sample_size)
-        architect_df = self._sample_dataframe(sample_df, self.architect_sample_size)
+        sample_df = self._head_dataframe(dataframe, self.sample_size)
+        architect_df = self._head_dataframe(dataframe, self.architect_sample_size)
         column_index_map = {
             index: str(column_name)
             for index, column_name in enumerate(dataframe.columns.tolist())
@@ -58,11 +58,11 @@ class CsvIngestionService:
         return rows
 
     @staticmethod
-    def _sample_dataframe(df: pd.DataFrame, sample_size: int) -> pd.DataFrame:
+    def _head_dataframe(df: pd.DataFrame, sample_size: int) -> pd.DataFrame:
         if df.empty:
             return df.copy()
         n_rows = min(sample_size, len(df))
-        return df.sample(n=n_rows, random_state=42).reset_index(drop=True)
+        return df.head(n_rows).reset_index(drop=True)
 
     @staticmethod
     def _read_csv(payload: bytes, encoding: str) -> pd.DataFrame:

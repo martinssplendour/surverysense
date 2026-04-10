@@ -70,9 +70,20 @@ class QuestionHeaderResolutionService:
         resolved = pd.Series([None] * len(raw_df), index=raw_df.index, dtype=object)
         for idx in question_header_indices:
             candidate = raw_df.iloc[:, idx].map(self.text_normalizer.normalize_scalar)
-            candidate = candidate.map(lambda value: None if value in (None, "") else str(value))
+            candidate = candidate.map(self._normalize_resolved_value)
             resolved = resolved.where(resolved.notna(), candidate)
         return resolved
+
+    @staticmethod
+    def _normalize_resolved_value(value: Any) -> str | None:
+        if value is None or pd.isna(value):
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.casefold() in {"nan", "<na>", "none"}:
+            return None
+        return text
 
 
 @dataclass(slots=True)
@@ -162,16 +173,19 @@ class MetadataColumnSelectionService:
         "submission id",
         "submission month",
         "submit date",
+        "sub type",
         "survey id",
         "survey month",
         "survey name",
         "survey title",
         "survey wave",
+        "subscription tenure",
         "time spent",
         "user date created",
         "user id",
         "us states",
         "wave number",
+        "rfm status",
         "zip code",
     }
     STRONG_METADATA_WORDS = {
@@ -198,6 +212,7 @@ class MetadataColumnSelectionService:
         "started",
         "state",
         "tier",
+        "tenure",
         "wave",
     }
     APPROVED_METADATA_TOKEN_SETS = {
@@ -250,17 +265,35 @@ class MetadataColumnSelectionService:
         frozenset({"submission", "id"}),
         frozenset({"submission", "month"}),
         frozenset({"submit", "date"}),
+        frozenset({"sub", "type"}),
         frozenset({"survey", "id"}),
         frozenset({"survey", "month"}),
         frozenset({"survey", "name"}),
         frozenset({"survey", "title"}),
         frozenset({"survey", "wave"}),
+        frozenset({"subscription", "tenure"}),
         frozenset({"time", "spent"}),
         frozenset({"user", "date", "created"}),
         frozenset({"user", "id"}),
         frozenset({"us", "states"}),
         frozenset({"wave", "number"}),
+        frozenset({"rfm", "status"}),
         frozenset({"zip", "code"}),
+    }
+    QUESTION_LIKE_TOKENS = {
+        "how",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "would",
+        "could",
+        "should",
+        "please",
+        "thanks",
+        "tell",
     }
 
     def select_columns(self, df: pd.DataFrame) -> list[str]:
@@ -283,6 +316,8 @@ class MetadataColumnSelectionService:
 
         tokens = normalized.split()
         token_set = set(tokens)
+        if self._looks_like_identifier_header(tokens):
+            return True
         if len(tokens) <= 4 and any(required_tokens <= token_set for required_tokens in self.APPROVED_METADATA_TOKEN_SETS):
             return True
 
@@ -292,6 +327,16 @@ class MetadataColumnSelectionService:
     def _normalize_header(column_name: str) -> str:
         base_name = TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN.sub("", column_name.strip())
         return re.sub(r"[_\W]+", " ", base_name.casefold()).strip()
+
+    @classmethod
+    def _looks_like_identifier_header(cls, tokens: list[str]) -> bool:
+        if not tokens or len(tokens) > 4:
+            return False
+        if any(token in cls.QUESTION_LIKE_TOKENS for token in tokens):
+            return False
+        if tokens[-1] == "id":
+            return True
+        return any(token in {"uid", "sid", "cid"} for token in tokens)
 
 
 class MultipartVerbatimConsolidationService:
@@ -532,10 +577,52 @@ class VerbatimQuestionSelectionService:
     HIGH_VARIATION_TOP10_COVERAGE_MAX = 0.55
     HIGH_VARIATION_UNIQUE_COUNT_MIN = 10
     MIN_VARIATION_ROW_COUNT = 20
+    SHORT_TEXT_AVG_LENGTH_MAX = 20.0
+    SHORT_TEXT_LONG_RATIO_MAX = 0.2
+    SHORT_TEXT_TOP10_COVERAGE_MAX = 0.75
+    SHORT_TEXT_UNIQUE_COUNT_MIN = 8
+    SMALL_SAMPLE_FIXED_RESPONSE_MIN_ROWS = 8
+    SMALL_SAMPLE_FIXED_RESPONSE_UNIQUE_COUNT_MAX = 5
+    SMALL_SAMPLE_FIXED_RESPONSE_UNIQUE_RATIO_MAX = 0.35
+    SMALL_SAMPLE_FIXED_RESPONSE_TOP5_COVERAGE_MIN = 0.85
     LOW_VARIATION_UNIQUE_COUNT_MAX = 12
     LOW_VARIATION_UNIQUE_RATIO_MAX = 0.1
     LOW_VARIATION_TOP5_COVERAGE_MIN = 0.65
     LOW_VARIATION_TOP10_COVERAGE_MIN = 0.8
+    IDENTIFIER_NUMERIC_RATIO_MIN = 0.95
+    IDENTIFIER_UNIQUE_RATIO_MIN = 0.85
+    OPEN_ENDED_HEADER_PHRASES = (
+        "what more",
+        "how can",
+        "tell us more",
+        "please tell",
+        "in your own words",
+        "comes to mind",
+        "other than",
+        "three words",
+        "why do",
+        "why did",
+    )
+    OPEN_ENDED_HEADER_TOKENS = {
+        "comment",
+        "comments",
+        "describe",
+        "feedback",
+        "opinion",
+        "share",
+        "why",
+    }
+    CLOSED_QUESTION_HEADER_PHRASES = (
+        "how important",
+        "how well do we",
+        "how likely",
+        "how many",
+        "which of the following",
+        "are you happy",
+        "awareness and usage",
+        "i have heard of this",
+        "i have used this",
+    )
 
     def score_columns(
         self,
@@ -584,7 +671,7 @@ class VerbatimQuestionSelectionService:
     ) -> VerbatimQuestionCandidate:
         non_blank = series.dropna().astype(str).str.strip()
         non_blank = non_blank[non_blank != ""]
-        normalized_header = column_name.strip().casefold()
+        normalized_header = self._normalize_header(column_name)
         reasons: list[str] = []
 
         if non_blank.empty:
@@ -609,6 +696,21 @@ class VerbatimQuestionSelectionService:
         value_distribution = non_blank.value_counts(normalize=True, dropna=True)
         top5_coverage = float(value_distribution.head(5).sum())
         top10_coverage = float(value_distribution.head(10).sum())
+        header_has_open_cue = self._has_open_ended_header_cue(normalized_header)
+        header_looks_closed = self._looks_like_closed_question_header(normalized_header)
+
+        if self._looks_like_identifier_header(normalized_header.split()):
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["identifier-like header"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
 
         if numeric_ratio >= 1.0:
             return VerbatimQuestionCandidate(
@@ -616,6 +718,23 @@ class VerbatimQuestionSelectionService:
                 score=-999.0,
                 is_selected=False,
                 reasons=["column is entirely numeric"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
+
+        if (
+            len(non_blank) >= self.MIN_VARIATION_ROW_COUNT
+            and numeric_ratio >= self.IDENTIFIER_NUMERIC_RATIO_MIN
+            and unique_ratio >= self.IDENTIFIER_UNIQUE_RATIO_MIN
+        ):
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["column looks like identifier values"],
                 non_blank_count=int(len(non_blank)),
                 unique_ratio=unique_ratio,
                 avg_length=avg_length,
@@ -642,6 +761,21 @@ class VerbatimQuestionSelectionService:
             unique_ratio=unique_ratio,
             top10_coverage=top10_coverage,
         ):
+            if self._looks_like_short_text_label_set(
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+            ) and not header_has_open_cue:
+                return VerbatimQuestionCandidate(
+                    column_name=column_name,
+                    score=-999.0,
+                    is_selected=False,
+                    reasons=["short structured answers without open-ended question cues"],
+                    non_blank_count=int(len(non_blank)),
+                    unique_ratio=unique_ratio,
+                    avg_length=avg_length,
+                    long_text_ratio=long_text_ratio,
+                    numeric_ratio=numeric_ratio,
+                )
             reasons.append("column contains text responses")
             reasons.append("answers are highly varied")
             return VerbatimQuestionCandidate(
@@ -688,6 +822,51 @@ class VerbatimQuestionSelectionService:
                 numeric_ratio=numeric_ratio,
             )
 
+        if header_looks_closed and self._looks_like_short_text_label_set(
+            avg_length=avg_length,
+            long_text_ratio=long_text_ratio,
+        ):
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["closed-question header with short structured answers"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
+
+        if self._looks_like_short_text_label_set(
+            avg_length=avg_length,
+            long_text_ratio=long_text_ratio,
+        ):
+            if not header_has_open_cue:
+                return VerbatimQuestionCandidate(
+                    column_name=column_name,
+                    score=-999.0,
+                    is_selected=False,
+                    reasons=["short answers need stronger open-ended question cues"],
+                    non_blank_count=int(len(non_blank)),
+                    unique_ratio=unique_ratio,
+                    avg_length=avg_length,
+                    long_text_ratio=long_text_ratio,
+                    numeric_ratio=numeric_ratio,
+                )
+            if unique_count < self.SHORT_TEXT_UNIQUE_COUNT_MIN and top10_coverage > self.SHORT_TEXT_TOP10_COVERAGE_MAX:
+                return VerbatimQuestionCandidate(
+                    column_name=column_name,
+                    score=-999.0,
+                    is_selected=False,
+                    reasons=["short answers do not show enough open-text variation"],
+                    non_blank_count=int(len(non_blank)),
+                    unique_ratio=unique_ratio,
+                    avg_length=avg_length,
+                    long_text_ratio=long_text_ratio,
+                    numeric_ratio=numeric_ratio,
+                )
+
         reasons.append("column contains text responses")
         reasons.append("answers are sufficiently varied")
 
@@ -731,6 +910,16 @@ class VerbatimQuestionSelectionService:
         top5_coverage: float,
         top10_coverage: float,
     ) -> bool:
+        if (
+            non_blank_count >= self.SMALL_SAMPLE_FIXED_RESPONSE_MIN_ROWS
+            and top5_coverage >= self.SMALL_SAMPLE_FIXED_RESPONSE_TOP5_COVERAGE_MIN
+            and (
+                unique_count <= self.SMALL_SAMPLE_FIXED_RESPONSE_UNIQUE_COUNT_MAX
+                or unique_ratio <= self.SMALL_SAMPLE_FIXED_RESPONSE_UNIQUE_RATIO_MAX
+            )
+        ):
+            return True
+
         if non_blank_count < self.MIN_VARIATION_ROW_COUNT:
             return False
 
@@ -739,6 +928,35 @@ class VerbatimQuestionSelectionService:
             or
             (unique_ratio <= self.LOW_VARIATION_UNIQUE_RATIO_MAX and top10_coverage >= self.LOW_VARIATION_TOP10_COVERAGE_MIN)
         )
+
+    def _has_open_ended_header_cue(self, normalized_header: str) -> bool:
+        if any(phrase in normalized_header for phrase in self.OPEN_ENDED_HEADER_PHRASES):
+            return True
+        tokens = set(normalized_header.split())
+        return bool(tokens & self.OPEN_ENDED_HEADER_TOKENS)
+
+    def _looks_like_closed_question_header(self, normalized_header: str) -> bool:
+        return any(phrase in normalized_header for phrase in self.CLOSED_QUESTION_HEADER_PHRASES)
+
+    def _looks_like_short_text_label_set(
+        self,
+        *,
+        avg_length: float,
+        long_text_ratio: float,
+    ) -> bool:
+        return (
+            avg_length <= self.SHORT_TEXT_AVG_LENGTH_MAX
+            and long_text_ratio <= self.SHORT_TEXT_LONG_RATIO_MAX
+        )
+
+    @staticmethod
+    def _normalize_header(column_name: str) -> str:
+        base_name = TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN.sub("", column_name.strip())
+        return re.sub(r"[_\W]+", " ", base_name.casefold()).strip()
+
+    @staticmethod
+    def _looks_like_identifier_header(tokens: list[str]) -> bool:
+        return MetadataColumnSelectionService._looks_like_identifier_header(tokens)
 
 
 class AnalysisReadyDatasetService:
@@ -749,10 +967,12 @@ class AnalysisReadyDatasetService:
         metadata_selector: MetadataColumnSelectionService,
         verbatim_selector: VerbatimQuestionSelectionService,
         multipart_verbatim_consolidator: MultipartVerbatimConsolidationService,
+        row_filter: VerbatimRowFilterService,
     ) -> None:
         self.metadata_selector = metadata_selector
         self.verbatim_selector = verbatim_selector
         self.multipart_verbatim_consolidator = multipart_verbatim_consolidator
+        self.row_filter = row_filter
 
     def build(self, df: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[str]]:
         if df.empty:
@@ -773,6 +993,37 @@ class AnalysisReadyDatasetService:
             if column not in set(metadata_columns)
         ]
         return working_df[selected_columns].copy(), metadata_columns, verbatim_columns
+
+    def build_from_assignments(
+        self,
+        df: pd.DataFrame,
+        *,
+        metadata_columns: list[str],
+        verbatim_columns: list[str],
+    ) -> tuple[pd.DataFrame, list[str], list[str]]:
+        if df.empty:
+            resolved_metadata = [column for column in metadata_columns if column in df.columns]
+            resolved_verbatim = [column for column in verbatim_columns if column in df.columns and column not in set(resolved_metadata)]
+            selected_columns = resolved_metadata + resolved_verbatim
+            return df[selected_columns].copy(), resolved_metadata, resolved_verbatim
+
+        resolved_metadata = []
+        seen_columns: set[str] = set()
+        for column in metadata_columns:
+            if column in df.columns and column not in seen_columns:
+                resolved_metadata.append(column)
+                seen_columns.add(column)
+
+        resolved_verbatim = []
+        for column in verbatim_columns:
+            if column in df.columns and column not in seen_columns:
+                resolved_verbatim.append(column)
+                seen_columns.add(column)
+
+        selected_columns = resolved_metadata + resolved_verbatim
+        analysis_df = df[selected_columns].copy()
+        analysis_df = self.row_filter.drop_empty_rows(analysis_df, resolved_verbatim)
+        return analysis_df, resolved_metadata, resolved_verbatim
 
 
 class VerticalRecordFilterService:

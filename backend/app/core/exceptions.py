@@ -16,3 +16,15 @@ class ManifestBuildError(IngestionError):
 
 class RowLimitExceededError(IngestionError):
     """Raised when the transformed dataframe breaches the safety limit."""
+
+
+class TopicAnalysisError(Exception):
+    """Base error for topic-modeling analysis failures."""
+
+
+class TopicAnalysisDependencyError(TopicAnalysisError):
+    """Raised when an optional analysis dependency is unavailable."""
+
+
+class TopicAnalysisInputError(TopicAnalysisError):
+    """Raised when an analysis request cannot be satisfied with the selected data."""

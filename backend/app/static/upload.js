@@ -1,7 +1,11 @@
+(function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
 
 const state = {
     file: null,
+    aiAvailable: true,
+    architectRowCount: 25,
+    diagnosticMode: "ai",
 };
 
 const elements = {
@@ -10,16 +14,16 @@ const elements = {
     fileInput: document.getElementById("csv-file"),
     fileLabel: document.getElementById("file-label"),
     fileMeta: document.getElementById("file-meta"),
-    chooseFileButton: document.getElementById("choose-file-btn"),
     processButton: document.getElementById("process-btn"),
     statusMessage: document.getElementById("status-message"),
 };
 
 bindEvents();
+loadDiagnosticConfig();
 
 function bindEvents() {
-    elements.chooseFileButton.addEventListener("click", () => {
-        elements.fileInput.click();
+    window.addEventListener("verbatim:upload-reset", () => {
+        setFile(null);
     });
 
     elements.fileInput.addEventListener("change", () => {
@@ -47,6 +51,30 @@ function bindEvents() {
         const [file] = event.dataTransfer?.files ?? [];
         setFile(file ?? null);
     });
+}
+
+async function loadDiagnosticConfig() {
+    try {
+        const response = await fetch("/diagnostic-config");
+        if (response.status === 401) {
+            window.location.assign("/login");
+            return;
+        }
+        const payload = await parseJson(response);
+        if (!response.ok) {
+            throw new Error(payload.detail || "Unable to load diagnosis options.");
+        }
+        state.aiAvailable = Boolean(payload.ai_available);
+        state.architectRowCount = Number(payload.architect_row_count) || 25;
+        state.diagnosticMode = payload.default_diagnostic_mode || "ai";
+    } catch {
+        state.aiAvailable = true;
+        state.architectRowCount = 25;
+        state.diagnosticMode = "ai";
+    }
+    console.info(
+        `[Verbatim App] Diagnosis workflow ready: ${formatDiagnosticModeLabel(state.diagnosticMode)} using first ${state.architectRowCount} rows.`,
+    );
 }
 
 function setFile(file) {
@@ -84,9 +112,13 @@ async function handleSubmit(event) {
 
     const formData = new FormData();
     formData.append("file", state.file);
+    formData.append("diagnostic_mode", state.diagnosticMode);
 
     setBusyState(true);
-    showStatus("neutral", "Processing CSV and preparing the results page...");
+    showStatus("neutral", `Processing CSV with ${formatDiagnosticModeLabel(state.diagnosticMode)}...`);
+    console.info(
+        `[Verbatim App] Starting upload with ${formatDiagnosticModeLabel(state.diagnosticMode)} for ${state.file.name}.`,
+    );
 
     try {
         const response = await fetch("/upload-ingest", {
@@ -104,8 +136,21 @@ async function handleSubmit(event) {
             throw new Error(payload.detail || "The API request failed.");
         }
 
-        sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(payload));
-        window.location.assign("/results");
+        try {
+            sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(payload));
+        } catch (error) {
+            console.warn("[Verbatim App] Unable to cache processed result in session storage.", error);
+        }
+        console.info(
+            `[Verbatim App] Processing finished with ${payload.manifest?.diagnostic_source || state.diagnosticMode} manifest generation.`,
+        );
+        setBusyState(false);
+        showStatus("neutral", "File processed.");
+        if (typeof window.verbatimApplyProcessedResult === "function") {
+            window.verbatimApplyProcessedResult(payload);
+            return;
+        }
+        window.dispatchEvent(new CustomEvent("verbatim:result-ready", { detail: payload }));
     } catch (error) {
         const message = error instanceof Error ? error.message : "Processing failed.";
         showStatus("error", message);
@@ -115,7 +160,6 @@ async function handleSubmit(event) {
 
 function setBusyState(isBusy) {
     elements.processButton.disabled = isBusy || !state.file;
-    elements.chooseFileButton.disabled = isBusy;
     elements.fileInput.disabled = isBusy;
 }
 
@@ -142,3 +186,8 @@ function formatBytes(bytes) {
     const value = bytes / (1024 ** exponent);
     return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${sizes[exponent]}`;
 }
+
+function formatDiagnosticModeLabel(mode) {
+    return mode === "rule_based" ? "rule-based diagnosis" : "AI diagnosis";
+}
+})();
