@@ -107,6 +107,15 @@ class AnalysisNgramBucketModel(BaseModel):
     items: list[AnalysisNgramItemModel] = Field(default_factory=list)
 
 
+class AnalysisScatterPointModel(BaseModel):
+    row_number: int
+    text: str
+    group_id: str
+    group_label: str
+    x: float
+    y: float
+
+
 class AnalysisRunResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     ok: bool
@@ -121,3 +130,4 @@ class AnalysisRunResponse(BaseModel):
     error: str | None = None
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)
+    scatter_points: list[AnalysisScatterPointModel] = Field(default_factory=list)

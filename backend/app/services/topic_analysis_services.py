@@ -443,16 +443,12 @@ class SentenceEmbeddingService:
         self._models: dict[str, object] = {}
         self._lock = Lock()
 
-    def encode(self, texts: list[str], *, model_name: str):
-        if not texts:
-            return []
-
+    def _get_model(self, model_name: str):
         try:
-            import numpy as np
             from sentence_transformers import SentenceTransformer
         except Exception as exc:  # pragma: no cover - dependency error path
             raise TopicAnalysisDependencyError(
-                "sentence-transformers and numpy are required for embedding-based analysis."
+                "sentence-transformers is required for embedding-based analysis."
             ) from exc
 
         with self._lock:
@@ -460,6 +456,25 @@ class SentenceEmbeddingService:
             if model is None:
                 model = SentenceTransformer(model_name)
                 self._models[model_name] = model
+        return model
+
+    def warm_up(self, *, model_name: str) -> None:
+        if not model_name:
+            return
+        self._get_model(model_name)
+
+    def encode(self, texts: list[str], *, model_name: str):
+        if not texts:
+            return []
+
+        try:
+            import numpy as np
+        except Exception as exc:  # pragma: no cover - dependency error path
+            raise TopicAnalysisDependencyError(
+                "numpy is required for embedding-based analysis."
+            ) from exc
+
+        model = self._get_model(model_name)
 
         embeddings = model.encode(
             texts,
@@ -670,6 +685,9 @@ class TopicAnalysisService:
         self.hdbscan_service = hdbscan_service
         self.bertopic_service = bertopic_service
 
+    def warm_up(self) -> None:
+        self.embedding_service.warm_up(model_name=self.config.embedding_model)
+
     def run(
         self,
         *,
@@ -693,6 +711,7 @@ class TopicAnalysisService:
             "error": None,
             "groups": [],
             "ngram_buckets": [],
+            "scatter_points": [],
         }
 
         try:
@@ -728,6 +747,7 @@ class TopicAnalysisService:
                     language=self.config.bertopic_language,
                 )
             else:
+                embeddings = None
                 embeddings = self.embedding_service.encode(
                     prepared.texts,
                     model_name=self.config.embedding_model,
@@ -756,6 +776,13 @@ class TopicAnalysisService:
                 explicit_groups=model_result.get("groups", {}),
                 model_key=model_key,
             )
+            if model_key == "kmeans" and embeddings is not None:
+                base_response["scatter_points"] = self._build_scatter_points(
+                    documents=prepared.documents,
+                    assignments=[int(value) for value in model_result.get("assignments", [])],
+                    embeddings=embeddings,
+                    groups=base_response["groups"],
+                )
             base_response["ok"] = True
             return base_response
         except (TopicAnalysisInputError, TopicAnalysisDependencyError) as exc:
@@ -834,3 +861,56 @@ class TopicAnalysisService:
             )
 
         return groups
+
+    def _build_scatter_points(
+        self,
+        *,
+        documents: list[PreparedDocument],
+        assignments: list[int],
+        embeddings,
+        groups: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        if not documents or not assignments:
+            return []
+
+        try:
+            import numpy as np
+            from sklearn.decomposition import PCA
+        except Exception as exc:  # pragma: no cover - dependency error path
+            raise TopicAnalysisDependencyError(
+                "scikit-learn and numpy are required for K-means scatter plots."
+            ) from exc
+
+        embedding_array = np.asarray(embeddings)
+        if embedding_array.ndim != 2 or embedding_array.shape[0] == 0:
+            return []
+
+        if embedding_array.shape[1] >= 2 and embedding_array.shape[0] >= 2:
+            projected = PCA(n_components=2, random_state=self.config.kmeans_random_state).fit_transform(embedding_array)
+        elif embedding_array.shape[1] == 1:
+            x_axis = embedding_array[:, 0]
+            y_axis = np.zeros_like(x_axis)
+            projected = np.column_stack((x_axis, y_axis))
+        else:
+            projected = np.zeros((embedding_array.shape[0], 2))
+
+        group_labels = {
+            str(group.get("group_id", "")): str(group.get("label", "Unlabelled group"))
+            for group in groups
+        }
+
+        scatter_points: list[dict[str, object]] = []
+        for index, (document, assignment) in enumerate(zip(documents, assignments)):
+            group_key = str(int(assignment))
+            scatter_points.append(
+                {
+                    "row_number": int(document.row_number),
+                    "text": document.text,
+                    "group_id": group_key,
+                    "group_label": group_labels.get(group_key, "Unlabelled group"),
+                    "x": float(projected[index][0]),
+                    "y": float(projected[index][1]),
+                }
+            )
+
+        return scatter_points

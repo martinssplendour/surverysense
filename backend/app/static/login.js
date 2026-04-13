@@ -10,11 +10,11 @@ async function initLoginPage() {
         const response = await fetch("/auth/config");
         const payload = await parseJson(response);
         if (!response.ok) {
-            throw new Error(payload.detail || "Unable to load Google sign-in configuration.");
+            throw new Error(payload.detail || "Unable to load login configuration.");
         }
 
         if (!payload.is_configured || !payload.client_id) {
-            throw new Error("Google sign-in is not configured on this server.");
+            throw new Error("Login is not configured on this server.");
         }
 
         await waitForGoogleIdentity();
@@ -35,9 +35,9 @@ async function initLoginPage() {
                 width: 320,
             },
         );
-        showStatus("neutral", "Sign in with your Twinkl Google account.");
+        showStatus("neutral", "Use your Twinkl account to log in.");
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Google sign-in could not be initialized.";
+        const message = error instanceof Error ? error.message : "Login could not be initialized.";
         showStatus("error", message);
     }
 }
@@ -45,11 +45,11 @@ async function initLoginPage() {
 async function handleCredentialResponse(response) {
     const credential = typeof response?.credential === "string" ? response.credential : "";
     if (!credential) {
-        showStatus("error", "Google did not return a valid credential.");
+        showStatus("error", "Login did not return a valid credential.");
         return;
     }
 
-    showStatus("neutral", "Verifying Google account...");
+    showStatus("neutral", "Verifying your account...");
 
     try {
         const authResponse = await fetch("/auth/google", {
@@ -61,11 +61,11 @@ async function handleCredentialResponse(response) {
         });
         const payload = await parseJson(authResponse);
         if (!authResponse.ok) {
-            throw new Error(payload.detail || "Google sign-in failed.");
+            throw new Error(payload.detail || "Login failed.");
         }
         window.location.assign("/");
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Google sign-in failed.";
+        const message = error instanceof Error ? error.message : "Login failed.";
         showStatus("error", message);
     }
 }
@@ -83,7 +83,7 @@ function waitForGoogleIdentity() {
             }
             if (attempts >= maxAttempts) {
                 window.clearInterval(interval);
-                reject(new Error("Google sign-in script did not load."));
+                reject(new Error("Login script did not load."));
             }
         }, 200);
     });

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Request, status
@@ -48,6 +49,8 @@ from app.services.topic_analysis_services import (
     TopicAnalysisTextPreparationService,
 )
 from app.services.transformation_service import DataTransformationService
+
+logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 PUBLIC_PATH_PREFIXES = ("/static", "/auth", "/health")
@@ -171,6 +174,14 @@ def create_app() -> FastAPI:
         )
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.on_event("startup")
+    async def warm_topic_models() -> None:
+        try:
+            topic_analysis_service.warm_up()
+            logger.info("Topic embedding model warmed and cached for the current process.")
+        except Exception as exc:  # pragma: no cover - startup guard
+            logger.warning("Topic model warmup failed: %s", exc)
 
     @app.get("/", include_in_schema=False, response_model=None)
     async def index(request: Request):

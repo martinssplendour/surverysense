@@ -65,6 +65,10 @@ const elements = {
     filterBackdrop: document.getElementById("filter-backdrop"),
     closeFilterModalButton: document.getElementById("close-filter-modal-btn"),
     filterModalMessage: document.getElementById("filter-modal-message"),
+    analysisResultsFilterBar: document.getElementById("analysis-results-filter-bar"),
+    analysisResultsActiveFilters: document.getElementById("analysis-results-active-filters"),
+    analysisResultsFilterNote: document.getElementById("analysis-results-filter-note"),
+    openAnalysisResultsFilterModalButton: document.getElementById("open-analysis-results-filter-modal-btn"),
     tableControls: document.getElementById("table-controls"),
     verbatimToggle: document.getElementById("verbatim-toggle"),
     tableScrollControl: document.getElementById("table-scroll-control"),
@@ -88,10 +92,17 @@ const elements = {
     applyColumnRoleButton: document.getElementById("apply-column-role-btn"),
     columnRoleMessage: document.getElementById("column-role-message"),
     analysisPanel: document.getElementById("analysis-panel"),
+    analysisResultsPanel: document.getElementById("analysis-results-panel"),
+    analysisResultsSubtitle: document.getElementById("analysis-results-subtitle"),
     backToDashboardAnalysisButton: document.getElementById("back-to-dashboard-analysis-btn"),
+    backToAnalysisSetupButton: document.getElementById("back-to-analysis-setup-btn"),
+    backToDashboardResultsButton: document.getElementById("back-to-dashboard-results-btn"),
+    analysisEmptyState: document.getElementById("analysis-empty-state"),
+    analysisEmptyActionButton: document.getElementById("analysis-empty-action-btn"),
     analysisColumnSelect: document.getElementById("analysis-column-select"),
     analysisMethods: document.getElementById("analysis-methods"),
     analysisHelp: document.getElementById("analysis-help"),
+    analysisSetupMessage: document.getElementById("analysis-setup-message"),
     analysisMessage: document.getElementById("analysis-message"),
     analysisSummary: document.getElementById("analysis-summary"),
     analysisChart: document.getElementById("analysis-chart"),
@@ -131,11 +142,23 @@ function bindEvents() {
     elements.openFilterModalButton?.addEventListener("click", () => {
         openFilterModal();
     });
+    elements.openAnalysisResultsFilterModalButton?.addEventListener("click", () => {
+        openFilterModal();
+    });
     elements.editColumnsButton?.addEventListener("click", () => {
         openColumnRoleModal();
     });
     elements.backToDashboardAnalysisButton.addEventListener("click", () => {
         openWorkspace("dashboard");
+    });
+    elements.backToAnalysisSetupButton?.addEventListener("click", () => {
+        openWorkspace("analysis");
+    });
+    elements.backToDashboardResultsButton?.addEventListener("click", () => {
+        openWorkspace("dashboard");
+    });
+    elements.analysisEmptyActionButton?.addEventListener("click", () => {
+        openWorkspace("analysis");
     });
     elements.backToDashboardDataButton.addEventListener("click", () => {
         openWorkspace("dashboard");
@@ -155,6 +178,25 @@ function bindEvents() {
         void handleAddFilter();
     });
     elements.activeFilters?.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const removeButton = target.closest("[data-remove-filter]");
+        if (!(removeButton instanceof HTMLElement)) {
+            return;
+        }
+        const columnName = removeButton.dataset.removeFilter;
+        if (!columnName) {
+            return;
+        }
+        if (columnName === "__all__") {
+            void handleClearFilters();
+            return;
+        }
+        void removeActiveFilter(columnName);
+    });
+    elements.analysisResultsActiveFilters?.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
             return;
@@ -264,7 +306,11 @@ function isValidStoredPayload(payload) {
 }
 
 function showEmptyState() {
+    document.body.classList.add("upload-workspace-active");
+    document.body.classList.remove("dashboard-workspace-active");
     document.body.classList.remove("data-workspace-active");
+    document.body.classList.remove("analysis-setup-workspace-active");
+    document.body.classList.remove("analysis-results-workspace-active");
     closeFilterModal();
     closeColumnRoleModal();
     if (elements.uploadView && elements.resultsView) {
@@ -289,13 +335,18 @@ function showEmptyState() {
     elements.tableWrap.hidden = true;
     elements.dataPanel.hidden = true;
     elements.analysisPanel.hidden = true;
+    elements.analysisResultsPanel.hidden = true;
 }
 
 function renderResults(payload) {
+    document.body.classList.remove("upload-workspace-active");
     if (elements.emptyState) {
         elements.emptyState.hidden = true;
     }
+    document.body.classList.remove("dashboard-workspace-active");
     document.body.classList.remove("data-workspace-active");
+    document.body.classList.remove("analysis-setup-workspace-active");
+    document.body.classList.remove("analysis-results-workspace-active");
     if (elements.uploadView) {
         elements.uploadView.hidden = true;
     }
@@ -358,6 +409,8 @@ async function openWorkspace(nextWorkspace) {
         syncSliderRange();
     } else if (nextWorkspace === "analysis") {
         renderAnalysisPanel();
+    } else if (nextWorkspace === "analysis-results") {
+        renderAnalysisOutput();
     }
 
     updateWorkspaceVisibility();
@@ -367,16 +420,25 @@ function updateWorkspaceVisibility() {
     elements.dashboardPanel.hidden = state.currentWorkspace !== "dashboard";
     elements.dataPanel.hidden = state.currentWorkspace !== "data";
     elements.analysisPanel.hidden = state.currentWorkspace !== "analysis" || !state.analysisVerbatimColumns.length;
+    elements.analysisResultsPanel.hidden = state.currentWorkspace !== "analysis-results";
+    document.body.classList.toggle("dashboard-workspace-active", state.currentWorkspace === "dashboard");
     document.body.classList.toggle("data-workspace-active", state.currentWorkspace === "data");
+    document.body.classList.toggle("analysis-setup-workspace-active", state.currentWorkspace === "analysis");
+    document.body.classList.toggle("analysis-results-workspace-active", state.currentWorkspace === "analysis-results");
 }
 
 function renderFilterBar() {
-    if (!elements.filterBar) {
+    if (!elements.filterBar && !elements.analysisResultsFilterBar) {
         return;
     }
 
     const filters = Array.isArray(state.availableFilters) ? state.availableFilters : [];
-    elements.filterBar.hidden = filters.length === 0;
+    if (elements.filterBar) {
+        elements.filterBar.hidden = filters.length === 0;
+    }
+    if (elements.analysisResultsFilterBar) {
+        elements.analysisResultsFilterBar.hidden = filters.length === 0;
+    }
     if (!filters.length) {
         return;
     }
@@ -391,7 +453,12 @@ function renderFilterBar() {
         state.selectedFilterValue = selectedOptions[0]?.value || "";
     }
 
-    elements.openFilterModalButton.disabled = filters.length === 0;
+    if (elements.openFilterModalButton) {
+        elements.openFilterModalButton.disabled = filters.length === 0;
+    }
+    if (elements.openAnalysisResultsFilterModalButton) {
+        elements.openAnalysisResultsFilterModalButton.disabled = filters.length === 0;
+    }
 
     elements.filterColumnSelect.innerHTML = filters
         .map((definition) => {
@@ -415,7 +482,12 @@ function renderFilterBar() {
     elements.verbatimToggle.checked = state.showOnlyVerbatim;
 
     const activeEntries = Object.entries(state.activeFilters);
-    elements.activeFilters.hidden = activeEntries.length === 0;
+    if (elements.activeFilters) {
+        elements.activeFilters.hidden = activeEntries.length === 0;
+    }
+    if (elements.analysisResultsActiveFilters) {
+        elements.analysisResultsActiveFilters.hidden = activeEntries.length === 0;
+    }
     const activeChips = activeEntries
         .map(([columnName, values]) => {
             const definition = getFilterDefinition(columnName);
@@ -435,11 +507,25 @@ function renderFilterBar() {
             </div>
         `);
     }
-    elements.activeFilters.innerHTML = activeChips.join("");
+    const chipMarkup = activeChips.join("");
+    if (elements.activeFilters) {
+        elements.activeFilters.innerHTML = chipMarkup;
+    }
+    if (elements.analysisResultsActiveFilters) {
+        elements.analysisResultsActiveFilters.innerHTML = chipMarkup;
+    }
 
-    elements.filterActiveNote.textContent = hasActiveFilters()
-        ? "Active metadata filters apply to both the data table and analysis."
-        : "Metadata filters apply to both the data table and analysis.";
+    const hasFilters = hasActiveFilters();
+    if (elements.filterActiveNote) {
+        elements.filterActiveNote.textContent = hasFilters
+            ? "Active metadata filters apply to both the data table and analysis."
+            : "Metadata filters apply to both the data table and analysis.";
+    }
+    if (elements.analysisResultsFilterNote) {
+        elements.analysisResultsFilterNote.textContent = hasFilters
+            ? "Active metadata filters are updating the current analysis results and plots."
+            : "Metadata filters update the current analysis results and plots.";
+    }
 }
 
 function openFilterModal() {
@@ -552,6 +638,11 @@ async function applyColumnRoleChange() {
         if (response.status === 401) {
             sessionStorage.removeItem(RESULT_STORAGE_KEY);
             window.location.assign("/login");
+            return;
+        }
+        if (response.status === 404) {
+            const payload = await parseJson(response);
+            handleMissingResultState(payload.detail || "The processed result is no longer available.");
             return;
         }
         const payload = await parseJson(response);
@@ -676,7 +767,11 @@ function renderAnalysisPanel() {
     }
 
     renderAnalysisControls();
-    renderAnalysisOutput();
+    if (elements.analysisSetupMessage) {
+        elements.analysisSetupMessage.hidden = true;
+        elements.analysisSetupMessage.textContent = "";
+        elements.analysisSetupMessage.className = "analysis-message";
+    }
 }
 
 function renderAnalysisControls() {
@@ -708,6 +803,8 @@ function renderAnalysisControls() {
 
 function renderAnalysisOutput() {
     elements.analysisHelp.textContent = "Choose one verbatim question, choose one method, and run the analysis.";
+    renderAnalysisResultsHeader();
+    renderFilterBar();
 
     if (!state.analysisResult) {
         elements.analysisSummary.innerHTML = "";
@@ -715,11 +812,13 @@ function renderAnalysisOutput() {
         elements.analysisList.innerHTML = "";
         elements.analysisNgramGrid.innerHTML = "";
         elements.analysisMessage.hidden = true;
+        setAnalysisEmptyState(true);
         return;
     }
 
     const result = state.analysisResult;
     if (!result.ok) {
+        setAnalysisEmptyState(false);
         elements.analysisSummary.innerHTML = "";
         clearAnalysisChart();
         elements.analysisList.innerHTML = `
@@ -733,6 +832,7 @@ function renderAnalysisOutput() {
         return;
     }
 
+    setAnalysisEmptyState(false);
     const summaryCards = [
         analysisCard("View", escapeHtml(result.model_label || displayAnalysisMode(result.model_key))),
         analysisCard("Question", escapeHtml(displayColumnLabel(result.text_column_name || ""))),
@@ -746,11 +846,9 @@ function renderAnalysisOutput() {
         summaryCards.push(analysisCard("N-gram Buckets", `${result.ngram_buckets.length}`));
     }
     elements.analysisSummary.innerHTML = summaryCards.join("");
-
-    const warningMessage = Array.isArray(result.warnings) && result.warnings.length
-        ? result.warnings.join(" ")
-        : `${displayAnalysisMode(result.model_key)} completed successfully.`;
-    renderAnalysisMessage(result.warnings?.length ? "warning" : "success", warningMessage);
+    elements.analysisMessage.hidden = true;
+    elements.analysisMessage.textContent = "";
+    elements.analysisMessage.className = "analysis-message";
 
     if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
         elements.analysisList.innerHTML = "";
@@ -771,7 +869,41 @@ function renderAnalysisOutput() {
                 <p class="analysis-sample">The analysis completed, but it did not produce any usable themes or groups for the current filtered sample.</p>
             </div>
         `;
-    renderAnalysisChart(groups);
+    renderAnalysisChart(groups, Array.isArray(result.scatter_points) ? result.scatter_points : []);
+}
+
+function renderAnalysisResultsHeader() {
+    if (!elements.analysisResultsSubtitle) {
+        return;
+    }
+
+    if (!state.analysisResult) {
+        elements.analysisResultsSubtitle.textContent = "Run an analysis to see charts, distributions, and representative responses here.";
+        return;
+    }
+
+    if (!state.analysisResult.ok) {
+        elements.analysisResultsSubtitle.textContent = "The last analysis did not complete. Review the message below or return to the setup screen to try another method.";
+        return;
+    }
+
+    const result = state.analysisResult;
+    const details = [
+        displayAnalysisMode(result.model_key),
+        displayColumnLabel(result.text_column_name || ""),
+        `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
+        `${formatNumber(result.valid_document_count || 0)} usable responses`,
+    ];
+    if (hasActiveFilters()) {
+        details.push(`${Object.keys(state.activeFilters).length} active filter${Object.keys(state.activeFilters).length === 1 ? "" : "s"}`);
+    }
+    elements.analysisResultsSubtitle.textContent = details.join(" · ");
+}
+
+function setAnalysisEmptyState(show) {
+    if (elements.analysisEmptyState) {
+        elements.analysisEmptyState.hidden = !show;
+    }
 }
 
 function renderAnalysisMessage(kind, message) {
@@ -780,13 +912,35 @@ function renderAnalysisMessage(kind, message) {
     elements.analysisMessage.textContent = message;
 }
 
-function renderAnalysisChart(groups) {
+function renderAnalysisSetupMessage(kind, message) {
+    if (!elements.analysisSetupMessage) {
+        return;
+    }
+    elements.analysisSetupMessage.hidden = false;
+    elements.analysisSetupMessage.className = `analysis-message analysis-message-${kind}`;
+    elements.analysisSetupMessage.textContent = message;
+}
+
+function clearAnalysisSetupMessage() {
+    if (!elements.analysisSetupMessage) {
+        return;
+    }
+    elements.analysisSetupMessage.hidden = true;
+    elements.analysisSetupMessage.className = "analysis-message";
+    elements.analysisSetupMessage.textContent = "";
+}
+
+function renderAnalysisChart(groups, scatterPoints = []) {
     if (!groups.length) {
         clearAnalysisChart();
         return;
     }
 
     const modelKey = state.analysisResult?.model_key || state.selectedAnalysisModel;
+    if (modelKey === "kmeans" && Array.isArray(scatterPoints) && scatterPoints.length) {
+        renderKmeansScatterChart(scatterPoints);
+        return;
+    }
     const isThemeView = modelKey === "bertopic";
     const subjectLabel = isThemeView ? "theme" : "group";
     const yAxisLabel = isThemeView ? "Theme name" : "Group name";
@@ -813,6 +967,25 @@ function renderAnalysisChart(groups) {
     });
     if (!rendered && plotContainer instanceof HTMLElement) {
         plotContainer.outerHTML = renderFallbackGroupChart(groups);
+    }
+}
+
+function renderKmeansScatterChart(scatterPoints) {
+    elements.analysisChart.hidden = false;
+    elements.analysisChart.innerHTML = `
+        <div class="analysis-plot-shell analysis-plot-shell-wide">
+            <div class="analysis-plot-surface analysis-plot-surface-wide" id="analysis-kmeans-plot"></div>
+        </div>
+    `;
+
+    const plotContainer = document.getElementById("analysis-kmeans-plot");
+    const rendered = renderInteractiveKmeansScatterChart(plotContainer, scatterPoints);
+    if (!rendered && plotContainer instanceof HTMLElement) {
+        plotContainer.outerHTML = `
+            <div class="analysis-chart-fallback">
+                <p class="analysis-chart-fallback-note">Interactive charts are unavailable right now, so the grouped response cards below show the result instead.</p>
+            </div>
+        `;
     }
 }
 
@@ -1003,6 +1176,151 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
                     const point = event?.points?.[0];
                     const groupIndex = Number(point?.customdata?.[0]);
                     if (Number.isFinite(groupIndex)) {
+                        focusAnalysisTarget(`analysis-group-card-${groupIndex}`);
+                    }
+                });
+            }
+        });
+    }
+
+    return true;
+}
+
+function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
+    const plotly = getPlotly();
+    if (!plotly || !(plotContainer instanceof HTMLElement)) {
+        return false;
+    }
+
+    const colorPalette = [
+        "#4f7a63",
+        "#c7923f",
+        "#b7685f",
+        "#6a7fb3",
+        "#8b6fa5",
+        "#5f9ea0",
+        "#a86d5d",
+        "#7c8c55",
+        "#9b7f67",
+    ];
+    const groupedPoints = new Map();
+    scatterPoints.forEach((point) => {
+        const groupKey = String(point.group_id || "");
+        const bucket = groupedPoints.get(groupKey) || {
+            groupId: groupKey,
+            groupLabel: point.group_label || "Unlabelled group",
+            points: [],
+        };
+        bucket.points.push(point);
+        groupedPoints.set(groupKey, bucket);
+    });
+
+    const traces = Array.from(groupedPoints.values()).map((bucket, index) => ({
+        type: "scatter",
+        mode: "markers",
+        name: bucket.groupLabel,
+        x: bucket.points.map((point) => Number(point.x || 0)),
+        y: bucket.points.map((point) => Number(point.y || 0)),
+        marker: {
+            size: 16,
+            color: colorPalette[index % colorPalette.length],
+            line: {
+                color: "#ffffff",
+                width: 1.4,
+            },
+            opacity: 0.88,
+        },
+        customdata: bucket.points.map((point) => ([
+            point.row_number || 0,
+            point.group_id || "",
+            point.group_label || "Unlabelled group",
+            point.text || "",
+        ])),
+        hovertemplate: [
+            "<b>%{customdata[2]}</b>",
+            "Row: %{customdata[0]}",
+            "Response: %{customdata[3]}",
+            "<extra></extra>",
+        ].join("<br>"),
+    }));
+
+    const plotPromise = plotly.newPlot(
+        plotContainer,
+        traces,
+        {
+            width: 2200,
+            height: 1120,
+            margin: {
+                t: 40,
+                r: 360,
+                b: 96,
+                l: 96,
+            },
+            paper_bgcolor: "rgba(0, 0, 0, 0)",
+            plot_bgcolor: "rgba(255, 250, 242, 0.72)",
+            font: {
+                family: "\"Segoe UI Variable Text\", Inter, \"Segoe UI\", Arial, sans-serif",
+                color: "#3d352d",
+                size: 19,
+            },
+            xaxis: {
+                title: {
+                    text: "Position on response map",
+                    font: {
+                        size: 20,
+                    },
+                },
+                zeroline: false,
+                gridcolor: "rgba(89, 68, 42, 0.08)",
+                tickfont: {
+                    size: 16,
+                },
+            },
+            yaxis: {
+                title: {
+                    text: "Position on response map",
+                    font: {
+                        size: 20,
+                    },
+                },
+                zeroline: false,
+                gridcolor: "rgba(89, 68, 42, 0.08)",
+                tickfont: {
+                    size: 16,
+                },
+            },
+            legend: {
+                orientation: "v",
+                yanchor: "top",
+                y: 1,
+                xanchor: "left",
+                x: 1.03,
+                font: {
+                    size: 17,
+                },
+                itemsizing: "constant",
+            },
+        },
+        {
+            displaylogo: false,
+            responsive: true,
+            modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
+            toImageButtonOptions: {
+                filename: "verbatim-kmeans-response-map",
+            },
+        },
+    );
+
+    if (plotPromise && typeof plotPromise.then === "function") {
+        plotPromise.then(() => {
+            if (typeof plotContainer.on === "function") {
+                plotContainer.on("plotly_click", (event) => {
+                    const point = event?.points?.[0];
+                    const groupId = String(point?.customdata?.[1] || "");
+                    const groupIndex = Array.isArray(state.analysisResult?.groups)
+                        ? state.analysisResult.groups.findIndex((group) => String(group.group_id) === groupId)
+                        : -1;
+                    if (groupIndex >= 0) {
                         focusAnalysisTarget(`analysis-group-card-${groupIndex}`);
                     }
                 });
@@ -1335,9 +1653,7 @@ async function handleAddFilter() {
         [state.selectedFilterColumn]: [state.selectedFilterValue],
     };
     try {
-        state.activeFilters = nextFilters;
-        state.analysisResult = null;
-        await refreshFilteredDatasets();
+        await applyActiveFilters(nextFilters);
         closeFilterModal();
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to apply the filter.";
@@ -1351,9 +1667,7 @@ async function handleClearFilters() {
     }
 
     try {
-        state.activeFilters = {};
-        state.analysisResult = null;
-        await refreshFilteredDatasets();
+        await applyActiveFilters({});
         closeFilterModal();
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to clear filters.";
@@ -1369,12 +1683,22 @@ async function removeActiveFilter(columnName) {
     const nextFilters = { ...state.activeFilters };
     delete nextFilters[columnName];
     try {
-        state.activeFilters = nextFilters;
-        state.analysisResult = null;
-        await refreshFilteredDatasets();
+        await applyActiveFilters(nextFilters);
         closeFilterModal();
     } catch (error) {
         console.error(error);
+    }
+}
+
+async function applyActiveFilters(nextFilters) {
+    state.activeFilters = nextFilters;
+    const shouldRerunAnalysis = state.currentWorkspace === "analysis-results"
+        && Boolean(state.selectedAnalysisColumn)
+        && Boolean(state.selectedAnalysisModel);
+    state.analysisResult = null;
+    await refreshFilteredDatasets();
+    if (shouldRerunAnalysis) {
+        await runAnalysis({ scrollIntoView: false });
     }
 }
 
@@ -1394,6 +1718,7 @@ function handleAnalysisColumnChange(event) {
     }
     state.selectedAnalysisColumn = target.value;
     state.analysisResult = null;
+    clearAnalysisSetupMessage();
     renderAnalysisControls();
     renderAnalysisOutput();
 }
@@ -1413,6 +1738,7 @@ function handleAnalysisMethodClick(event) {
     }
     state.selectedAnalysisModel = modelKey;
     state.analysisResult = null;
+    clearAnalysisSetupMessage();
     renderAnalysisControls();
     renderAnalysisOutput();
 }
@@ -1596,6 +1922,9 @@ async function refreshFilteredDatasets() {
     if (state.currentWorkspace === "analysis") {
         renderAnalysisPanel();
     }
+    if (state.currentWorkspace === "analysis-results") {
+        renderAnalysisOutput();
+    }
 }
 
 async function runAnalysis({ scrollIntoView = false } = {}) {
@@ -1604,8 +1933,10 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
     }
 
     state.analysisRunning = true;
+    state.analysisResult = null;
     renderAnalysisControls();
-    renderAnalysisMessage("neutral", "Analysing the selected question on the current filtered dataset...");
+    renderAnalysisOutput();
+    renderAnalysisSetupMessage("neutral", "Analysing the selected question on the current filtered dataset...");
 
     try {
         const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
@@ -1624,15 +1955,23 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
             window.location.assign("/login");
             return;
         }
+        if (response.status === 404) {
+            const payload = await parseJson(response);
+            handleMissingResultState(payload.detail || "The processed result is no longer available.");
+            return;
+        }
         const payload = await parseJson(response);
         if (!response.ok) {
             throw new Error(payload.detail || "Unable to run analysis.");
         }
 
         state.analysisResult = payload;
+        clearAnalysisSetupMessage();
+        state.currentWorkspace = "analysis-results";
         renderAnalysisOutput();
+        updateWorkspaceVisibility();
         if (scrollIntoView) {
-            elements.analysisPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+            window.scrollTo({ top: 0, behavior: "smooth" });
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to run analysis.";
@@ -1650,7 +1989,10 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
             groups: [],
             ngram_buckets: [],
         };
+        clearAnalysisSetupMessage();
+        state.currentWorkspace = "analysis-results";
         renderAnalysisOutput();
+        updateWorkspaceVisibility();
     } finally {
         state.analysisRunning = false;
         renderAnalysisControls();
@@ -1866,6 +2208,11 @@ function persistCurrentPayload() {
     }
 }
 
+function handleMissingResultState(message = "The processed result is no longer available. Upload the file again.") {
+    console.warn(`[Verbatim App] ${message}`);
+    resetToUploadState();
+}
+
 function resetDatasetRows(dataset) {
     if (dataset === "transformed") {
         state.transformedRows = [];
@@ -1917,6 +2264,11 @@ async function fetchRowsPage(dataset, offset, limit) {
         sessionStorage.removeItem(RESULT_STORAGE_KEY);
         window.location.assign("/login");
         throw new Error("Session expired.");
+    }
+    if (response.status === 404) {
+        const payload = await parseJson(response);
+        handleMissingResultState(payload.detail || "The processed result is no longer available.");
+        throw new Error("The processed result is no longer available.");
     }
 
     const payload = await parseJson(response);

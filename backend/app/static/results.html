@@ -30,46 +30,63 @@
                     <a class="button button-primary empty-state-action" href="/">Back to Upload</a>
                 </section>
 
-                <div class="results-header" id="results-header">
-                    <button type="button" class="button button-ghost" id="reset-btn">Process Another File</button>
-                </div>
-
-                <div class="summary-strip" id="summary-strip"></div>
-
-                <section class="panel preview-panel">
-                    <div class="section-heading">
-                        <div>
-                            <p class="panel-kicker">Preview</p>
-                            <h3>Transformed Data</h3>
+                <section class="panel dashboard-panel" id="dashboard-panel">
+                    <div class="dashboard-upload-card">
+                        <div class="dashboard-upload-box">
+                            <p class="panel-kicker">Upload CSV</p>
+                            <div class="dashboard-upload-status">
+                                <span class="dashboard-upload-check" aria-hidden="true">✓</span>
+                                <strong class="dashboard-upload-filename" id="dashboard-file-name">File uploaded</strong>
+                            </div>
                         </div>
-                        <button type="button" class="button button-primary" id="analyze-btn">Analyze Verbatim Columns</button>
+
+                        <div class="dashboard-actions">
+                            <button type="button" class="button button-primary dashboard-primary-action" id="open-analysis-btn">Analyze Verbatim Columns</button>
+                            <button type="button" class="button button-ghost dashboard-secondary-action" id="open-data-btn">View Data</button>
+                        </div>
                     </div>
 
-                    <div class="filter-bar" id="filter-bar" hidden>
-                        <div class="filter-bar-header">
-                            <p class="filter-bar-title">Filter By Metadata</p>
-                            <button type="button" class="button button-ghost filter-reset-button" id="clear-filters-btn">Clear Filters</button>
+                    <div class="dashboard-metrics" id="dashboard-metrics"></div>
+                </section>
+
+                <section class="panel analysis-panel" id="analysis-panel" hidden>
+                    <div class="section-heading">
+                        <div>
+                            <p class="panel-kicker">Analysis</p>
+                            <h3>Analyze Data</h3>
                         </div>
-                        <div class="filter-controls-row">
-                            <label class="filter-field filter-field-wide" for="filter-column-select">
-                                <span class="filter-label">Metadata</span>
-                                <select id="filter-column-select"></select>
-                            </label>
-                            <label class="filter-field filter-field-wide" for="filter-value-select">
-                                <span class="filter-label">Filter</span>
-                                <select id="filter-value-select"></select>
-                            </label>
-                            <button type="button" class="button button-secondary filter-add-button" id="add-filter-btn">Add Filter</button>
+                        <button type="button" class="button button-ghost" id="back-to-dashboard-analysis-btn">Back To Dashboard</button>
+                    </div>
+
+                    <div class="analysis-controls">
+                        <label class="filter-field filter-field-wide" for="analysis-column-select">
+                            <span class="filter-label">Verbatim Question</span>
+                            <select id="analysis-column-select"></select>
+                        </label>
+                        <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
+                    </div>
+
+                    <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
+                    <p class="analysis-help" id="analysis-help">
+                        Choose one verbatim question, pick one analysis method, and run it. Active metadata filters are applied automatically.
+                    </p>
+                    <div class="analysis-message" id="analysis-message" hidden></div>
+                    <div class="analysis-summary" id="analysis-summary"></div>
+                    <div class="analysis-chart" id="analysis-chart" hidden></div>
+                    <div class="analysis-list" id="analysis-list"></div>
+                    <div class="analysis-ngram-grid" id="analysis-ngram-grid"></div>
+                </section>
+
+                <section class="panel preview-panel" id="data-panel" hidden>
+                    <div class="section-heading">
+                        <div>
+                            <p class="panel-kicker">Data</p>
+                            <h3>View Verbatim Data</h3>
                         </div>
-                        <div class="active-filters" id="active-filters" hidden></div>
-                        <p class="filter-active-note" id="filter-active-note" hidden></p>
+                        <button type="button" class="button button-ghost" id="back-to-dashboard-data-btn">Back To Dashboard</button>
                     </div>
 
                     <div class="table-controls" id="table-controls" hidden>
-                        <label class="preview-toggle" for="verbatim-only-toggle">
-                            <input type="checkbox" id="verbatim-only-toggle">
-                            <span>Show only verbatim columns</span>
-                        </label>
                         <div class="table-row-status" id="table-row-status" aria-live="polite"></div>
                         <div class="table-scroll-control" id="table-scroll-control">
                             <label class="table-slider-label" for="table-slider">Slide across columns</label>
@@ -82,63 +99,11 @@
                         <table id="preview-table"></table>
                     </div>
                 </section>
-
-                <section class="panel analysis-panel" id="analysis-panel" hidden>
-                    <div class="section-heading">
-                        <div>
-                            <p class="panel-kicker">Analysis</p>
-                            <h3>Verbatim Column Insights</h3>
-                        </div>
-                    </div>
-
-                    <div class="analysis-summary" id="analysis-summary"></div>
-                    <div class="analysis-list" id="analysis-list"></div>
-                    <div class="table-row-status analysis-row-status" id="analysis-row-status" aria-live="polite"></div>
-
-                    <div class="table-empty analysis-table-empty" id="analysis-table-empty">The analysis-ready dataset does not contain preview rows.</div>
-                    <div class="table-wrap analysis-table-wrap" id="analysis-table-wrap" hidden>
-                        <table id="analysis-preview-table"></table>
-                    </div>
-                </section>
-
-                <details class="panel details-panel" id="details-panel">
-                    <summary>API Details</summary>
-                    <div class="details-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">Filename</span>
-                            <strong id="detail-filename">-</strong>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Encoding</span>
-                            <strong id="detail-encoding">-</strong>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Raw Rows</span>
-                            <strong id="detail-raw-rows">-</strong>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Raw Columns</span>
-                            <strong id="detail-raw-columns">-</strong>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Sample Rows</span>
-                            <strong id="detail-sample-rows">-</strong>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Architect Rows</span>
-                            <strong id="detail-architect-rows">-</strong>
-                        </div>
-                    </div>
-
-                    <div class="manifest-block">
-                        <p class="manifest-title">Transformation Manifest</p>
-                        <pre id="manifest-preview">{}</pre>
-                    </div>
-                </details>
             </section>
         </main>
     </div>
 
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
     <script src="/static/results.js" defer></script>
 </body>
 </html>

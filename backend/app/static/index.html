@@ -7,20 +7,20 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="app-shell">
-        <header class="topbar">
-            <div class="brand-lockup">
-                <div class="brand-mark" aria-hidden="true">V</div>
-                <div>
-                    <p class="brand-name">Verbatim App</p>
-                </div>
+    <header class="topbar">
+        <div class="brand-lockup">
+            <div class="brand-mark" aria-hidden="true">V</div>
+            <div>
+                <p class="brand-name">Verbatim App</p>
             </div>
-            <div class="topbar-actions">
-                <button type="button" class="button button-ghost topbar-link" id="upload-data-btn" hidden>Upload Data</button>
-                <a class="button button-ghost topbar-link" href="/auth/logout">Sign Out</a>
-            </div>
-        </header>
+        </div>
+        <div class="topbar-actions">
+            <button type="button" class="button button-primary topbar-link topbar-link-primary" id="upload-data-btn" hidden>Upload Data</button>
+            <a class="button button-ghost topbar-link topbar-link-secondary" href="/auth/logout">Sign Out</a>
+        </div>
+    </header>
 
+    <div class="app-shell">
         <main class="workflow">
             <section class="view upload-view is-active" id="upload-view" aria-label="Upload CSV">
                 <form class="upload-card" id="upload-form">
@@ -61,7 +61,7 @@
                         <div class="dashboard-summary-section">
                             <h3 class="dashboard-summary-title">Data Summary</h3>
                             <div class="dashboard-metrics" id="dashboard-metrics"></div>
-                            <button type="button" class="dashboard-data-link" id="open-data-btn">Clean data <span aria-hidden="true">&rarr;</span></button>
+                            <button type="button" class="dashboard-data-link" id="open-data-btn">View data <span aria-hidden="true">&rarr;</span></button>
                         </div>
                     </div>
                 </section>
@@ -69,7 +69,6 @@
                 <section class="panel analysis-panel" id="analysis-panel" hidden>
                     <div class="section-heading">
                         <div>
-                            <p class="panel-kicker">Analysis</p>
                             <h3>Analyze Data</h3>
                         </div>
                         <button type="button" class="button button-ghost" id="back-to-dashboard-analysis-btn">Back To Dashboard</button>
@@ -87,7 +86,44 @@
                     <p class="analysis-help" id="analysis-help">
                         Choose one verbatim question, pick one analysis method, and run it.
                     </p>
+                    <div class="analysis-message" id="analysis-setup-message" hidden></div>
+                </section>
+
+                <section class="panel analysis-results-panel" id="analysis-results-panel" hidden>
+                    <div class="analysis-results-hero">
+                        <div class="analysis-results-copy">
+                            <p class="analysis-results-kicker">Results</p>
+                            <h2 class="analysis-results-title">Analysis Output</h2>
+                            <p class="analysis-results-subtitle" id="analysis-results-subtitle">
+                                Run an analysis to see charts, distributions, and representative responses here.
+                            </p>
+                        </div>
+                        <div class="workspace-actions analysis-results-actions">
+                            <button type="button" class="button button-ghost" id="back-to-analysis-setup-btn">Change Question Or Method</button>
+                            <button type="button" class="button button-ghost" id="back-to-dashboard-results-btn">Return To Dashboard</button>
+                        </div>
+                    </div>
+
+                    <section class="filter-bar analysis-results-filter-bar" id="analysis-results-filter-bar" hidden>
+                        <div class="filter-chip-row">
+                            <span class="filter-chip-row-label">Filters:</span>
+                            <div class="active-filters" id="analysis-results-active-filters" hidden></div>
+                            <button type="button" class="button button-ghost filter-open-button" id="open-analysis-results-filter-modal-btn">+ Add Filter</button>
+                        </div>
+                        <p class="filter-active-note" id="analysis-results-filter-note">Metadata filters update the current analysis results and plots.</p>
+                    </section>
+
                     <div class="analysis-message" id="analysis-message" hidden></div>
+                    <section class="analysis-empty-state" id="analysis-empty-state" hidden>
+                        <div class="analysis-empty-icon" aria-hidden="true">◎</div>
+                        <div class="analysis-empty-copy">
+                            <h3 class="analysis-empty-title">No analysis has been run yet</h3>
+                            <p class="analysis-empty-text">Choose a verbatim question and an analysis method, then run the analysis to see results here.</p>
+                        </div>
+                        <div class="analysis-empty-actions">
+                            <button type="button" class="button button-primary" id="analysis-empty-action-btn">Go To Analysis Setup</button>
+                        </div>
+                    </section>
                     <div class="analysis-summary" id="analysis-summary"></div>
                     <div class="analysis-chart" id="analysis-chart" hidden></div>
                     <div class="analysis-list" id="analysis-list"></div>
