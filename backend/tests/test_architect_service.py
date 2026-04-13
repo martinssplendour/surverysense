@@ -1,8 +1,11 @@
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
+from app.core.exceptions import ManifestBuildError
 from app.services.architect_service import ManifestArchitectConfig, ManifestArchitectService
+from app.services.architect_service import DiagnosticMode
 from app.services.cleaning_services import (
     DuplicateAnswerResolutionService,
     MetadataConsolidationService,
@@ -17,6 +20,7 @@ from app.services.cleaning_services import (
     VerticalRecordFilterService,
 )
 from app.services.transformation_service import DataTransformationService
+from app.models.manifest import LayoutState, TransformationManifest
 
 
 class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
@@ -189,6 +193,108 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
             selected_columns,
         )
         self.assertNotIn("Our promise to you", transformed.columns.tolist())
+
+    def test_vertical_manifest_does_not_treat_uuid_response_ids_as_answers(self) -> None:
+        df = pd.DataFrame(
+            [
+                {
+                    "response_id": "019be56e-769c-0e63-fc8e-dceb6bb65eab",
+                    "survey_month": "2026-02",
+                    "main_title": "How can we better help you see and track the progress your child is making with their learning?",
+                    "full_title": "",
+                    "sub_title": "",
+                    "answer_value": "Show progress in a simpler dashboard with clearer milestones.",
+                    "answer_number": "1",
+                    "user_id": "1001",
+                },
+                {
+                    "response_id": "019be56e-769c-0e63-fc8e-dceb6bb65eab",
+                    "survey_month": "2026-02",
+                    "main_title": "How can we help you feel more certain that the activities you use at home are effective and created by experts?",
+                    "full_title": "",
+                    "sub_title": "",
+                    "answer_value": "Explain the learning goals more clearly for parents.",
+                    "answer_number": "2",
+                    "user_id": "1001",
+                },
+                {
+                    "response_id": "019bf585-6242-f925-950a-8a940b2d4198",
+                    "survey_month": "2026-02",
+                    "main_title": "How can Twinkl better equip you with the skills and confidence you need to support your child's learning journey?",
+                    "full_title": "",
+                    "sub_title": "",
+                    "answer_value": "Add more short guides that show how to use each activity.",
+                    "answer_number": "1",
+                    "user_id": "1002",
+                },
+                {
+                    "response_id": "019bf585-6242-f925-950a-8a940b2d4198",
+                    "survey_month": "2026-02",
+                    "main_title": "How can we better help you celebrate the hard work and success you and your child achieve together?",
+                    "full_title": "",
+                    "sub_title": "",
+                    "answer_value": "Include printable certificates for milestones at home.",
+                    "answer_number": "2",
+                    "user_id": "1002",
+                },
+            ]
+        )
+
+        manifest = self.architect_service.get_transformation_manifest(
+            df,
+            {index: str(column) for index, column in enumerate(df.columns)},
+        )
+
+        self.assertEqual(manifest.layout_state.value, "VERTICAL")
+        self.assertEqual(manifest.vertical_assembly.record_key_indices, [0])
+        self.assertEqual(manifest.vertical_assembly.answer_col_idx, 5)
+
+    def test_ai_mode_requires_gemini_key(self) -> None:
+        df = pd.DataFrame(
+            [
+                {"response_id": "resp-001", "main_title": "Q1", "answer_value": "A1"},
+                {"response_id": "resp-001", "main_title": "Q2", "answer_value": "A2"},
+            ]
+        )
+
+        with self.assertRaises(ManifestBuildError):
+            self.architect_service.get_transformation_manifest(
+                df,
+                {index: str(column) for index, column in enumerate(df.columns)},
+                diagnostic_mode=DiagnosticMode.AI,
+            )
+
+    def test_ai_mode_uses_gemini_path_when_configured(self) -> None:
+        service = ManifestArchitectService(
+            ManifestArchitectConfig(
+                gemini_api_key="test-key",
+                gemini_model="gemini-2.5-flash",
+                gemini_temperature=0.1,
+                gemini_timeout_seconds=60,
+                row_limit=5000,
+            )
+        )
+        df = pd.DataFrame([{"col_a": "value"}])
+        manifest = TransformationManifest(
+            diagnostic_source="gemini",
+            layout_state=LayoutState.WIDE,
+            metadata_indices=[],
+            verbatim_indices=[0],
+            vertical_assembly={"is_required": False},
+            null_equivalents=["", "n/a", "none"],
+            row_limit=5000,
+            notes=["AI manifest"],
+        )
+
+        with patch.object(service, "_build_manifest_with_gemini", return_value=manifest) as mocked_builder:
+            result = service.get_transformation_manifest(
+                df,
+                {0: "col_a"},
+                diagnostic_mode=DiagnosticMode.AI,
+            )
+
+        mocked_builder.assert_called_once()
+        self.assertEqual(result.diagnostic_source, "gemini")
 
 
 if __name__ == "__main__":

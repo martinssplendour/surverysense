@@ -199,6 +199,43 @@ class DataTransformationServiceVerticalTests(unittest.TestCase):
             ],
         )
 
+
+class QuestionHeaderResolutionServiceTests(unittest.TestCase):
+    def test_resolve_skips_nan_like_values_and_uses_fallback_titles(self) -> None:
+        text_normalizer = TextNormalizationService()
+        service = QuestionHeaderResolutionService(text_normalizer)
+        raw_df = pd.DataFrame(
+            [
+                {
+                    "full_title": float("nan"),
+                    "main_title": "What more could Twinkl do to save you time?",
+                    "sub_title": None,
+                },
+                {
+                    "full_title": "",
+                    "main_title": "Thanks, please tell us more about your score",
+                    "sub_title": None,
+                },
+                {
+                    "full_title": None,
+                    "main_title": None,
+                    "sub_title": "Fallback subtitle",
+                },
+            ]
+        )
+
+        resolved = service.resolve(raw_df, [0, 1, 2])
+
+        self.assertEqual(
+            resolved.tolist(),
+            [
+                "What more could Twinkl do to save you time?",
+                "Thanks, please tell us more about your score",
+                "Fallback subtitle",
+            ],
+        )
+
+
 class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
     def test_selects_varied_text_columns_and_rejects_numeric_and_fixed_response_text(self) -> None:
         service = VerbatimQuestionSelectionService()
@@ -281,6 +318,26 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
 
         self.assertEqual(selected_columns, [])
 
+    def test_rejects_identifier_like_columns_even_when_one_value_is_non_numeric(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        rows = []
+        for idx in range(30):
+            rows.append(
+                {
+                    "response_id__idx_0": str(idx + 1),
+                    "t_u_id__idx_10": "bad-id" if idx == 0 else str(100000 + idx),
+                    "What more could Twinkl do to save you time?": f"Open answer number {idx} with varied wording.",
+                }
+            )
+        df = pd.DataFrame(rows)
+
+        selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
+
+        self.assertEqual(
+            selected_columns,
+            ["What more could Twinkl do to save you time?"],
+        )
+
     def test_selects_columns_with_short_headers_when_answers_are_text(self) -> None:
         service = VerbatimQuestionSelectionService()
         df = pd.DataFrame(
@@ -304,6 +361,39 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
 
         self.assertEqual(selected_columns, ["Why Twinkl?"])
 
+    def test_selects_open_ended_short_label_columns_when_question_cues_and_variation_support_it(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        rows = []
+        brands = [
+            "Teachy",
+            "Canva",
+            "BBC Bitesize",
+            "White Rose",
+            "TES",
+            "Oak",
+            "Kahoot",
+            "Khan Academy",
+            "Phonics Play",
+            "ClassDojo",
+            "Scratch",
+            "Purple Mash",
+        ]
+        for idx, brand in enumerate(brands, start=1):
+            rows.append(
+                {
+                    "response_id__idx_0": str(idx),
+                    "Other than Twinkl, which ONE teaching resource brand that you use comes to mind?": brand,
+                }
+            )
+        df = pd.DataFrame(rows)
+
+        selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
+
+        self.assertEqual(
+            selected_columns,
+            ["Other than Twinkl, which ONE teaching resource brand that you use comes to mind?"],
+        )
+
     def test_rejects_pipe_separated_headers_when_answers_are_fixed_response_text(self) -> None:
         service = VerbatimQuestionSelectionService()
         rows = []
@@ -316,6 +406,36 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
                 }
             )
         df = pd.DataFrame(rows)
+
+        selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
+
+        self.assertEqual(selected_columns, [])
+
+    def test_rejects_closed_question_headers_with_highly_varied_short_labels(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        tools = [
+            "ChatGPT",
+            "Canva",
+            "Copilot",
+            "Gemini",
+            "Claude",
+            "Perplexity",
+            "Notion AI",
+            "Otter",
+            "Gamma",
+            "Midjourney",
+            "Runway",
+            "Jasper",
+        ]
+        df = pd.DataFrame(
+            [
+                {
+                    "response_id__idx_0": str(idx + 1),
+                    "When it comes to your work or teaching, we'd love to know your awareness and usage of the following AI tools.: I have used this AI tool within the last 6 months": tool,
+                }
+                for idx, tool in enumerate(tools)
+            ]
+        )
 
         selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
 
@@ -359,6 +479,67 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
                 },
             ]
         )
+
+        selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
+
+        self.assertEqual(selected_columns, [])
+
+    def test_selects_additional_high_variation_questions_without_hardcoded_title_rules(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        rows = []
+        for idx in range(12):
+            rows.append(
+                {
+                    "response_id__idx_0": str(idx + 1),
+                    "country__idx_1": "UK" if idx % 2 == 0 else "US",
+                    "What more could Twinkl do to give you confidence?": f"Confidence answer {idx}",
+                    "How can Twinkl better support you to achieve excellence in your role?": f"Excellence answer {idx}",
+                    "What more could Twinkl do to save you time?": f"Time answer {idx}",
+                    "Thanks, we'd love to know more about why you'd recommend Twinkl": f"Recommend answer {idx}",
+                    "How can we better help you see and track the progress your child is making with their learning?": f"Progress answer {idx}",
+                }
+            )
+        df = pd.DataFrame(rows)
+
+        selected_columns = service.select_columns(
+            df,
+            metadata_columns=["response_id__idx_0", "country__idx_1"],
+        )
+
+        self.assertEqual(
+            selected_columns,
+            [
+                "What more could Twinkl do to give you confidence?",
+                "How can Twinkl better support you to achieve excellence in your role?",
+                "What more could Twinkl do to save you time?",
+                "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                "How can we better help you see and track the progress your child is making with their learning?",
+            ],
+        )
+
+    def test_rejects_small_sample_fixed_response_text_columns(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        rows = []
+        repeated_values = [
+            "5 (Essential)",
+            "5 (Essential)",
+            "4",
+            "5 (Essential)",
+            "4",
+            "5 (Essential)",
+            "3",
+            "5 (Essential)",
+            "5 (Essential)",
+            "4",
+        ]
+        for idx, value in enumerate(repeated_values, start=1):
+            rows.append(
+                {
+                    "response_id__idx_0": str(idx),
+                    "How important is this to you?: Confidence: Feeling assured in the quality of what I am using": value,
+                }
+            )
+        df = pd.DataFrame(rows)
 
         selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
 
@@ -479,6 +660,70 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
             ],
         )
 
+    def test_selects_short_identifier_style_headers_as_metadata(self) -> None:
+        service = MetadataColumnSelectionService()
+        df = pd.DataFrame(
+            columns=[
+                "t_u_id__idx_1",
+                "t_s_id__idx_2",
+                "t_c_id__idx_3",
+                "t_ca_id__idx_4",
+                "t_co_id__idx_5",
+                "What more could Twinkl do to save you time?__idx_20",
+            ]
+        )
+
+        self.assertEqual(
+            service.select_columns(df),
+            [
+                "t_u_id__idx_1",
+                "t_s_id__idx_2",
+                "t_c_id__idx_3",
+                "t_ca_id__idx_4",
+                "t_co_id__idx_5",
+            ],
+        )
+
+    def test_selects_bq_business_metadata_columns(self) -> None:
+        service = MetadataColumnSelectionService()
+        df = pd.DataFrame(
+            columns=[
+                "response_id__idx_0",
+                "survey_month__idx_1",
+                "country__idx_13",
+                "country_group__idx_14",
+                "country_tier__idx_15",
+                "career_category__idx_17",
+                "career_group__idx_18",
+                "sub_type__idx_19",
+                "bundle__idx_20",
+                "purchase_group__idx_21",
+                "renewal_group__idx_22",
+                "subscription_tenure__idx_23",
+                "rfm_status__idx_24",
+                "What more could Twinkl do to save you time?",
+            ]
+        )
+
+        self.assertEqual(
+            service.select_columns(df),
+            [
+                "response_id__idx_0",
+                "survey_month__idx_1",
+                "country__idx_13",
+                "country_group__idx_14",
+                "country_tier__idx_15",
+                "career_category__idx_17",
+                "career_group__idx_18",
+                "sub_type__idx_19",
+                "bundle__idx_20",
+                "purchase_group__idx_21",
+                "renewal_group__idx_22",
+                "subscription_tenure__idx_23",
+                "rfm_status__idx_24",
+            ],
+        )
+
 
 class AnalysisReadyDatasetServiceTests(unittest.TestCase):
     def test_build_returns_metadata_plus_selected_verbatim_columns(self) -> None:
@@ -487,6 +732,7 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
             metadata_selector=MetadataColumnSelectionService(),
             verbatim_selector=VerbatimQuestionSelectionService(),
             multipart_verbatim_consolidator=MultipartVerbatimConsolidationService(text_normalizer),
+            row_filter=VerbatimRowFilterService(),
         )
         df = pd.DataFrame(
             [
@@ -538,6 +784,7 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
             metadata_selector=MetadataColumnSelectionService(),
             verbatim_selector=VerbatimQuestionSelectionService(),
             multipart_verbatim_consolidator=MultipartVerbatimConsolidationService(text_normalizer),
+            row_filter=VerbatimRowFilterService(),
         )
         df = pd.DataFrame(
             [
