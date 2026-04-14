@@ -52,14 +52,27 @@ class DataTransformationService:
         self.row_filter = row_filter
 
     def transform(self, raw_df: pd.DataFrame, manifest: TransformationManifest) -> pd.DataFrame:
-        working_df = self.text_normalizer.clean_dataframe(raw_df)
+        original_columns = raw_df.columns
+        working_df, scoped_indices, index_map = self._scope_input_dataframe(raw_df, manifest)
+        working_df = self.text_normalizer.clean_dataframe(working_df)
         working_df = self.null_scrubber.scrub_dataframe(working_df, manifest.null_equivalents)
 
         if manifest.layout_state == LayoutState.VERTICAL:
-            transformed_df = self._transform_vertical(working_df, manifest)
+            transformed_df = self._transform_vertical(
+                working_df,
+                manifest,
+                original_columns=original_columns,
+                scoped_indices=scoped_indices,
+                index_map=index_map,
+            )
         else:
-            transformed_df = self._transform_wide(working_df, manifest)
-        metadata_columns = self._metadata_output_columns(working_df, manifest)
+            transformed_df = self._transform_wide(
+                working_df,
+                manifest,
+                original_columns=original_columns,
+                index_map=index_map,
+            )
+        metadata_columns = self._metadata_output_columns(manifest, original_columns)
 
         transformed_df = self.text_normalizer.clean_dataframe(transformed_df)
         transformed_df = self.null_scrubber.scrub_dataframe(transformed_df, manifest.null_equivalents)
@@ -83,7 +96,14 @@ class DataTransformationService:
             )
         return transformed_df.reset_index(drop=True)
 
-    def _transform_wide(self, raw_df: pd.DataFrame, manifest: TransformationManifest) -> pd.DataFrame:
+    def _transform_wide(
+        self,
+        raw_df: pd.DataFrame,
+        manifest: TransformationManifest,
+        *,
+        original_columns: pd.Index,
+        index_map: dict[int, int],
+    ) -> pd.DataFrame:
         keep_indices = manifest.metadata_indices + [
             idx for idx in manifest.verbatim_indices if idx not in set(manifest.metadata_indices)
         ]
@@ -91,12 +111,20 @@ class DataTransformationService:
             raise ManifestBuildError("Wide manifest did not provide any columns to keep.")
 
         selected_columns = {
-            self._make_output_column_name(raw_df.columns[idx], idx): raw_df.iloc[:, idx]
+            self._make_output_column_name(original_columns[idx], idx): raw_df.iloc[:, index_map[idx]]
             for idx in keep_indices
         }
         return pd.DataFrame(selected_columns)
 
-    def _transform_vertical(self, raw_df: pd.DataFrame, manifest: TransformationManifest) -> pd.DataFrame:
+    def _transform_vertical(
+        self,
+        raw_df: pd.DataFrame,
+        manifest: TransformationManifest,
+        *,
+        original_columns: pd.Index,
+        scoped_indices: list[int],
+        index_map: dict[int, int],
+    ) -> pd.DataFrame:
         vertical_plan = manifest.vertical_assembly
         answer_idx = vertical_plan.resolved_answer_col_idx
         if answer_idx is None:
@@ -106,21 +134,25 @@ class DataTransformationService:
         if not vertical_plan.question_header_indices:
             raise ManifestBuildError("Vertical manifest is missing question_header_indices.")
 
+        local_key_indices = [index_map[idx] for idx in vertical_plan.record_key_indices]
+        local_question_header_indices = [index_map[idx] for idx in vertical_plan.question_header_indices]
+        local_answer_idx = index_map[answer_idx]
+        local_metadata_indices = [index_map[idx] for idx in manifest.metadata_indices]
         key_columns = [
-            self._make_output_column_name(raw_df.columns[idx], idx)
+            self._make_output_column_name(original_columns[idx], idx)
             for idx in vertical_plan.record_key_indices
         ]
         record_df = pd.DataFrame(
             {
-                self._make_output_column_name(raw_df.columns[idx], idx): raw_df.iloc[:, idx]
+                self._make_output_column_name(original_columns[idx], idx): raw_df.iloc[:, index_map[idx]]
                 for idx in vertical_plan.record_key_indices
             }
         )
         record_df["__question__"] = self.question_header_resolver.resolve(
             raw_df,
-            vertical_plan.question_header_indices,
+            local_question_header_indices,
         )
-        record_df["__answer__"] = raw_df.iloc[:, answer_idx]
+        record_df["__answer__"] = raw_df.iloc[:, local_answer_idx]
         record_df["__row_order__"] = range(len(raw_df))
 
         record_df = self.vertical_record_filter.drop_invalid_rows(
@@ -145,21 +177,28 @@ class DataTransformationService:
         )
         metadata_df = self.metadata_consolidator.consolidate(
             raw_df,
-            key_indices=vertical_plan.record_key_indices,
-            metadata_indices=manifest.metadata_indices,
-            column_name_builder=self._make_output_column_name,
+            key_indices=local_key_indices,
+            metadata_indices=local_metadata_indices,
+            column_name_builder=lambda _column_name, scoped_idx: self._make_output_column_name(
+                original_columns[scoped_indices[scoped_idx]],
+                scoped_indices[scoped_idx],
+            ),
         )
 
         transformed_df = metadata_df.merge(answer_wide_df, on=key_columns, how="left")
-        metadata_columns = self._metadata_output_columns(raw_df, manifest)
+        metadata_columns = self._metadata_output_columns(manifest, original_columns)
         verbatim_columns = [column for column in transformed_df.columns if column not in metadata_columns]
         return transformed_df[metadata_columns + verbatim_columns]
 
-    def _metadata_output_columns(self, raw_df: pd.DataFrame, manifest: TransformationManifest) -> list[str]:
+    def _metadata_output_columns(
+        self,
+        manifest: TransformationManifest,
+        original_columns: pd.Index,
+    ) -> list[str]:
         if manifest.layout_state == LayoutState.WIDE:
             ordered_indices = manifest.metadata_indices
             return [
-                self._make_output_column_name(raw_df.columns[idx], idx)
+                self._make_output_column_name(original_columns[idx], idx)
                 for idx in ordered_indices
             ]
 
@@ -167,9 +206,39 @@ class DataTransformationService:
             manifest.vertical_assembly.record_key_indices + manifest.metadata_indices
         ))
         return [
-            self._make_output_column_name(raw_df.columns[idx], idx)
+            self._make_output_column_name(original_columns[idx], idx)
             for idx in ordered_indices
         ]
+
+    def _scope_input_dataframe(
+        self,
+        raw_df: pd.DataFrame,
+        manifest: TransformationManifest,
+    ) -> tuple[pd.DataFrame, list[int], dict[int, int]]:
+        scoped_indices = self._required_input_indices(manifest)
+        scoped_df = raw_df.iloc[:, scoped_indices].copy() if scoped_indices else raw_df.iloc[:, :0].copy()
+        index_map = {
+            original_idx: scoped_idx
+            for scoped_idx, original_idx in enumerate(scoped_indices)
+        }
+        return scoped_df, scoped_indices, index_map
+
+    @staticmethod
+    def _required_input_indices(manifest: TransformationManifest) -> list[int]:
+        if manifest.layout_state == LayoutState.WIDE:
+            required = manifest.metadata_indices + manifest.verbatim_indices
+            return sorted(set(required))
+
+        vertical_plan = manifest.vertical_assembly
+        required = (
+            vertical_plan.record_key_indices
+            + vertical_plan.question_header_indices
+            + vertical_plan.helper_indices
+            + manifest.metadata_indices
+        )
+        if vertical_plan.resolved_answer_col_idx is not None:
+            required.append(vertical_plan.resolved_answer_col_idx)
+        return sorted(set(required))
 
     @staticmethod
     def _make_output_column_name(column_name: object, column_idx: int) -> str:

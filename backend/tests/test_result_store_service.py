@@ -241,6 +241,103 @@ class ResultStoreServiceTests(unittest.TestCase):
         self.assertTrue(page.has_more)
         self.assertEqual(page.documents, [{"row_number": 1, "text": "Need more maths"}])
 
+    def test_get_analysis_ngram_page_returns_paged_matching_documents(self) -> None:
+        service = self.build_service()
+        transformed_df = pd.DataFrame(
+            [
+                {"country__idx_1": "UK", "verbatim": "Need more maths resources"},
+                {"country__idx_1": "US", "verbatim": "Need more science resources"},
+            ]
+        )
+        analysis_df = transformed_df.copy()
+
+        result_id = service.save(
+            transformed_df,
+            analysis_df,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+        service.save_analysis_snapshot(
+            result_id,
+            text_column_name="verbatim",
+            analysis_result={
+                "ngram_buckets": [
+                    {
+                        "label": "Two-Word Phrases",
+                        "ngram_size": 2,
+                        "items": [
+                            {
+                                "term": "more resources",
+                                "source_term": None,
+                                "count": 2,
+                                "_documents": [
+                                    {"row_number": 1, "text": "Need more maths resources"},
+                                    {"row_number": 2, "text": "Need more science resources"},
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+        page = service.get_analysis_ngram_page(
+            result_id,
+            ngram_size=2,
+            term="more resources",
+            offset=0,
+            limit=1,
+        )
+
+        self.assertEqual(page.term, "more resources")
+        self.assertEqual(page.ngram_size, 2)
+        self.assertEqual(page.text_column_name, "verbatim")
+        self.assertEqual(page.total_count, 2)
+        self.assertEqual(page.hit_count, 2)
+        self.assertTrue(page.has_more)
+        self.assertEqual(page.documents, [{"row_number": 1, "text": "Need more maths resources"}])
+
+    def test_delete_removes_saved_result_and_analysis_snapshot(self) -> None:
+        service = self.build_service()
+        transformed_df = pd.DataFrame(
+            [
+                {"country__idx_1": "UK", "verbatim": "Need more maths"},
+            ]
+        )
+        analysis_df = transformed_df.copy()
+
+        result_id = service.save(
+            transformed_df,
+            analysis_df,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+        service.save_analysis_snapshot(
+            result_id,
+            text_column_name="verbatim",
+            analysis_result={
+                "groups": [
+                    {
+                        "group_id": "0",
+                        "label": "More Resources",
+                        "count": 1,
+                        "_documents": [
+                            {"row_number": 1, "text": "Need more maths"},
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertTrue(service.delete(result_id))
+        self.assertFalse(service.delete(result_id))
+
+        with self.assertRaises(ResultNotFoundError):
+            service.get_page(result_id, dataset="analysis", offset=0, limit=10)
+
+        with self.assertRaises(ResultNotFoundError):
+            service.get_analysis_group_page(result_id, group_id="0", offset=0, limit=10)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,6 +21,16 @@ from app.services.cleaning_services import (
 from app.services.transformation_service import DataTransformationService
 
 
+class RecordingTextNormalizationService(TextNormalizationService):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cleaned_column_calls: list[list[str]] = []
+
+    def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        self.cleaned_column_calls.append(df.columns.tolist())
+        return super().clean_dataframe(df)
+
+
 class DataTransformationServiceVerticalTests(unittest.TestCase):
     def setUp(self) -> None:
         text_normalizer = TextNormalizationService()
@@ -196,6 +206,104 @@ class DataTransformationServiceVerticalTests(unittest.TestCase):
             [
                 "Slow, Clunky, Confusing",
                 "Helpful, Creative",
+            ],
+        )
+
+    def test_first_pass_scopes_wide_cleaning_to_manifest_columns(self) -> None:
+        text_normalizer = RecordingTextNormalizationService()
+        service = DataTransformationService(
+            text_normalizer=text_normalizer,
+            null_scrubber=NullScrubbingService(),
+            question_header_resolver=QuestionHeaderResolutionService(text_normalizer),
+            verbatim_header_cleaner=VerbatimHeaderCleaningService(text_normalizer),
+            multipart_verbatim_consolidator=MultipartVerbatimConsolidationService(text_normalizer),
+            vertical_record_filter=VerticalRecordFilterService(),
+            duplicate_answer_resolver=DuplicateAnswerResolutionService(),
+            metadata_consolidator=MetadataConsolidationService(),
+            vertical_record_assembler=VerticalRecordAssemblyService(),
+            row_filter=VerbatimRowFilterService(),
+        )
+        raw_df = pd.DataFrame(
+            [
+                ["resp-001", "unused a", "Helpful response", "unused b", "UK"],
+            ],
+            columns=["Response ID", "Unused A", "Verbatim", "Unused B", "Country"],
+        )
+        manifest = TransformationManifest(
+            layout_state=LayoutState.WIDE,
+            metadata_indices=[0, 4],
+            verbatim_indices=[2],
+            vertical_assembly={"is_required": False},
+            null_equivalents=["", "n/a", "none", ".", "-", "<na>", "nan"],
+            row_limit=5000,
+            notes=[],
+        )
+
+        service.transform(raw_df, manifest)
+
+        self.assertEqual(
+            text_normalizer.cleaned_column_calls[0],
+            ["Response ID", "Verbatim", "Country"],
+        )
+
+    def test_first_pass_scopes_vertical_cleaning_to_manifest_columns(self) -> None:
+        text_normalizer = RecordingTextNormalizationService()
+        service = DataTransformationService(
+            text_normalizer=text_normalizer,
+            null_scrubber=NullScrubbingService(),
+            question_header_resolver=QuestionHeaderResolutionService(text_normalizer),
+            verbatim_header_cleaner=VerbatimHeaderCleaningService(text_normalizer),
+            multipart_verbatim_consolidator=MultipartVerbatimConsolidationService(text_normalizer),
+            vertical_record_filter=VerticalRecordFilterService(),
+            duplicate_answer_resolver=DuplicateAnswerResolutionService(),
+            metadata_consolidator=MetadataConsolidationService(),
+            vertical_record_assembler=VerticalRecordAssemblyService(),
+            row_filter=VerbatimRowFilterService(),
+        )
+        raw_df = pd.DataFrame(
+            [
+                ["101", "unused", "Confidence", "Confidence: Guidance", "Answer", "1", "UK", "unused extra"],
+            ],
+            columns=[
+                "Respondent ID",
+                "Unused",
+                "Main Question",
+                "Full Question",
+                "Answer",
+                "Question Order",
+                "Region",
+                "Unused Extra",
+            ],
+        )
+        manifest = TransformationManifest(
+            layout_state=LayoutState.VERTICAL,
+            metadata_indices=[6],
+            verbatim_indices=[],
+            vertical_assembly={
+                "is_required": True,
+                "record_key_indices": [0],
+                "question_header_indices": [3, 2],
+                "answer_col_idx": 4,
+                "helper_indices": [5],
+                "duplicate_resolution": "last_non_null",
+                "row_consolidation": "one_row_per_record",
+            },
+            null_equivalents=["", "n/a", "none", ".", "-", "<na>", "nan"],
+            row_limit=5000,
+            notes=[],
+        )
+
+        service.transform(raw_df, manifest)
+
+        self.assertEqual(
+            text_normalizer.cleaned_column_calls[0],
+            [
+                "Respondent ID",
+                "Main Question",
+                "Full Question",
+                "Answer",
+                "Question Order",
+                "Region",
             ],
         )
 

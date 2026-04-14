@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request, status
 
 
 SESSION_USER_KEY = "authenticated_user"
+SESSION_RESULT_IDS_KEY = "uploaded_result_ids"
 
 
 @dataclass(slots=True)
@@ -43,6 +44,37 @@ def set_authenticated_user(request: Request, user: AuthenticatedUser) -> None:
 
 def clear_authenticated_user(request: Request) -> None:
     request.session.pop(SESSION_USER_KEY, None)
+
+
+def register_session_result_id(request: Request, result_id: str) -> None:
+    existing_ids = request.session.get(SESSION_RESULT_IDS_KEY, [])
+    normalized_ids: list[str] = []
+    seen_ids: set[str] = set()
+
+    for raw_value in list(existing_ids) + [result_id]:
+        normalized = str(raw_value).strip()
+        if not normalized or normalized in seen_ids:
+            continue
+        seen_ids.add(normalized)
+        normalized_ids.append(normalized)
+
+    request.session[SESSION_RESULT_IDS_KEY] = normalized_ids
+
+
+def pop_session_result_ids(request: Request) -> list[str]:
+    stored_ids = request.session.pop(SESSION_RESULT_IDS_KEY, [])
+    if not isinstance(stored_ids, list):
+        return []
+
+    normalized_ids: list[str] = []
+    seen_ids: set[str] = set()
+    for raw_value in stored_ids:
+        normalized = str(raw_value).strip()
+        if not normalized or normalized in seen_ids:
+            continue
+        seen_ids.add(normalized)
+        normalized_ids.append(normalized)
+    return normalized_ids
 
 
 def require_authenticated_user(request: Request) -> AuthenticatedUser:

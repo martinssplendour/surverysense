@@ -224,25 +224,44 @@ class TopicAnalysisKeywordService:
     STOPWORDS = frozenset(
         {
             "a",
+            "about",
+            "after",
+            "again",
+            "all",
+            "also",
             "an",
             "and",
+            "any",
             "are",
             "as",
             "at",
+            "am",
             "be",
             "been",
             "being",
+            "both",
             "but",
             "by",
             "can",
             "could",
             "do",
             "does",
+            "each",
+            "few",
             "for",
             "from",
             "had",
             "has",
             "have",
+            "he",
+            "her",
+            "here",
+            "hers",
+            "herself",
+            "him",
+            "himself",
+            "his",
+            "how",
             "i",
             "if",
             "in",
@@ -252,33 +271,51 @@ class TopicAnalysisKeywordService:
             "its",
             "me",
             "more",
+            "most",
             "my",
             "need",
             "needs",
             "not",
             "of",
             "on",
+            "only",
             "or",
+            "other",
             "our",
+            "ours",
+            "ourselves",
+            "out",
+            "own",
             "please",
             "really",
+            "same",
+            "she",
+            "should",
             "so",
             "that",
             "the",
             "their",
             "them",
+            "then",
             "there",
             "these",
             "they",
             "this",
+            "those",
             "to",
+            "too",
             "us",
+            "very",
             "was",
             "we",
             "were",
             "what",
             "when",
             "which",
+            "who",
+            "whom",
+            "why",
+            "will",
             "with",
             "would",
             "you",
@@ -306,6 +343,49 @@ class TopicAnalysisKeywordService:
 
         return [
             {"term": term, "count": int(count)}
+            for term, count in counts.most_common(top_n)
+            if count > 0
+        ]
+
+    def top_ngrams_with_documents(
+        self,
+        documents: list[PreparedDocument],
+        *,
+        ngram_size: int,
+        top_n: int,
+    ) -> list[dict[str, object]]:
+        counts = Counter()
+        matched_documents: dict[str, list[dict[str, object]]] = defaultdict(list)
+        for document in documents:
+            tokens = self._tokenize(document.text)
+            if len(tokens) < ngram_size:
+                continue
+
+            document_ngrams = [
+                " ".join(tokens[index: index + ngram_size])
+                for index in range(len(tokens) - ngram_size + 1)
+            ]
+            counts.update(document_ngrams)
+
+            seen_terms: set[str] = set()
+            for term in document_ngrams:
+                if term in seen_terms or int(document.row_number) <= 0 or not document.text:
+                    continue
+                matched_documents[term].append(
+                    {
+                        "row_number": int(document.row_number),
+                        "text": document.text,
+                    }
+                )
+                seen_terms.add(term)
+
+        return [
+            {
+                "term": term,
+                "count": int(count),
+                "document_count": len(matched_documents.get(term, [])),
+                "_documents": matched_documents.get(term, []),
+            }
             for term, count in counts.most_common(top_n)
             if count > 0
         ]
@@ -557,22 +637,22 @@ class NgramAnalysisService:
     def __init__(self, keyword_service: TopicAnalysisKeywordService) -> None:
         self.keyword_service = keyword_service
 
-    def run(self, texts: list[str], *, top_n: int) -> list[dict[str, object]]:
+    def run(self, documents: list[PreparedDocument], *, top_n: int) -> list[dict[str, object]]:
         return [
             {
                 "label": "Single Words",
                 "ngram_size": 1,
-                "items": self.keyword_service.top_ngrams(texts, ngram_size=1, top_n=top_n),
+                "items": self.keyword_service.top_ngrams_with_documents(documents, ngram_size=1, top_n=top_n),
             },
             {
                 "label": "Two-Word Phrases",
                 "ngram_size": 2,
-                "items": self.keyword_service.top_ngrams(texts, ngram_size=2, top_n=top_n),
+                "items": self.keyword_service.top_ngrams_with_documents(documents, ngram_size=2, top_n=top_n),
             },
             {
                 "label": "Three-Word Phrases",
                 "ngram_size": 3,
-                "items": self.keyword_service.top_ngrams(texts, ngram_size=3, top_n=top_n),
+                "items": self.keyword_service.top_ngrams_with_documents(documents, ngram_size=3, top_n=top_n),
             },
         ]
 
@@ -863,7 +943,7 @@ class TopicAnalysisService:
             embeddings = None
             if model_key == "ngrams":
                 ngram_buckets = self.ngram_service.run(
-                    prepared.texts,
+                    prepared.documents,
                     top_n=self.config.top_ngrams_per_bucket,
                 )
                 translated_bucket_count, translation_warnings = self._translate_ngram_buckets(ngram_buckets)
@@ -1279,9 +1359,14 @@ class TopicAnalysisService:
             translation_result.texts,
             translation_result.translated_flags,
         ):
-            if translated_flag and translated_term.strip():
+            cleaned_translation = self.keyword_service.sanitize_terms(
+                [translated_term],
+                top_n=1,
+            )
+            display_term = cleaned_translation[0] if cleaned_translation else translated_term.strip()
+            if translated_flag and display_term:
                 item["source_term"] = source_term
-                item["term"] = translated_term.strip()
+                item["term"] = display_term
                 item["translated"] = True
                 translated_count += 1
             else:

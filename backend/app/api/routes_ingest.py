@@ -5,10 +5,11 @@ import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
 
-from app.core.auth import require_authenticated_user
+from app.core.auth import register_session_result_id, require_authenticated_user
 from app.core.exceptions import CsvDecodeError, IngestionError, RowLimitExceededError
 from app.models.api import (
     AnalysisGroupDocumentsResponse,
+    AnalysisNgramDocumentsResponse,
     AnalysisRunRequest,
     AnalysisRunResponse,
     ColumnRoleUpdateRequest,
@@ -150,6 +151,7 @@ def build_ingest_router(
                 metadata_columns=analysis_metadata_columns,
                 verbatim_columns=analysis_verbatim_columns,
             )
+            register_session_result_id(request, result_id)
         except (CsvDecodeError, RowLimitExceededError, IngestionError) as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         except Exception as exc:
@@ -236,6 +238,43 @@ def build_ingest_router(
             group_label=page.group_label,
             text_column_name=page.text_column_name,
             total_count=page.total_count,
+            offset=page.offset,
+            limit=page.limit,
+            has_more=page.has_more,
+            documents=page.documents,
+        )
+
+    @router.get("/analysis-ngram-documents/{result_id}", response_model=AnalysisNgramDocumentsResponse)
+    async def get_analysis_ngram_documents(
+        request: Request,
+        result_id: str,
+        ngram_size: int = Query(..., ge=1, le=3),
+        term: str = Query(..., min_length=1),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=500),
+    ) -> AnalysisNgramDocumentsResponse:
+        require_authenticated_user(request)
+        try:
+            page = result_store_service.get_analysis_ngram_page(
+                result_id,
+                ngram_size=ngram_size,
+                term=term,
+                offset=offset,
+                limit=limit,
+            )
+        except ResultNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        return AnalysisNgramDocumentsResponse(
+            result_id=page.result_id,
+            term=page.term,
+            source_term=page.source_term,
+            ngram_size=page.ngram_size,
+            text_column_name=page.text_column_name,
+            total_count=page.total_count,
+            hit_count=page.hit_count,
             offset=page.offset,
             limit=page.limit,
             has_more=page.has_more,

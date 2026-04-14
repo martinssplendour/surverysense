@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from app.core.exceptions import ManifestBuildError
@@ -65,10 +66,15 @@ class ManifestArchitectService:
                 )
             try:
                 return self._build_manifest_with_gemini(df_sample, column_index_map)
-            except ManifestBuildError:
-                raise
             except Exception as exc:
-                raise ManifestBuildError(f"AI diagnosis failed: {exc}") from exc
+                logger.warning(
+                    "AI diagnosis failed (%s); falling back to rule-based diagnosis.", exc
+                )
+                manifest = self._build_manifest_heuristically(df_sample, column_index_map)
+                manifest.notes.append(
+                    f"AI diagnosis failed — rule-based fallback used. Reason: {exc}"
+                )
+                return manifest
         return self._build_manifest_heuristically(df_sample, column_index_map)
 
     def _build_manifest_with_gemini(
@@ -293,28 +299,112 @@ class ManifestArchitectService:
 
     @staticmethod
     def _serialize_rows(df_sample: pd.DataFrame) -> list[list[Any]]:
-        rows: list[list[Any]] = []
-        for _, row in df_sample.iterrows():
-            rows.append([
-                None if pd.isna(value) else value
-                for value in row.tolist()
-            ])
-        return rows
+        # to_numpy with na_value=None converts NaN/NaT/pd.NA → None in one vectorised step,
+        # which is substantially faster than iterrows for any non-trivial sample.
+        return df_sample.to_numpy(dtype=object, na_value=None).tolist()
+
+    # ------------------------------------------------------------------
+    # Per-column stat cache — built once per heuristic manifest call so
+    # the O(n³) permutation loop never recomputes the same series stats.
+    # ------------------------------------------------------------------
+
+    def _precompute_column_stats(self, df_sample: pd.DataFrame) -> list[dict[str, Any]]:
+        """Return one stat-dict per column, computed once for the whole permutation loop."""
+        stats_list: list[dict[str, Any]] = []
+        for idx in range(df_sample.shape[1]):
+            col = df_sample.iloc[:, idx]
+            header = str(df_sample.columns[idx])
+            # Strip to strings; keep "" where the original value was null/empty.
+            str_col = col.where(col.notna(), "").astype(str).str.strip()
+            clean_mask = col.notna() & (str_col != "")
+            clean_vals = str_col[clean_mask]
+            nunique = int(clean_vals.nunique()) if not clean_vals.empty else 0
+            avg_length = float(clean_vals.str.len().mean()) if not clean_vals.empty else 0.0
+            identifier_ratio = self._identifier_like_ratio(clean_vals)
+            stats_list.append({
+                "clean_mask": clean_mask,
+                "clean_str": str_col,
+                # Numpy copies used inside the O(n³) loop — avoids pandas Series
+                # construction overhead on every permutation.
+                "clean_mask_arr": clean_mask.to_numpy(),
+                "clean_str_arr": str_col.to_numpy(dtype=object),
+                "nunique": nunique,
+                "avg_length": avg_length,
+                "identifier_ratio": identifier_ratio,
+                "header": header,
+                # Pre-scored header signals — avoids re-calling these inside the loop.
+                "question_header_score": self._score_question_header_column(col, header),
+                "question_header_name_score": self._question_header_name_score(header),
+                "record_key_header_score": self._record_key_header_score(header),
+                "answer_header_score": self._answer_header_score(header),
+                "helper_penalty": self._helper_header_penalty(header),
+            })
+        return stats_list
+
+    def _select_vertical_candidates(
+        self,
+        col_stats: list[dict[str, Any]],
+        *,
+        top_k: int,
+    ) -> list[int]:
+        """Return the sorted union of the top-k columns scored for each vertical role.
+
+        Reduces the permutation search space from O(n³) to O(k³) for wide datasets
+        while keeping the candidates that matter for each role.
+        """
+        all_indices = list(range(len(col_stats)))
+
+        def rk_score(idx: int) -> float:
+            s = col_stats[idx]
+            return s["record_key_header_score"] * 2.0 + s["identifier_ratio"] * 2.0 - s["helper_penalty"] * 2.0
+
+        def q_score(idx: int) -> float:
+            s = col_stats[idx]
+            return s["question_header_score"] + (1.0 if s["avg_length"] >= 8 else 0.0) - s["identifier_ratio"] * 2.0
+
+        def a_score(idx: int) -> float:
+            s = col_stats[idx]
+            return (
+                s["answer_header_score"] * 1.5
+                + (1.0 if s["avg_length"] >= 2 else 0.0)
+                - s["identifier_ratio"] * 3.0
+                - s["helper_penalty"] * 1.5
+            )
+
+        rk_top = sorted(all_indices, key=rk_score, reverse=True)[:top_k]
+        q_top = sorted(all_indices, key=q_score, reverse=True)[:top_k]
+        a_top = sorted(all_indices, key=a_score, reverse=True)[:top_k]
+        return sorted(set(rk_top) | set(q_top) | set(a_top))
+
+    # ------------------------------------------------------------------
+    # Layout detection
+    # ------------------------------------------------------------------
 
     def _detect_vertical_layout(self, df_sample: pd.DataFrame) -> dict[str, Any] | None:
         n_cols = df_sample.shape[1]
         if n_cols < 3 or df_sample.empty:
             return None
 
+        # Build per-column stat cache once; avoids repeated DataFrame slicing and
+        # series scanning inside the permutation loop.
+        col_stats = self._precompute_column_stats(df_sample)
+
+        # For small column counts try every combination; for wider datasets
+        # pre-filter to the top-k candidates per role before permuting.
+        _FULL_SEARCH_LIMIT = 12
+        if n_cols <= _FULL_SEARCH_LIMIT:
+            candidate_cols = list(range(n_cols))
+        else:
+            candidate_cols = self._select_vertical_candidates(col_stats, top_k=7)
+
         best_candidate: dict[str, Any] | None = None
         best_rank = (0.0, 0.0)
-        for record_key_idx, question_idx, answer_idx in itertools.permutations(range(n_cols), 3):
-            candidate = self._score_vertical_candidate(df_sample, record_key_idx, question_idx, answer_idx)
-            question_header_score = self._score_question_header_column(
-                df_sample.iloc[:, question_idx],
-                str(df_sample.columns[question_idx]),
+        for record_key_idx, question_idx, answer_idx in itertools.permutations(candidate_cols, 3):
+            candidate = self._score_vertical_candidate(
+                df_sample, record_key_idx, question_idx, answer_idx, col_stats
             )
-            candidate_rank = (candidate["score"], question_header_score)
+            # question_header_score is already cached — no extra call needed here.
+            candidate_rank = (candidate["score"], col_stats[question_idx]["question_header_score"])
             if candidate_rank > best_rank:
                 best_candidate = candidate
                 best_rank = candidate_rank
@@ -326,6 +416,7 @@ class ManifestArchitectService:
             df_sample,
             primary_question_idx=best_candidate["question_col_idx"],
             exclude_indices={best_candidate["record_key_idx"], best_candidate["answer_col_idx"]},
+            col_stats=col_stats,
         )
         helper_indices = self._detect_helper_indices(
             df_sample,
@@ -352,7 +443,84 @@ class ManifestArchitectService:
         record_key_idx: int,
         question_idx: int,
         answer_idx: int,
+        col_stats: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        if col_stats is not None:
+            # Fast path: use precomputed per-column statistics so we never slice
+            # the DataFrame or call header-scoring functions inside the loop.
+            stats_rk = col_stats[record_key_idx]
+            stats_q = col_stats[question_idx]
+            stats_a = col_stats[answer_idx]
+
+            # Use numpy arrays — avoids pandas Series construction overhead on
+            # every permutation iteration (boolean indexing, nunique, &-operator).
+            combined = (
+                stats_rk["clean_mask_arr"] & stats_q["clean_mask_arr"] & stats_a["clean_mask_arr"]
+            )
+            n_valid = int(np.count_nonzero(combined))
+            if n_valid < 3:
+                return {
+                    "score": 0.0,
+                    "record_key_idx": record_key_idx,
+                    "question_col_idx": question_idx,
+                    "answer_col_idx": answer_idx,
+                }
+
+            row_count = float(n_valid)
+            rk_vals = stats_rk["clean_str_arr"][combined]
+            q_vals = stats_q["clean_str_arr"][combined]
+            a_vals = stats_a["clean_str_arr"][combined]
+
+            # len(set(...)) on a small list beats pandas nunique for typical sample sizes.
+            rk_list = rk_vals.tolist()
+            q_list = q_vals.tolist()
+            record_key_unique = len(set(rk_list))
+            question_unique = len(set(q_list))
+            answer_unique = len(set(a_vals.tolist()))
+            pair_unique = len(set(zip(rk_list, q_list)))
+
+            avg_question_length = stats_q["avg_length"]
+            avg_answer_length = stats_a["avg_length"]
+            record_key_identifier_ratio = stats_rk["identifier_ratio"]
+            answer_identifier_ratio = stats_a["identifier_ratio"]
+            question_identifier_ratio = stats_q["identifier_ratio"]
+
+            score = 0.0
+            if record_key_unique and row_count / record_key_unique >= 1.5:
+                score += 2.0
+            if pair_unique / row_count >= 0.7:
+                score += 1.0
+            if question_unique and row_count / question_unique >= 1.2:
+                score += 1.0
+            if answer_unique >= question_unique:
+                score += 0.5
+            if avg_question_length >= 6.0:
+                score += 1.0
+            if avg_answer_length >= 2.0:
+                score += 0.5
+            if avg_answer_length >= avg_question_length:
+                score += 0.5
+            if record_key_identifier_ratio >= 0.6:
+                score += 1.0
+            if answer_identifier_ratio >= 0.6:
+                score -= 3.0
+            if question_identifier_ratio >= 0.2:
+                score -= 2.0
+
+            score += stats_rk["record_key_header_score"] * 2.0
+            score += stats_q["question_header_name_score"]
+            score += stats_a["answer_header_score"] * 1.5
+            score -= stats_rk["helper_penalty"] * 2.0
+            score -= stats_a["helper_penalty"] * 1.5
+
+            return {
+                "score": score,
+                "record_key_idx": record_key_idx,
+                "question_col_idx": question_idx,
+                "answer_col_idx": answer_idx,
+            }
+
+        # Original path — kept for callers that do not supply col_stats.
         subset = df_sample.iloc[:, [record_key_idx, question_idx, answer_idx]].copy()
         subset.columns = ["record_key", "question_value", "answer_value"]
         subset = subset.apply(
@@ -424,12 +592,17 @@ class ManifestArchitectService:
         *,
         primary_question_idx: int,
         exclude_indices: set[int],
+        col_stats: list[dict[str, Any]] | None = None,
     ) -> list[int]:
         scored_columns: list[tuple[int, float]] = []
         for idx in range(df_sample.shape[1]):
             if idx in exclude_indices:
                 continue
-            score = self._score_question_header_column(df_sample.iloc[:, idx], str(df_sample.columns[idx]))
+            score = (
+                col_stats[idx]["question_header_score"]
+                if col_stats is not None
+                else self._score_question_header_column(df_sample.iloc[:, idx], str(df_sample.columns[idx]))
+            )
             if score >= 2.0:
                 scored_columns.append((idx, score))
 
@@ -465,9 +638,7 @@ class ManifestArchitectService:
 
     @staticmethod
     def _score_wide_verbatim_column(series: pd.Series, header_name: str) -> float:
-        non_blank = series[
-            series.notna() & series.astype(str).map(lambda value: str(value).strip() != "")
-        ]
+        non_blank = series[series.notna() & (series.astype(str).str.strip() != "")]
         if non_blank.empty:
             return 0.0
 
@@ -494,9 +665,7 @@ class ManifestArchitectService:
 
     @staticmethod
     def _score_question_header_column(series: pd.Series, header_name: str) -> float:
-        non_blank = series[
-            series.notna() & series.astype(str).map(lambda value: str(value).strip() != "")
-        ]
+        non_blank = series[series.notna() & (series.astype(str).str.strip() != "")]
         if non_blank.empty:
             return 0.0
 
@@ -578,18 +747,20 @@ class ManifestArchitectService:
     def _identifier_like_ratio(series: pd.Series) -> float:
         if series.empty:
             return 0.0
-
-        def looks_like_identifier(value: str) -> bool:
-            text = str(value).strip()
-            if not text or " " in text:
-                return False
-            if IDENTIFIER_VALUE_PATTERN.fullmatch(text):
-                return True
-            has_digit = any(char.isdigit() for char in text)
-            has_alpha = any(char.isalpha() for char in text)
-            return len(text) >= 12 and has_digit and has_alpha and text.count("-") >= 1
-
-        return float(series.astype(str).map(looks_like_identifier).mean())
+        text = series.astype(str).str.strip()
+        nonempty = text != ""
+        no_space = ~text.str.contains(" ", regex=False, na=False)
+        # Vectorised equivalents of the two branches in the original per-element loop.
+        pattern_hit = text.str.fullmatch(
+            r"[0-9a-f]{6,}(?:-[0-9a-f]{2,}){2,}", case=False, na=False
+        )
+        long_enough = text.str.len() >= 12
+        has_digit = text.str.contains(r"\d", regex=True, na=False)
+        has_alpha = text.str.contains(r"[a-zA-Z]", regex=True, na=False)
+        has_dash = text.str.count(r"-") >= 1
+        fallback = no_space & long_enough & has_digit & has_alpha & has_dash
+        is_identifier = nonempty & no_space & (pattern_hit | fallback)
+        return float(is_identifier.mean())
 
     @staticmethod
     def _header_hint_score(header_name: str, tokens: set[str]) -> float:

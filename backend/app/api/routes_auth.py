@@ -7,6 +7,7 @@ from app.core.auth import (
     AuthenticatedUser,
     clear_authenticated_user,
     get_authenticated_user,
+    pop_session_result_ids,
     set_authenticated_user,
 )
 from app.models.auth import (
@@ -18,9 +19,14 @@ from app.services.google_oauth_service import (
     GoogleOAuthConfigurationError,
     GoogleOAuthService,
 )
+from app.services.result_store_service import ResultStoreService
 
 
-def build_auth_router(google_oauth_service: GoogleOAuthService) -> APIRouter:
+def build_auth_router(
+    google_oauth_service: GoogleOAuthService,
+    *,
+    result_store_service: ResultStoreService | None = None,
+) -> APIRouter:
     router = APIRouter(tags=["auth"])
 
     @router.get("/auth/config", response_model=AuthConfigResponse)
@@ -70,7 +76,12 @@ def build_auth_router(google_oauth_service: GoogleOAuthService) -> APIRouter:
 
     @router.get("/auth/logout", include_in_schema=False, response_model=None)
     async def logout(request: Request):
+        session_result_ids = pop_session_result_ids(request)
         clear_authenticated_user(request)
+        request.session.clear()
+        if result_store_service is not None:
+            for result_id in session_result_ids:
+                result_store_service.delete(result_id)
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
     return router

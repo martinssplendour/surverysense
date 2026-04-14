@@ -74,19 +74,17 @@
                         <button type="button" class="button button-ghost" id="back-to-dashboard-analysis-btn">Back To Dashboard</button>
                     </div>
 
+                    <p class="analysis-step-label">Choose Verbatim Question</p>
                     <div class="analysis-controls">
                         <label class="filter-field filter-field-wide" for="analysis-column-select">
-                            <span class="filter-label">Verbatim Question</span>
-                            <select id="analysis-column-select"></select>
+                            <span class="visually-hidden">Verbatim Question</span>
+                            <select id="analysis-column-select" aria-label="Verbatim Question"></select>
                         </label>
                         <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
                     </div>
 
+                    <p class="analysis-step-label">Choose Model</p>
                     <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
-                    <p class="analysis-help" id="analysis-help">
-                        Choose one verbatim question, pick one analysis method, and run it.
-                    </p>
-                    <div class="analysis-message" id="analysis-setup-message" hidden></div>
                 </section>
 
                 <section class="panel analysis-results-panel" id="analysis-results-panel" hidden>
@@ -245,23 +243,26 @@
     <div class="modal-shell" id="analysis-group-modal" hidden>
         <div class="modal-backdrop" id="analysis-group-backdrop"></div>
         <section class="modal-card analysis-group-modal-card" role="dialog" aria-modal="true" aria-labelledby="analysis-group-title">
-            <div class="modal-header">
-                <div>
-                    <p class="panel-kicker">Group Details</p>
-                    <h3 id="analysis-group-title">Group Responses</h3>
-                    <p class="modal-current-role analysis-group-modal-meta" id="analysis-group-meta"></p>
-                </div>
-                <button type="button" class="button button-ghost" id="close-analysis-group-modal-btn">Close</button>
+            <div class="analysis-group-modal-topbar">
+                <p class="panel-kicker" id="analysis-group-kicker">Group Details</p>
+                <button type="button" class="modal-close-button" id="close-analysis-group-modal-btn" aria-label="Close group details modal">&times;</button>
             </div>
 
             <div class="modal-body analysis-group-modal-body">
                 <div class="analysis-message" id="analysis-group-modal-message" hidden></div>
-                <div class="analysis-meta analysis-group-modal-terms" id="analysis-group-terms"></div>
+                <div class="analysis-group-modal-hero">
+                    <h3 id="analysis-group-title">Group Responses</h3>
+                    <div class="analysis-group-modal-meta" id="analysis-group-meta"></div>
+                    <div class="analysis-group-modal-terms" id="analysis-group-terms" hidden></div>
+                </div>
 
-                <section class="analysis-group-modal-section">
+                <section class="analysis-group-modal-section" id="analysis-group-examples-section">
                     <div class="analysis-group-modal-section-header">
-                        <h4>Representative Responses</h4>
-                        <button type="button" class="button button-ghost" id="analysis-group-load-all-btn">Show all responses</button>
+                        <div class="analysis-group-modal-section-copy">
+                            <h4 id="analysis-group-examples-title">Representative Responses</h4>
+                            <p class="analysis-group-modal-section-note" id="analysis-group-examples-subtitle">Sampled highlights from responses</p>
+                        </div>
+                        <button type="button" class="button button-ghost" id="analysis-group-load-all-btn">See all responses</button>
                     </div>
                     <div class="analysis-group-modal-list" id="analysis-group-examples"></div>
                 </section>

@@ -189,7 +189,12 @@ def create_app() -> FastAPI:
         https_only=settings.session_https_only,
     )
 
-    app.include_router(build_auth_router(google_oauth_service))
+    app.include_router(
+        build_auth_router(
+            google_oauth_service,
+            result_store_service=result_store_service,
+        )
+    )
     app.include_router(
         build_ingest_router(
             ingestion_service=ingestion_service,

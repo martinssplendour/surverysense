@@ -56,9 +56,19 @@ class StoredAnalysisGroupSnapshot:
 
 
 @dataclass(slots=True)
+class StoredAnalysisNgramSnapshot:
+    term: str
+    source_term: str | None
+    ngram_size: int
+    hit_count: int
+    documents: list[dict[str, object]]
+
+
+@dataclass(slots=True)
 class StoredAnalysisSnapshot:
     text_column_name: str
     groups: dict[str, StoredAnalysisGroupSnapshot]
+    ngram_items: dict[str, StoredAnalysisNgramSnapshot]
 
 
 @dataclass(slots=True)
@@ -68,6 +78,21 @@ class AnalysisGroupDocumentsPage:
     group_label: str
     text_column_name: str
     total_count: int
+    offset: int
+    limit: int
+    has_more: bool
+    documents: list[dict[str, object]]
+
+
+@dataclass(slots=True)
+class AnalysisNgramDocumentsPage:
+    result_id: str
+    term: str
+    source_term: str | None
+    ngram_size: int
+    text_column_name: str
+    total_count: int
+    hit_count: int
     offset: int
     limit: int
     has_more: bool
@@ -123,6 +148,12 @@ class ResultStoreService:
                 self._analysis_snapshots.pop(evicted_result_id, None)
 
         return result_id
+
+    def delete(self, result_id: str) -> bool:
+        with self._lock:
+            removed = self._results.pop(result_id, None)
+            self._analysis_snapshots.pop(result_id, None)
+        return removed is not None
 
     def get_filters(self, result_id: str) -> list[MetadataFilterDefinition]:
         with self._lock:
@@ -253,9 +284,55 @@ class ResultStoreService:
                     documents=documents,
                 )
 
+            ngram_items_payload = analysis_result.get("ngram_buckets", [])
+            ngram_items: dict[str, StoredAnalysisNgramSnapshot] = {}
+            if isinstance(ngram_items_payload, list):
+                for bucket in ngram_items_payload:
+                    if not isinstance(bucket, dict):
+                        continue
+                    ngram_size = int(bucket.get("ngram_size", 0) or 0)
+                    if ngram_size <= 0:
+                        continue
+                    items_payload = bucket.get("items", [])
+                    if not isinstance(items_payload, list):
+                        continue
+                    for item in items_payload:
+                        if not isinstance(item, dict):
+                            continue
+                        term = str(item.get("term", "")).strip()
+                        raw_source_term = item.get("source_term")
+                        source_term = str(raw_source_term).strip() if isinstance(raw_source_term, str) else None
+                        lookup_term = source_term or term
+                        if not term or not lookup_term:
+                            continue
+                        documents_payload = item.get("_documents", [])
+                        documents: list[dict[str, object]] = []
+                        if isinstance(documents_payload, list):
+                            for document in documents_payload:
+                                if not isinstance(document, dict):
+                                    continue
+                                row_number = int(document.get("row_number", 0) or 0)
+                                text = str(document.get("text", "")).strip()
+                                if row_number <= 0 or not text:
+                                    continue
+                                documents.append(
+                                    {
+                                        "row_number": row_number,
+                                        "text": text,
+                                    }
+                                )
+                        ngram_items[self._build_ngram_lookup_key(ngram_size, lookup_term)] = StoredAnalysisNgramSnapshot(
+                            term=term,
+                            source_term=source_term,
+                            ngram_size=ngram_size,
+                            hit_count=int(item.get("count", len(documents)) or 0),
+                            documents=documents,
+                        )
+
             self._analysis_snapshots[result_id] = StoredAnalysisSnapshot(
                 text_column_name=text_column_name,
                 groups=groups,
+                ngram_items=ngram_items,
             )
 
     def get_analysis_group_page(
@@ -291,6 +368,48 @@ class ResultStoreService:
             offset=normalized_offset,
             limit=limit,
             has_more=(normalized_offset + len(documents)) < len(group.documents),
+            documents=[dict(document) for document in documents],
+        )
+
+    def get_analysis_ngram_page(
+        self,
+        result_id: str,
+        *,
+        ngram_size: int,
+        term: str,
+        offset: int,
+        limit: int,
+    ) -> AnalysisNgramDocumentsPage:
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer.")
+
+        with self._lock:
+            snapshot = self._analysis_snapshots.get(result_id)
+
+        if snapshot is None:
+            raise ResultNotFoundError(f"No stored analysis snapshot exists for id '{result_id}'.")
+
+        normalized_term = str(term).strip()
+        if not normalized_term:
+            raise ValueError("term must not be empty.")
+
+        item = snapshot.ngram_items.get(self._build_ngram_lookup_key(ngram_size, normalized_term))
+        if item is None:
+            raise ValueError(f"N-gram '{normalized_term}' is not available.")
+
+        normalized_offset = max(0, offset)
+        documents = item.documents[normalized_offset: normalized_offset + limit]
+        return AnalysisNgramDocumentsPage(
+            result_id=result_id,
+            term=item.term,
+            source_term=item.source_term,
+            ngram_size=item.ngram_size,
+            text_column_name=snapshot.text_column_name,
+            total_count=len(item.documents),
+            hit_count=int(item.hit_count),
+            offset=normalized_offset,
+            limit=limit,
+            has_more=(normalized_offset + len(documents)) < len(item.documents),
             documents=[dict(document) for document in documents],
         )
 
@@ -337,3 +456,7 @@ class ResultStoreService:
             column_names=dataframe.columns.tolist(),
             rows=rows,
         )
+
+    @staticmethod
+    def _build_ngram_lookup_key(ngram_size: int, term: str) -> str:
+        return f"{int(ngram_size)}::{str(term).strip().casefold()}"

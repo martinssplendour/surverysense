@@ -38,8 +38,20 @@ class TextNormalizationService:
         text = text.strip().rstrip("'").strip()
         return text
 
+    def clean_series(self, col: pd.Series) -> pd.Series:
+        """Vectorised equivalent of col.map(normalize_scalar)."""
+        null_mask = col.isna()
+        text = col.where(~null_mask, "").astype(str)
+        text = text.str.replace("\ufeff", "", regex=False)
+        text = text.str.replace(SMART_APOSTROPHES_PATTERN.pattern, "'", regex=True)
+        text = text.str.strip().str.rstrip("'").str.strip()
+        return text.where(~null_mask, other=None)
+
     def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df.apply(lambda col: col.map(self.normalize_scalar))
+        return pd.DataFrame(
+            {col_name: self.clean_series(df[col_name]) for col_name in df.columns},
+            index=df.index,
+        )
 
 
 class NullScrubbingService:
@@ -47,15 +59,16 @@ class NullScrubbingService:
         normalized_nulls = {self._normalize_token(item) for item in null_equivalents}
         normalized_nulls.update({"", "nan", "<na>"})
 
-        def scrub(value: Any) -> Any:
-            if value is None or pd.isna(value):
-                return None
-            token = self._normalize_token(value)
-            if token in normalized_nulls:
-                return None
-            return value
-
-        return df.apply(lambda col: col.map(scrub))
+        cleaned = {}
+        for col_name in df.columns:
+            col = df[col_name]
+            null_mask = col.isna()
+            # Normalise each value to its stripped/casefolded token, then check membership.
+            token = col.where(~null_mask, "").astype(str).str.strip().str.casefold()
+            is_null = null_mask | token.isin(normalized_nulls)
+            # Preserve the original (non-stringified) value for survivors.
+            cleaned[col_name] = col.where(~is_null, other=None)
+        return pd.DataFrame(cleaned, index=df.index)
 
     @staticmethod
     def _normalize_token(value: Any) -> str:
@@ -68,9 +81,12 @@ class QuestionHeaderResolutionService:
 
     def resolve(self, raw_df: pd.DataFrame, question_header_indices: list[int]) -> pd.Series:
         resolved = pd.Series([None] * len(raw_df), index=raw_df.index, dtype=object)
+        _null_like = frozenset({"nan", "<na>", "none"})
         for idx in question_header_indices:
-            candidate = raw_df.iloc[:, idx].map(self.text_normalizer.normalize_scalar)
-            candidate = candidate.map(self._normalize_resolved_value)
+            # Vectorised: clean the column then filter out empty / null-like strings.
+            candidate = self.text_normalizer.clean_series(raw_df.iloc[:, idx])
+            bad = candidate.isna() | (candidate == "") | candidate.str.casefold().isin(_null_like)
+            candidate = candidate.where(~bad, other=None)
             resolved = resolved.where(resolved.notna(), candidate)
         return resolved
 
@@ -445,10 +461,19 @@ class MultipartVerbatimConsolidationService:
         column_names: list[str],
         separator: str,
     ) -> pd.Series:
-        return df[column_names].apply(
-            lambda row: self._combine_row_values(row.tolist(), separator),
-            axis=1,
-        )
+        # Build stripped, empty-string-for-null series per column, then merge iteratively.
+        # This is fully vectorised and avoids apply(axis=1) and stack() entirely.
+        texts = [
+            df[col].where(df[col].notna(), "").astype(str).str.strip()
+            for col in column_names
+        ]
+        result = texts[0].copy()
+        for text in texts[1:]:
+            both = (result != "") & (text != "")
+            only_right = (result == "") & (text != "")
+            result = result.where(~both, result + separator + text)
+            result = result.where(~only_right, text)
+        return result.where(result != "", other=None)
 
     @staticmethod
     def _combine_row_values(values: list[Any], separator: str) -> str | None:
@@ -687,12 +712,12 @@ class VerbatimQuestionSelectionService:
                 numeric_ratio=0.0,
             )
 
-        unique_ratio = non_blank.nunique(dropna=True) / max(len(non_blank), 1)
+        unique_count = int(non_blank.nunique(dropna=True))
+        unique_ratio = unique_count / max(len(non_blank), 1)
         avg_length = float(non_blank.str.len().mean())
         long_text_ratio = float((non_blank.str.len() >= 25).mean())
         numeric_ratio = float(pd.to_numeric(non_blank, errors="coerce").notna().mean())
         text_value_ratio = float(non_blank.str.contains(r"[^\W\d_]", regex=True).mean())
-        unique_count = int(non_blank.nunique(dropna=True))
         value_distribution = non_blank.value_counts(normalize=True, dropna=True)
         top5_coverage = float(value_distribution.head(5).sum())
         top10_coverage = float(value_distribution.head(10).sum())
@@ -1091,17 +1116,10 @@ class MetadataConsolidationService:
 
         grouped = (
             consolidated.groupby(key_columns, dropna=False, sort=False)[value_columns]
-            .agg(self._first_non_null)
+            .first()
             .reset_index()
         )
         return grouped
-
-    @staticmethod
-    def _first_non_null(series: pd.Series) -> Any:
-        non_null = series.dropna()
-        if non_null.empty:
-            return None
-        return non_null.iloc[0]
 
 
 class VerticalRecordAssemblyService:

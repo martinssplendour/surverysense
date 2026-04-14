@@ -227,6 +227,20 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
 
         self.assertEqual(terms, ["curriculum", "search", "twinkl"])
 
+    def test_top_ngrams_remove_stopwords_before_building_ngrams(self) -> None:
+        service = TopicAnalysisKeywordService()
+
+        ngrams = service.top_ngrams(
+            [
+                "What I am looking for is more of the resources in the classroom",
+                "I am in the classroom and of the resources",
+            ],
+            ngram_size=1,
+            top_n=10,
+        )
+
+        self.assertEqual([item["term"] for item in ngrams], ["resources", "classroom", "looking"])
+
 
 class BertopicAnalysisServiceTests(unittest.TestCase):
     def test_run_reassigns_outliers_to_nearest_existing_theme(self) -> None:
@@ -340,6 +354,92 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertGreaterEqual(len(result["ngram_buckets"][0]["items"]), 1)
         self.assertTrue(any(item.get("translated") for item in result["ngram_buckets"][0]["items"]))
         self.assertIn("Translated", " ".join(result["warnings"]))
+
+    def test_run_ngrams_keeps_translated_display_terms_stopword_free(self) -> None:
+        service = TopicAnalysisService(
+            config=self.config,
+            input_validation_service=self.validation_service,
+            text_preparation_service=TopicAnalysisTextPreparationService(
+                max_document_chars=300,
+                translation_service=_FakeEnglishTranslationService(
+                    {
+                        "aula": "in the classroom",
+                    }
+                ),
+            ),
+            keyword_service=self.keyword_service,
+            narrative_service=self.narrative_service,
+            representative_example_service=self.example_service,
+            embedding_service=_FakeEmbeddingService(),
+            ngram_service=self.ngram_service,
+            kmeans_service=_UnusedService(),
+            hdbscan_service=_UnusedService(),
+            bertopic_service=_UnusedService(),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "aula",
+                    "aula",
+                    "aula",
+                ],
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key="ngrams",
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["ngram_buckets"][0]["items"][0]["term"], "classroom")
+
+    def test_run_ngrams_includes_matching_documents_for_each_item(self) -> None:
+        service = TopicAnalysisService(
+            config=self.config,
+            input_validation_service=self.validation_service,
+            text_preparation_service=self.text_preparation_service,
+            keyword_service=self.keyword_service,
+            narrative_service=self.narrative_service,
+            representative_example_service=self.example_service,
+            embedding_service=_FakeEmbeddingService(),
+            ngram_service=self.ngram_service,
+            kmeans_service=_UnusedService(),
+            hdbscan_service=_UnusedService(),
+            bertopic_service=_UnusedService(),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Need more science resources",
+                    "More science resources help",
+                    "Need more maths resources",
+                ],
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key="ngrams",
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        bigram_items = result["ngram_buckets"][1]["items"]
+        matching_item = next(item for item in bigram_items if item["term"] == "science resources")
+        self.assertEqual(matching_item["count"], 2)
+        self.assertEqual(matching_item["document_count"], 2)
+        self.assertEqual(
+            matching_item["_documents"],
+            [
+                {"row_number": 1, "text": "Need more science resources"},
+                {"row_number": 2, "text": "More science resources help"},
+            ],
+        )
 
     def test_run_kmeans_translates_group_outputs_after_grouping(self) -> None:
         service = TopicAnalysisService(

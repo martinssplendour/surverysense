@@ -38,7 +38,14 @@ const state = {
     selectedAnalysisModel: "bertopic",
     analysisResult: null,
     analysisRunning: false,
+    analysisGroupModalMode: "group",
     analysisGroupModalGroupId: "",
+    analysisGroupModalNgramSize: 0,
+    analysisGroupModalTerm: "",
+    analysisGroupModalSourceTerm: "",
+    analysisGroupModalHitCount: 0,
+    analysisGroupModalTotalCount: 0,
+    analysisGroupModalBucketLabel: "",
     analysisGroupModalDocuments: [],
     analysisGroupModalHasMore: false,
     analysisGroupModalOffset: 0,
@@ -106,8 +113,6 @@ const elements = {
     analysisEmptyActionButton: document.getElementById("analysis-empty-action-btn"),
     analysisColumnSelect: document.getElementById("analysis-column-select"),
     analysisMethods: document.getElementById("analysis-methods"),
-    analysisHelp: document.getElementById("analysis-help"),
-    analysisSetupMessage: document.getElementById("analysis-setup-message"),
     analysisMessage: document.getElementById("analysis-message"),
     analysisSummary: document.getElementById("analysis-summary"),
     analysisChart: document.getElementById("analysis-chart"),
@@ -115,12 +120,17 @@ const elements = {
     analysisNgramGrid: document.getElementById("analysis-ngram-grid"),
     runAnalysisButton: document.getElementById("run-analysis-btn"),
     analysisGroupModal: document.getElementById("analysis-group-modal"),
+    analysisGroupModalCard: document.querySelector("#analysis-group-modal .analysis-group-modal-card"),
     analysisGroupBackdrop: document.getElementById("analysis-group-backdrop"),
     closeAnalysisGroupModalButton: document.getElementById("close-analysis-group-modal-btn"),
+    analysisGroupKicker: document.getElementById("analysis-group-kicker"),
     analysisGroupTitle: document.getElementById("analysis-group-title"),
     analysisGroupMeta: document.getElementById("analysis-group-meta"),
     analysisGroupTerms: document.getElementById("analysis-group-terms"),
     analysisGroupModalMessage: document.getElementById("analysis-group-modal-message"),
+    analysisGroupExamplesSection: document.getElementById("analysis-group-examples-section"),
+    analysisGroupExamplesTitle: document.getElementById("analysis-group-examples-title"),
+    analysisGroupExamplesSubtitle: document.getElementById("analysis-group-examples-subtitle"),
     analysisGroupExamples: document.getElementById("analysis-group-examples"),
     analysisGroupLoadAllButton: document.getElementById("analysis-group-load-all-btn"),
     analysisGroupFullSection: document.getElementById("analysis-group-full-section"),
@@ -193,9 +203,17 @@ function bindEvents() {
     elements.analysisGroupBackdrop?.addEventListener("click", closeAnalysisGroupModal);
     elements.closeAnalysisGroupModalButton?.addEventListener("click", closeAnalysisGroupModal);
     elements.analysisGroupLoadAllButton?.addEventListener("click", () => {
+        if (state.analysisGroupModalMode === "ngram") {
+            void loadAnalysisNgramDocuments({ reset: true });
+            return;
+        }
         void loadAnalysisGroupDocuments({ reset: true });
     });
     elements.analysisGroupLoadMoreButton?.addEventListener("click", () => {
+        if (state.analysisGroupModalMode === "ngram") {
+            void loadAnalysisNgramDocuments();
+            return;
+        }
         void loadAnalysisGroupDocuments();
     });
     elements.filterColumnSelect?.addEventListener("change", handleFilterColumnChange);
@@ -302,7 +320,14 @@ function applyPayload(payload) {
     state.selectedAnalysisModel = "bertopic";
     state.analysisResult = null;
     state.analysisRunning = false;
+    state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalNgramSize = 0;
+    state.analysisGroupModalTerm = "";
+    state.analysisGroupModalSourceTerm = "";
+    state.analysisGroupModalHitCount = 0;
+    state.analysisGroupModalTotalCount = 0;
+    state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
@@ -405,7 +430,14 @@ function resetToUploadState() {
     state.analysisResult = null;
     state.analysisRows = [];
     state.transformedRows = [];
+    state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalNgramSize = 0;
+    state.analysisGroupModalTerm = "";
+    state.analysisGroupModalSourceTerm = "";
+    state.analysisGroupModalHitCount = 0;
+    state.analysisGroupModalTotalCount = 0;
+    state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
@@ -615,7 +647,14 @@ function openAnalysisGroupModalByIndex(groupIndex) {
         return;
     }
 
+    state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = String(group.group_id || "");
+    state.analysisGroupModalNgramSize = 0;
+    state.analysisGroupModalTerm = "";
+    state.analysisGroupModalSourceTerm = "";
+    state.analysisGroupModalHitCount = 0;
+    state.analysisGroupModalTotalCount = 0;
+    state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
@@ -625,12 +664,46 @@ function openAnalysisGroupModalByIndex(groupIndex) {
     renderAnalysisGroupModal();
 }
 
+function openAnalysisNgramModal(bucketIndex, itemIndex) {
+    const buckets = Array.isArray(state.analysisResult?.ngram_buckets) ? state.analysisResult.ngram_buckets : [];
+    const bucket = buckets[bucketIndex];
+    const items = Array.isArray(bucket?.items) ? bucket.items : [];
+    const item = items[itemIndex];
+    if (!bucket || !item || !elements.analysisGroupModal) {
+        return;
+    }
+
+    state.analysisGroupModalMode = "ngram";
+    state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalNgramSize = Number(bucket.ngram_size || 0);
+    state.analysisGroupModalTerm = String(item.term || "");
+    state.analysisGroupModalSourceTerm = normalizeValue(item.source_term);
+    state.analysisGroupModalHitCount = Number(item.count || 0);
+    state.analysisGroupModalTotalCount = Number(item.document_count || 0);
+    state.analysisGroupModalBucketLabel = String(bucket.label || `${bucket.ngram_size}-grams`);
+    state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalHasMore = false;
+    state.analysisGroupModalOffset = 0;
+    state.analysisGroupModalLoading = false;
+    hideAnalysisGroupModalMessage();
+    elements.analysisGroupModal.hidden = false;
+    renderAnalysisGroupModal();
+    void loadAnalysisNgramDocuments({ reset: true });
+}
+
 function closeAnalysisGroupModal() {
     if (!elements.analysisGroupModal) {
         return;
     }
     elements.analysisGroupModal.hidden = true;
+    state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalNgramSize = 0;
+    state.analysisGroupModalTerm = "";
+    state.analysisGroupModalSourceTerm = "";
+    state.analysisGroupModalHitCount = 0;
+    state.analysisGroupModalTotalCount = 0;
+    state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
@@ -640,13 +713,48 @@ function closeAnalysisGroupModal() {
 
 function getActiveAnalysisGroup() {
     const groupId = state.analysisGroupModalGroupId;
-    if (!groupId || !Array.isArray(state.analysisResult?.groups)) {
+    if (state.analysisGroupModalMode !== "group" || !groupId || !Array.isArray(state.analysisResult?.groups)) {
         return null;
     }
     return state.analysisResult.groups.find((group) => String(group.group_id || "") === groupId) || null;
 }
 
+function syncAnalysisGroupModalAppearance() {
+    if (!(elements.analysisGroupModalCard instanceof HTMLElement)) {
+        return;
+    }
+    elements.analysisGroupModalCard.classList.toggle(
+        "analysis-group-modal-card-ngram",
+        state.analysisGroupModalMode === "ngram",
+    );
+}
+
+function renderAnalysisModalStatPills(items) {
+    return items
+        .filter((item) => item && item.value)
+        .map((item) => `
+            <span class="analysis-group-stat-pill">
+                <span class="analysis-group-stat-icon" aria-hidden="true"></span>
+                <span>${escapeHtml(item.value)}</span>
+            </span>
+        `)
+        .join("");
+}
+
+function renderAnalysisModalContext(items) {
+    return items
+        .filter(Boolean)
+        .map((item) => `<span>${escapeHtml(String(item))}</span>`)
+        .join("");
+}
+
 function renderAnalysisGroupModal() {
+    syncAnalysisGroupModalAppearance();
+    if (state.analysisGroupModalMode === "ngram") {
+        renderAnalysisNgramModal();
+        return;
+    }
+
     const group = getActiveAnalysisGroup();
     if (!group) {
         closeAnalysisGroupModal();
@@ -655,19 +763,32 @@ function renderAnalysisGroupModal() {
 
     const count = Number(group.count || 0);
     const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
-    const terms = Array.isArray(group.terms) ? group.terms : [];
     const examples = Array.isArray(group.examples) ? group.examples : [];
 
     if (elements.analysisGroupTitle) {
         elements.analysisGroupTitle.textContent = group.label || "Unlabelled group";
     }
+    if (elements.analysisGroupKicker) {
+        elements.analysisGroupKicker.textContent = "Group Details";
+    }
     if (elements.analysisGroupMeta) {
-        elements.analysisGroupMeta.textContent = `${count} responses${percent ? ` | ${percent}% of usable responses` : ""}`;
+        elements.analysisGroupMeta.innerHTML = renderAnalysisModalStatPills([
+            { value: `${formatNumber(count)} responses` },
+            { value: percent ? `${percent}% usable` : "" },
+        ]);
     }
     if (elements.analysisGroupTerms) {
-        elements.analysisGroupTerms.innerHTML = terms.length
-            ? terms.map((term) => `<span>${escapeHtml(term)}</span>`).join("")
-            : "<span>No terms returned</span>";
+        elements.analysisGroupTerms.hidden = true;
+        elements.analysisGroupTerms.innerHTML = "";
+    }
+    if (elements.analysisGroupExamplesSection) {
+        elements.analysisGroupExamplesSection.hidden = false;
+    }
+    if (elements.analysisGroupExamplesTitle) {
+        elements.analysisGroupExamplesTitle.textContent = "Representative Responses";
+    }
+    if (elements.analysisGroupExamplesSubtitle) {
+        elements.analysisGroupExamplesSubtitle.textContent = "Sampled highlights from responses";
     }
     if (elements.analysisGroupExamples) {
         elements.analysisGroupExamples.innerHTML = examples.length
@@ -675,10 +796,11 @@ function renderAnalysisGroupModal() {
             : "<p class=\"analysis-sample\">No representative responses were returned for this group.</p>";
     }
     if (elements.analysisGroupLoadAllButton) {
+        elements.analysisGroupLoadAllButton.hidden = false;
         elements.analysisGroupLoadAllButton.disabled = state.analysisGroupModalLoading || count <= 0;
         elements.analysisGroupLoadAllButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length === 0
             ? "Loading responses..."
-            : `Show all ${formatNumber(count)} responses`;
+            : `See all ${formatNumber(count)} responses`;
     }
     if (elements.analysisGroupFullSection) {
         elements.analysisGroupFullSection.hidden = state.analysisGroupModalDocuments.length === 0;
@@ -703,10 +825,83 @@ function renderAnalysisGroupModal() {
     }
 }
 
+function renderAnalysisNgramModal() {
+    if (!elements.analysisGroupModal || !state.analysisGroupModalTerm) {
+        closeAnalysisGroupModal();
+        return;
+    }
+
+    if (elements.analysisGroupKicker) {
+        elements.analysisGroupKicker.textContent = "Phrase Matches";
+    }
+    if (elements.analysisGroupTitle) {
+        elements.analysisGroupTitle.textContent = state.analysisGroupModalTerm;
+    }
+    if (elements.analysisGroupMeta) {
+        const totalCount = Number(state.analysisGroupModalTotalCount || 0);
+        const hitCount = Number(state.analysisGroupModalHitCount || 0);
+        elements.analysisGroupMeta.innerHTML = renderAnalysisModalStatPills([
+            { value: `${formatNumber(totalCount)} matching response${totalCount === 1 ? "" : "s"}` },
+            { value: `${formatNumber(hitCount)} total hit${hitCount === 1 ? "" : "s"}` },
+        ]);
+    }
+    if (elements.analysisGroupTerms) {
+        const detailsMarkup = renderAnalysisModalContext([
+            state.analysisGroupModalBucketLabel,
+            state.analysisGroupModalSourceTerm ? `Original phrase: ${state.analysisGroupModalSourceTerm}` : "",
+        ]);
+        elements.analysisGroupTerms.hidden = !detailsMarkup;
+        elements.analysisGroupTerms.innerHTML = detailsMarkup;
+    }
+    if (elements.analysisGroupExamplesSection) {
+        elements.analysisGroupExamplesSection.hidden = true;
+    }
+    if (elements.analysisGroupExamplesSubtitle) {
+        elements.analysisGroupExamplesSubtitle.textContent = "";
+    }
+    if (elements.analysisGroupExamples) {
+        elements.analysisGroupExamples.innerHTML = "";
+    }
+    if (elements.analysisGroupLoadAllButton) {
+        elements.analysisGroupLoadAllButton.hidden = true;
+    }
+    if (elements.analysisGroupFullSection) {
+        elements.analysisGroupFullSection.hidden = false;
+    }
+    if (elements.analysisGroupFullTitle) {
+        const totalCount = Number(state.analysisGroupModalTotalCount || 0);
+        elements.analysisGroupFullTitle.textContent = totalCount
+            ? `Matching Responses (${formatNumber(state.analysisGroupModalDocuments.length)} of ${formatNumber(totalCount)})`
+            : "Matching Responses";
+    }
+    if (elements.analysisGroupDocuments) {
+        if (state.analysisGroupModalDocuments.length) {
+            elements.analysisGroupDocuments.innerHTML = state.analysisGroupModalDocuments
+                .map((document) => renderAnalysisDocumentCard(document))
+                .join("");
+        } else if (state.analysisGroupModalLoading) {
+            elements.analysisGroupDocuments.innerHTML = '<p class="analysis-sample">Loading matching responses...</p>';
+        } else {
+            elements.analysisGroupDocuments.innerHTML = '<p class="analysis-sample">No matching responses were found for this phrase.</p>';
+        }
+    }
+    if (elements.analysisGroupLoadMoreButton) {
+        elements.analysisGroupLoadMoreButton.hidden = !state.analysisGroupModalHasMore;
+        elements.analysisGroupLoadMoreButton.disabled = state.analysisGroupModalLoading;
+        elements.analysisGroupLoadMoreButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length > 0
+            ? "Loading..."
+            : "Load more";
+    }
+}
+
 function renderAnalysisExampleCard(example) {
     return `
         <blockquote class="analysis-example">
-            <span class="analysis-example-row">Row ${Number(example.row_number || 0)}${example.translated ? " | translated to English" : ""}</span>
+            <div class="analysis-example-header">
+                <span class="analysis-example-pill">Row</span>
+                <span class="analysis-example-row">Row ${Number(example.row_number || 0)}</span>
+                ${example.translated ? '<span class="analysis-example-flag">Translated</span>' : ""}
+            </div>
             <p>${escapeHtml(example.text || "")}</p>
             ${example.translated && normalizeValue(example.source_text)
                 ? `<p class="analysis-example-source"><strong>Original:</strong> ${escapeHtml(example.source_text || "")}</p>`
@@ -718,7 +913,10 @@ function renderAnalysisExampleCard(example) {
 function renderAnalysisDocumentCard(document) {
     return `
         <blockquote class="analysis-example analysis-example-full">
-            <span class="analysis-example-row">Row ${Number(document.row_number || 0)}</span>
+            <div class="analysis-example-header">
+                <span class="analysis-example-pill">Row</span>
+                <span class="analysis-example-row">Row ${Number(document.row_number || 0)}</span>
+            </div>
             <p>${escapeHtml(document.text || "")}</p>
         </blockquote>
     `;
@@ -760,6 +958,58 @@ async function loadAnalysisGroupDocuments({ reset = false } = {}) {
         state.analysisGroupModalHasMore = Boolean(payload.has_more);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load group responses.";
+        showAnalysisGroupModalMessage("error", message);
+    } finally {
+        state.analysisGroupModalLoading = false;
+        renderAnalysisGroupModal();
+    }
+}
+
+async function loadAnalysisNgramDocuments({ reset = false } = {}) {
+    if (
+        state.analysisGroupModalMode !== "ngram"
+        || !state.resultId
+        || !state.analysisGroupModalTerm
+        || !state.analysisGroupModalNgramSize
+        || state.analysisGroupModalLoading
+    ) {
+        return;
+    }
+
+    const offset = reset ? 0 : state.analysisGroupModalOffset;
+    const lookupTerm = state.analysisGroupModalSourceTerm || state.analysisGroupModalTerm;
+    state.analysisGroupModalLoading = true;
+    hideAnalysisGroupModalMessage();
+    renderAnalysisGroupModal();
+
+    try {
+        const query = new URLSearchParams({
+            ngram_size: String(state.analysisGroupModalNgramSize),
+            term: lookupTerm,
+            offset: String(offset),
+            limit: String(FULL_DATA_ROW_PAGE_SIZE),
+        });
+        const response = await fetch(`/analysis-ngram-documents/${encodeURIComponent(state.resultId)}?${query.toString()}`);
+        if (response.status === 401) {
+            sessionStorage.removeItem(RESULT_STORAGE_KEY);
+            window.location.assign("/login");
+            return;
+        }
+        const payload = await parseJson(response);
+        if (!response.ok) {
+            throw new Error(payload.detail || "Unable to load matching responses.");
+        }
+
+        const documents = Array.isArray(payload.documents) ? payload.documents : [];
+        state.analysisGroupModalDocuments = reset
+            ? documents
+            : state.analysisGroupModalDocuments.concat(documents);
+        state.analysisGroupModalOffset = Number(payload.offset || 0) + documents.length;
+        state.analysisGroupModalHasMore = Boolean(payload.has_more);
+        state.analysisGroupModalTotalCount = Number(payload.total_count || state.analysisGroupModalTotalCount || 0);
+        state.analysisGroupModalHitCount = Number(payload.hit_count || state.analysisGroupModalHitCount || 0);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load matching responses.";
         showAnalysisGroupModalMessage("error", message);
     } finally {
         state.analysisGroupModalLoading = false;
@@ -964,11 +1214,6 @@ function renderAnalysisPanel() {
     }
 
     renderAnalysisControls();
-    if (elements.analysisSetupMessage) {
-        elements.analysisSetupMessage.hidden = true;
-        elements.analysisSetupMessage.textContent = "";
-        elements.analysisSetupMessage.className = "analysis-message";
-    }
 }
 
 function renderAnalysisControls() {
@@ -995,11 +1240,12 @@ function renderAnalysisControls() {
         })
         .join("");
     elements.runAnalysisButton.disabled = state.analysisRunning || !state.selectedAnalysisColumn;
-    elements.runAnalysisButton.textContent = state.analysisRunning ? "Running Analysis..." : "Run Analysis";
+    elements.runAnalysisButton.innerHTML = state.analysisRunning
+        ? '<span class="analysis-run-button-content"><span class="analysis-run-spinner" aria-hidden="true"></span><span>Running Analysis...</span></span>'
+        : "Run Analysis";
 }
 
 function renderAnalysisOutput() {
-    elements.analysisHelp.textContent = "Choose one verbatim question, choose one method, and run the analysis.";
     renderAnalysisResultsHeader();
     renderFilterBar();
 
@@ -1040,9 +1286,7 @@ function renderAnalysisOutput() {
 
     if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
         elements.analysisList.innerHTML = "";
-        elements.analysisNgramGrid.innerHTML = result.ngram_buckets
-            .map((bucket, index) => renderNgramBucket(bucket, index))
-            .join("");
+        elements.analysisNgramGrid.innerHTML = "";
         renderNgramCharts(result.ngram_buckets);
         return;
     }
@@ -1050,7 +1294,7 @@ function renderAnalysisOutput() {
     const groups = Array.isArray(result.groups) ? result.groups : [];
     elements.analysisNgramGrid.innerHTML = "";
     elements.analysisList.innerHTML = groups.length
-        ? groups.map((group, index) => renderAnalysisGroup(group, index)).join("")
+        ? ""
         : `
             <div class="analysis-item">
                 <h4>No groups were returned</h4>
@@ -1082,12 +1326,6 @@ function renderAnalysisResultsHeader() {
         `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
         `${formatNumber(result.valid_document_count || 0)} usable responses`,
     ];
-    if (Number(result.translated_document_count || 0) > 0) {
-        details.push(`${formatNumber(result.translated_document_count || 0)} translated for display`);
-    }
-    if (hasActiveFilters()) {
-        details.push(`${Object.keys(state.activeFilters).length} active filter${Object.keys(state.activeFilters).length === 1 ? "" : "s"}`);
-    }
     elements.analysisResultsSubtitle.textContent = details.join(" · ");
 }
 
@@ -1101,24 +1339,6 @@ function renderAnalysisMessage(kind, message) {
     elements.analysisMessage.hidden = false;
     elements.analysisMessage.className = `analysis-message analysis-message-${kind}`;
     elements.analysisMessage.textContent = message;
-}
-
-function renderAnalysisSetupMessage(kind, message) {
-    if (!elements.analysisSetupMessage) {
-        return;
-    }
-    elements.analysisSetupMessage.hidden = false;
-    elements.analysisSetupMessage.className = `analysis-message analysis-message-${kind}`;
-    elements.analysisSetupMessage.textContent = message;
-}
-
-function clearAnalysisSetupMessage() {
-    if (!elements.analysisSetupMessage) {
-        return;
-    }
-    elements.analysisSetupMessage.hidden = true;
-    elements.analysisSetupMessage.className = "analysis-message";
-    elements.analysisSetupMessage.textContent = "";
 }
 
 function renderAnalysisChart(groups, scatterPoints = []) {
@@ -1138,7 +1358,7 @@ function renderAnalysisChart(groups, scatterPoints = []) {
     const chartTitle = isThemeView
         ? "How responses are spread across themes"
         : "How responses are spread across groups";
-    const chartCaption = `Hover to see the number of responses in each ${subjectLabel}. Click a bar to jump to the matching ${subjectLabel} details below.`;
+    const chartCaption = `Hover to see the number of responses in each ${subjectLabel}. Click a bar to open the matching ${subjectLabel} responses.`;
 
     elements.analysisChart.hidden = false;
     elements.analysisChart.innerHTML = `
@@ -1155,20 +1375,6 @@ function renderAnalysisChart(groups, scatterPoints = []) {
     const rendered = renderInteractiveGroupChart(plotContainer, groups, {
         chartTitle,
         yAxisLabel,
-    });
-    elements.analysisList?.addEventListener("click", (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) {
-            return;
-        }
-        const openButton = target.closest("[data-open-analysis-group]");
-        if (!(openButton instanceof HTMLElement)) {
-            return;
-        }
-        const groupIndex = Number(openButton.dataset.openAnalysisGroup);
-        if (Number.isFinite(groupIndex)) {
-            openAnalysisGroupModalByIndex(groupIndex);
-        }
     });
     if (!rendered && plotContainer instanceof HTMLElement) {
         plotContainer.outerHTML = renderFallbackGroupChart(groups);
@@ -1196,58 +1402,6 @@ function renderKmeansScatterChart(scatterPoints) {
     queueAnalysisPlotResize();
 }
 
-function renderAnalysisGroup(group, index) {
-    const terms = Array.isArray(group.terms) ? group.terms : [];
-    const count = Number(group.count || 0);
-    const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
-    const comment = normalizeValue(group.comment);
-
-    const termsMarkup = terms.length
-        ? terms.map((term) => `<span>${escapeHtml(term)}</span>`).join("")
-        : "<span>No terms returned</span>";
-
-    return `
-        <article class="analysis-item" id="analysis-group-card-${index}">
-            <div class="analysis-item-header">
-                <h4>${escapeHtml(group.label || "Unlabelled group")}</h4>
-                <div class="analysis-item-count">${count} responses${percent ? ` | ${percent}%` : ""}</div>
-            </div>
-            ${group.translated && normalizeValue(group.source_label)
-                ? `<p class="analysis-source-note"><strong>Original topic name:</strong> ${escapeHtml(group.source_label || "")}</p>`
-                : ""}
-            ${comment ? `<p class="analysis-comment">${escapeHtml(comment)}</p>` : ""}
-            <div class="analysis-meta">${termsMarkup}</div>
-            <div class="analysis-item-actions">
-                <button type="button" class="button button-ghost" data-open-analysis-group="${index}">View responses</button>
-            </div>
-        </article>
-    `;
-}
-
-function renderNgramBucket(bucket, index) {
-    const items = Array.isArray(bucket.items) ? bucket.items : [];
-    const listMarkup = items.length
-        ? items.map((item) => `
-            <li class="analysis-ngram-item">
-                <span class="analysis-ngram-term">
-                    ${escapeHtml(item.term || "")}
-                    ${item.translated && normalizeValue(item.source_term)
-                        ? `<span class="analysis-source-note">Original: ${escapeHtml(item.source_term || "")}</span>`
-                        : ""}
-                </span>
-                <span class="analysis-ngram-count">${Number(item.count || 0)}</span>
-            </li>
-        `).join("")
-        : "<li class=\"analysis-ngram-item\"><span class=\"analysis-ngram-term\">No repeated terms found</span><span class=\"analysis-ngram-count\">0</span></li>";
-
-    return `
-        <article class="analysis-ngram-panel" id="analysis-ngram-panel-${index}">
-            <h4>${escapeHtml(bucket.label || `${bucket.ngram_size}-grams`)}</h4>
-            <ul class="analysis-ngram-list">${listMarkup}</ul>
-        </article>
-    `;
-}
-
 function renderNgramCharts(buckets) {
     if (!Array.isArray(buckets) || !buckets.length) {
         clearAnalysisChart();
@@ -1258,13 +1412,12 @@ function renderNgramCharts(buckets) {
     elements.analysisChart.innerHTML = `
         <div class="analysis-chart-copy">
             <h4 class="analysis-chart-title">Most common words and phrases in the selected responses</h4>
-            <p class="analysis-chart-caption">Hover to see how often each word or phrase appears. Click a bar to jump to the matching phrase list below.</p>
+            <p class="analysis-chart-caption">Hover to see how often each word or phrase appears. Click a bar to open the matching responses.</p>
         </div>
         <div class="analysis-plot-grid">
             ${buckets
                 .map((bucket, index) => `
                     <div class="analysis-plot-card">
-                        <h4>${escapeHtml(bucket.label || `${bucket.ngram_size}-grams`)}</h4>
                         <div class="analysis-plot-surface" id="analysis-ngram-plot-${index}"></div>
                     </div>
                 `)
@@ -1276,7 +1429,7 @@ function renderNgramCharts(buckets) {
     if (!plotly) {
         elements.analysisChart.insertAdjacentHTML(
             "beforeend",
-            '<p class="analysis-chart-fallback">Interactive charts are unavailable right now, but the phrase lists below still show the same results.</p>',
+            '<p class="analysis-chart-fallback">Interactive charts are unavailable right now, so matching responses cannot be opened from this view.</p>',
         );
         return;
     }
@@ -1575,10 +1728,16 @@ function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
                 marker: {
                     color: colorsBySize[Number(bucket.ngram_size || 0)] || "#7a6b5e",
                 },
-                customdata: items.map((item) => [item.term || "", label]),
+                customdata: items.map((item, itemIndex) => [
+                    item.term || "",
+                    label,
+                    itemIndex,
+                    Number(item.document_count || 0),
+                ]),
                 hovertemplate: [
                     "<b>%{customdata[0]}</b>",
                     "Number of times it appears: %{x}",
+                    "Matching responses: %{customdata[3]}",
                     "Phrase list: %{customdata[1]}",
                     "<extra></extra>",
                 ].join("<br>"),
@@ -1633,8 +1792,12 @@ function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
     if (plotPromise && typeof plotPromise.then === "function") {
         plotPromise.then(() => {
             if (typeof plotContainer.on === "function") {
-                plotContainer.on("plotly_click", () => {
-                    focusAnalysisTarget(`analysis-ngram-panel-${bucketIndex}`);
+                plotContainer.on("plotly_click", (event) => {
+                    const point = event?.points?.[0];
+                    const itemIndex = Number(point?.customdata?.[2]);
+                    if (Number.isFinite(itemIndex)) {
+                        openAnalysisNgramModal(bucketIndex, itemIndex);
+                    }
                 });
             }
         });
@@ -1917,13 +2080,18 @@ async function removeActiveFilter(columnName) {
 
 async function applyActiveFilters(nextFilters) {
     state.activeFilters = nextFilters;
+    const activeAnalysisRequest = getActiveAnalysisRequest();
     const shouldRerunAnalysis = state.currentWorkspace === "analysis-results"
-        && Boolean(state.selectedAnalysisColumn)
-        && Boolean(state.selectedAnalysisModel);
-    state.analysisResult = null;
-    await refreshFilteredDatasets();
+        && Boolean(activeAnalysisRequest.textColumnName)
+        && Boolean(activeAnalysisRequest.modelKey);
+    await refreshFilteredDatasets({ suppressAnalysisRender: shouldRerunAnalysis });
     if (shouldRerunAnalysis) {
-        await runAnalysis({ scrollIntoView: false });
+        await runAnalysis({
+            scrollIntoView: false,
+            preserveCurrentOutput: true,
+            requestedColumn: activeAnalysisRequest.textColumnName,
+            requestedModel: activeAnalysisRequest.modelKey,
+        });
     }
 }
 
@@ -1943,7 +2111,6 @@ function handleAnalysisColumnChange(event) {
     }
     state.selectedAnalysisColumn = target.value;
     state.analysisResult = null;
-    clearAnalysisSetupMessage();
     renderAnalysisControls();
     renderAnalysisOutput();
 }
@@ -1963,7 +2130,6 @@ function handleAnalysisMethodClick(event) {
     }
     state.selectedAnalysisModel = modelKey;
     state.analysisResult = null;
-    clearAnalysisSetupMessage();
     renderAnalysisControls();
     renderAnalysisOutput();
 }
@@ -2118,7 +2284,7 @@ async function warmAnalysisRows() {
     await ensureDatasetRowCount("analysis", INITIAL_VISIBLE_ROW_TARGET);
 }
 
-async function refreshFilteredDatasets() {
+async function refreshFilteredDatasets({ suppressAnalysisRender = false } = {}) {
     if (!state.resultId) {
         renderFilterBar();
         renderPreviewTable(false);
@@ -2147,22 +2313,41 @@ async function refreshFilteredDatasets() {
     if (state.currentWorkspace === "analysis") {
         renderAnalysisPanel();
     }
-    if (state.currentWorkspace === "analysis-results") {
+    if (state.currentWorkspace === "analysis-results" && !suppressAnalysisRender) {
         renderAnalysisOutput();
     }
 }
 
-async function runAnalysis({ scrollIntoView = false } = {}) {
-    if (!state.resultId || !state.selectedAnalysisColumn) {
+function getActiveAnalysisRequest() {
+    return {
+        textColumnName: state.analysisResult?.text_column_name || state.selectedAnalysisColumn || "",
+        modelKey: state.analysisResult?.model_key || state.selectedAnalysisModel || "",
+    };
+}
+
+async function runAnalysis({
+    scrollIntoView = false,
+    preserveCurrentOutput = false,
+    requestedColumn = "",
+    requestedModel = "",
+} = {}) {
+    const textColumnName = requestedColumn || state.selectedAnalysisColumn || state.analysisResult?.text_column_name || "";
+    const modelKey = requestedModel || state.selectedAnalysisModel || state.analysisResult?.model_key || "";
+    if (!state.resultId || !textColumnName) {
         return;
     }
 
     closeAnalysisGroupModal();
+    state.selectedAnalysisColumn = textColumnName;
+    state.selectedAnalysisModel = modelKey || state.selectedAnalysisModel;
     state.analysisRunning = true;
-    state.analysisResult = null;
     renderAnalysisControls();
-    renderAnalysisOutput();
-    renderAnalysisSetupMessage("neutral", "Analysing the selected question on the current filtered dataset...");
+    if (preserveCurrentOutput && state.currentWorkspace === "analysis-results" && state.analysisResult) {
+        renderAnalysisMessage("neutral", "Updating the plot for the current filters...");
+    } else {
+        state.analysisResult = null;
+        renderAnalysisOutput();
+    }
 
     try {
         const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
@@ -2171,8 +2356,8 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model_key: state.selectedAnalysisModel,
-                text_column_name: state.selectedAnalysisColumn,
+                model_key: modelKey,
+                text_column_name: textColumnName,
                 filters: state.activeFilters,
             }),
         });
@@ -2192,7 +2377,8 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
         }
 
         state.analysisResult = payload;
-        clearAnalysisSetupMessage();
+        state.selectedAnalysisColumn = payload.text_column_name || textColumnName;
+        state.selectedAnalysisModel = payload.model_key || modelKey;
         state.currentWorkspace = "analysis-results";
         updateWorkspaceVisibility();
         renderAnalysisOutput();
@@ -2204,9 +2390,9 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
         state.analysisResult = {
             ok: false,
             result_id: state.resultId,
-            model_key: state.selectedAnalysisModel,
-            model_label: displayAnalysisMode(state.selectedAnalysisModel),
-            text_column_name: state.selectedAnalysisColumn,
+            model_key: modelKey,
+            model_label: displayAnalysisMode(modelKey),
+            text_column_name: textColumnName,
             filtered_row_count: 0,
             valid_document_count: 0,
             skipped_document_count: 0,
@@ -2217,7 +2403,6 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
             ngram_buckets: [],
             scatter_points: [],
         };
-        clearAnalysisSetupMessage();
         state.currentWorkspace = "analysis-results";
         updateWorkspaceVisibility();
         renderAnalysisOutput();

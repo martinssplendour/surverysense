@@ -111,6 +111,7 @@ class AnalysisNgramItemModel(BaseModel):
     source_term: str | None = None
     translated: bool = False
     count: int
+    document_count: int = 0
 
 
 class AnalysisNgramBucketModel(BaseModel):
@@ -152,6 +153,20 @@ class AnalysisGroupDocumentsResponse(BaseModel):
     group_label: str
     text_column_name: str
     total_count: int
+    offset: int
+    limit: int
+    has_more: bool
+    documents: list[AnalysisGroupDocumentModel] = Field(default_factory=list)
+
+
+class AnalysisNgramDocumentsResponse(BaseModel):
+    result_id: str
+    term: str
+    source_term: str | None = None
+    ngram_size: int
+    text_column_name: str
+    total_count: int
+    hit_count: int
     offset: int
     limit: int
     has_more: bool

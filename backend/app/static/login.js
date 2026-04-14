@@ -1,8 +1,10 @@
+const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
 const elements = {
     googleSigninButton: document.getElementById("google-signin-button"),
     loginStatus: document.getElementById("login-status"),
 };
 
+sessionStorage.removeItem(RESULT_STORAGE_KEY);
 initLoginPage();
 
 async function initLoginPage() {

@@ -49,13 +49,9 @@ class CsvIngestionService:
         )
 
     def serialize_sample_rows(self, df: pd.DataFrame) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for _, row in df.iterrows():
-            serialized_row: dict[str, Any] = {}
-            for idx, value in enumerate(row.tolist()):
-                serialized_row[f"idx_{idx}"] = None if pd.isna(value) else value
-            rows.append(serialized_row)
-        return rows
+        col_keys = [f"idx_{i}" for i in range(len(df.columns))]
+        arr = df.to_numpy(dtype=object, na_value=None)
+        return [dict(zip(col_keys, row)) for row in arr.tolist()]
 
     @staticmethod
     def _head_dataframe(df: pd.DataFrame, sample_size: int) -> pd.DataFrame:
