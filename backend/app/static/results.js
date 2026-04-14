@@ -808,6 +808,7 @@ function renderAnalysisOutput() {
 
     if (!state.analysisResult) {
         elements.analysisSummary.innerHTML = "";
+        elements.analysisSummary.hidden = true;
         clearAnalysisChart();
         elements.analysisList.innerHTML = "";
         elements.analysisNgramGrid.innerHTML = "";
@@ -820,6 +821,7 @@ function renderAnalysisOutput() {
     if (!result.ok) {
         setAnalysisEmptyState(false);
         elements.analysisSummary.innerHTML = "";
+        elements.analysisSummary.hidden = true;
         clearAnalysisChart();
         elements.analysisList.innerHTML = `
             <div class="analysis-item">
@@ -833,19 +835,8 @@ function renderAnalysisOutput() {
     }
 
     setAnalysisEmptyState(false);
-    const summaryCards = [
-        analysisCard("View", escapeHtml(result.model_label || displayAnalysisMode(result.model_key))),
-        analysisCard("Question", escapeHtml(displayColumnLabel(result.text_column_name || ""))),
-        analysisCard("Filtered Rows", `${result.filtered_row_count || 0}`),
-        analysisCard("Usable Responses", `${result.valid_document_count || 0}`),
-        analysisCard("Skipped", `${result.skipped_document_count || 0}`),
-    ];
-    if (Array.isArray(result.groups) && result.groups.length) {
-        summaryCards.push(analysisCard("Groups", `${result.groups.length}`));
-    } else if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
-        summaryCards.push(analysisCard("N-gram Buckets", `${result.ngram_buckets.length}`));
-    }
-    elements.analysisSummary.innerHTML = summaryCards.join("");
+    elements.analysisSummary.innerHTML = "";
+    elements.analysisSummary.hidden = true;
     elements.analysisMessage.hidden = true;
     elements.analysisMessage.textContent = "";
     elements.analysisMessage.className = "analysis-message";
@@ -1089,7 +1080,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
         .map((group, index) => ({ group, index }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
     const subjectLabel = yAxisLabel === "Theme name" ? "theme" : "group";
-    const figureHeight = Math.max(320, sortedGroups.length * 58);
+    const figureHeight = Math.max(180, sortedGroups.length * 30);
 
     const plotPromise = plotly.newPlot(
         plotContainer,
@@ -1097,7 +1088,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
             {
                 type: "bar",
                 orientation: "h",
-                y: sortedGroups.map(({ group }) => wrapPlotLabel(group.label || "Unlabelled group", 28)),
+                y: sortedGroups.map(({ group }) => wrapPlotLabel(group.label || "Unlabelled group", 18)),
                 x: sortedGroups.map(({ group }) => Number(group.count || 0)),
                 marker: {
                     color: sortedGroups.map(({ group }) => group.is_noise ? "#b8ac9f" : "#4f7a63"),
@@ -1131,17 +1122,17 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
             },
             height: figureHeight,
             margin: {
-                t: 56,
-                r: 24,
-                b: 70,
-                l: 260,
+                t: 28,
+                r: 12,
+                b: 36,
+                l: 132,
             },
             paper_bgcolor: "rgba(0, 0, 0, 0)",
             plot_bgcolor: "rgba(255, 250, 242, 0.72)",
             font: {
                 family: "\"Segoe UI\", Aptos, sans-serif",
                 color: "#3d352d",
-                size: 13,
+                size: 8,
             },
             bargap: 0.28,
             xaxis: {
@@ -1244,15 +1235,23 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
         ].join("<br>"),
     }));
 
+    const viewportWidth = Math.max(
+        window.innerWidth || 0,
+        document.documentElement?.clientWidth || 0,
+    );
+    const plotWidth = Math.round(Math.min(1700, Math.max(1080, viewportWidth * 1.08)));
+    const plotHeight = Math.round(Math.min(980, Math.max(720, plotWidth * 0.56)));
+    const legendMargin = viewportWidth <= 1180 ? 250 : viewportWidth <= 1440 ? 300 : 340;
+
     const plotPromise = plotly.newPlot(
         plotContainer,
         traces,
         {
-            width: 2200,
-            height: 1120,
+            width: plotWidth,
+            height: plotHeight,
             margin: {
                 t: 40,
-                r: 360,
+                r: legendMargin,
                 b: 96,
                 l: 96,
             },
@@ -1340,7 +1339,7 @@ function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
     const items = Array.isArray(bucket.items) ? bucket.items.slice(0, 10) : [];
     const label = bucket.label || `${bucket.ngram_size}-grams`;
     const itemTypeLabel = Number(bucket.ngram_size || 0) === 1 ? "Word" : "Phrase";
-    const figureHeight = Math.max(280, items.length * 42 + 120);
+    const figureHeight = Math.max(160, items.length * 22 + 60);
     const colorsBySize = {
         1: "#4f7a63",
         2: "#c7923f",
@@ -1353,7 +1352,7 @@ function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
             {
                 type: "bar",
                 orientation: "h",
-                y: items.map((item) => wrapPlotLabel(item.term || "", 24)),
+                y: items.map((item) => wrapPlotLabel(item.term || "", 16)),
                 x: items.map((item) => Number(item.count || 0)),
                 marker: {
                     color: colorsBySize[Number(bucket.ngram_size || 0)] || "#7a6b5e",
@@ -1375,17 +1374,17 @@ function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
             },
             height: figureHeight,
             margin: {
-                t: 54,
-                r: 22,
-                b: 70,
-                l: 170,
+                t: 28,
+                r: 12,
+                b: 36,
+                l: 88,
             },
             paper_bgcolor: "rgba(0, 0, 0, 0)",
             plot_bgcolor: "rgba(255, 250, 242, 0.72)",
             font: {
                 family: "\"Segoe UI\", Aptos, sans-serif",
                 color: "#3d352d",
-                size: 13,
+                size: 8,
             },
             bargap: 0.26,
             xaxis: {

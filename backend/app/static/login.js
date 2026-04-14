@@ -32,7 +32,7 @@ async function initLoginPage() {
                 size: "large",
                 text: "signin_with",
                 shape: "pill",
-                width: 320,
+                width: 180,
             },
         );
         showStatus("neutral", "Use your Twinkl account to log in.");
