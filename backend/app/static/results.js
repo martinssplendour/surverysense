@@ -38,6 +38,11 @@ const state = {
     selectedAnalysisModel: "bertopic",
     analysisResult: null,
     analysisRunning: false,
+    analysisGroupModalGroupId: "",
+    analysisGroupModalDocuments: [],
+    analysisGroupModalHasMore: false,
+    analysisGroupModalOffset: 0,
+    analysisGroupModalLoading: false,
     currentWorkspace: "dashboard",
     previewColumnOffset: 0,
     columnSearchTerm: "",
@@ -109,6 +114,19 @@ const elements = {
     analysisList: document.getElementById("analysis-list"),
     analysisNgramGrid: document.getElementById("analysis-ngram-grid"),
     runAnalysisButton: document.getElementById("run-analysis-btn"),
+    analysisGroupModal: document.getElementById("analysis-group-modal"),
+    analysisGroupBackdrop: document.getElementById("analysis-group-backdrop"),
+    closeAnalysisGroupModalButton: document.getElementById("close-analysis-group-modal-btn"),
+    analysisGroupTitle: document.getElementById("analysis-group-title"),
+    analysisGroupMeta: document.getElementById("analysis-group-meta"),
+    analysisGroupTerms: document.getElementById("analysis-group-terms"),
+    analysisGroupModalMessage: document.getElementById("analysis-group-modal-message"),
+    analysisGroupExamples: document.getElementById("analysis-group-examples"),
+    analysisGroupLoadAllButton: document.getElementById("analysis-group-load-all-btn"),
+    analysisGroupFullSection: document.getElementById("analysis-group-full-section"),
+    analysisGroupFullTitle: document.getElementById("analysis-group-full-title"),
+    analysisGroupDocuments: document.getElementById("analysis-group-documents"),
+    analysisGroupLoadMoreButton: document.getElementById("analysis-group-load-more-btn"),
 };
 
 if (elements.dashboardPanel && elements.openAnalysisButton && elements.openDataButton) {
@@ -172,6 +190,14 @@ function bindEvents() {
     });
     elements.filterBackdrop?.addEventListener("click", closeFilterModal);
     elements.closeFilterModalButton?.addEventListener("click", closeFilterModal);
+    elements.analysisGroupBackdrop?.addEventListener("click", closeAnalysisGroupModal);
+    elements.closeAnalysisGroupModalButton?.addEventListener("click", closeAnalysisGroupModal);
+    elements.analysisGroupLoadAllButton?.addEventListener("click", () => {
+        void loadAnalysisGroupDocuments({ reset: true });
+    });
+    elements.analysisGroupLoadMoreButton?.addEventListener("click", () => {
+        void loadAnalysisGroupDocuments();
+    });
     elements.filterColumnSelect?.addEventListener("change", handleFilterColumnChange);
     elements.filterValueSelect?.addEventListener("change", handleFilterValueChange);
     elements.addFilterButton?.addEventListener("click", () => {
@@ -276,6 +302,11 @@ function applyPayload(payload) {
     state.selectedAnalysisModel = "bertopic";
     state.analysisResult = null;
     state.analysisRunning = false;
+    state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalHasMore = false;
+    state.analysisGroupModalOffset = 0;
+    state.analysisGroupModalLoading = false;
     state.currentWorkspace = "dashboard";
     state.showOnlyVerbatim = false;
     state.previewColumnOffset = 0;
@@ -313,6 +344,7 @@ function showEmptyState() {
     document.body.classList.remove("analysis-results-workspace-active");
     closeFilterModal();
     closeColumnRoleModal();
+    closeAnalysisGroupModal();
     if (elements.uploadView && elements.resultsView) {
         elements.uploadView.hidden = false;
         elements.resultsView.hidden = true;
@@ -363,6 +395,7 @@ function renderResults(payload) {
     updateWorkspaceVisibility();
     closeFilterModal();
     closeColumnRoleModal();
+    closeAnalysisGroupModal();
 }
 
 function resetToUploadState() {
@@ -372,6 +405,11 @@ function resetToUploadState() {
     state.analysisResult = null;
     state.analysisRows = [];
     state.transformedRows = [];
+    state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalHasMore = false;
+    state.analysisGroupModalOffset = 0;
+    state.analysisGroupModalLoading = false;
     state.currentWorkspace = "dashboard";
     showEmptyState();
     window.dispatchEvent(new CustomEvent("verbatim:upload-reset"));
@@ -399,7 +437,9 @@ function renderDashboard(payload) {
 }
 
 async function openWorkspace(nextWorkspace) {
+    closeAnalysisGroupModal();
     state.currentWorkspace = nextWorkspace;
+    updateWorkspaceVisibility();
 
     if (nextWorkspace === "data") {
         renderFilterBar();
@@ -412,8 +452,6 @@ async function openWorkspace(nextWorkspace) {
     } else if (nextWorkspace === "analysis-results") {
         renderAnalysisOutput();
     }
-
-    updateWorkspaceVisibility();
 }
 
 function updateWorkspaceVisibility() {
@@ -568,6 +606,165 @@ function closeColumnRoleModal() {
     }
     elements.columnRoleModal.hidden = true;
     hideColumnRoleMessage();
+}
+
+function openAnalysisGroupModalByIndex(groupIndex) {
+    const groups = Array.isArray(state.analysisResult?.groups) ? state.analysisResult.groups : [];
+    const group = groups[groupIndex];
+    if (!group || !elements.analysisGroupModal) {
+        return;
+    }
+
+    state.analysisGroupModalGroupId = String(group.group_id || "");
+    state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalHasMore = false;
+    state.analysisGroupModalOffset = 0;
+    state.analysisGroupModalLoading = false;
+    hideAnalysisGroupModalMessage();
+    elements.analysisGroupModal.hidden = false;
+    renderAnalysisGroupModal();
+}
+
+function closeAnalysisGroupModal() {
+    if (!elements.analysisGroupModal) {
+        return;
+    }
+    elements.analysisGroupModal.hidden = true;
+    state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalHasMore = false;
+    state.analysisGroupModalOffset = 0;
+    state.analysisGroupModalLoading = false;
+    hideAnalysisGroupModalMessage();
+}
+
+function getActiveAnalysisGroup() {
+    const groupId = state.analysisGroupModalGroupId;
+    if (!groupId || !Array.isArray(state.analysisResult?.groups)) {
+        return null;
+    }
+    return state.analysisResult.groups.find((group) => String(group.group_id || "") === groupId) || null;
+}
+
+function renderAnalysisGroupModal() {
+    const group = getActiveAnalysisGroup();
+    if (!group) {
+        closeAnalysisGroupModal();
+        return;
+    }
+
+    const count = Number(group.count || 0);
+    const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
+    const terms = Array.isArray(group.terms) ? group.terms : [];
+    const examples = Array.isArray(group.examples) ? group.examples : [];
+
+    if (elements.analysisGroupTitle) {
+        elements.analysisGroupTitle.textContent = group.label || "Unlabelled group";
+    }
+    if (elements.analysisGroupMeta) {
+        elements.analysisGroupMeta.textContent = `${count} responses${percent ? ` | ${percent}% of usable responses` : ""}`;
+    }
+    if (elements.analysisGroupTerms) {
+        elements.analysisGroupTerms.innerHTML = terms.length
+            ? terms.map((term) => `<span>${escapeHtml(term)}</span>`).join("")
+            : "<span>No terms returned</span>";
+    }
+    if (elements.analysisGroupExamples) {
+        elements.analysisGroupExamples.innerHTML = examples.length
+            ? examples.map((example) => renderAnalysisExampleCard(example)).join("")
+            : "<p class=\"analysis-sample\">No representative responses were returned for this group.</p>";
+    }
+    if (elements.analysisGroupLoadAllButton) {
+        elements.analysisGroupLoadAllButton.disabled = state.analysisGroupModalLoading || count <= 0;
+        elements.analysisGroupLoadAllButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length === 0
+            ? "Loading responses..."
+            : `Show all ${formatNumber(count)} responses`;
+    }
+    if (elements.analysisGroupFullSection) {
+        elements.analysisGroupFullSection.hidden = state.analysisGroupModalDocuments.length === 0;
+    }
+    if (elements.analysisGroupFullTitle) {
+        const loadedCount = state.analysisGroupModalDocuments.length;
+        elements.analysisGroupFullTitle.textContent = loadedCount
+            ? `All Responses (${formatNumber(loadedCount)} of ${formatNumber(count)})`
+            : "All Responses";
+    }
+    if (elements.analysisGroupDocuments) {
+        elements.analysisGroupDocuments.innerHTML = state.analysisGroupModalDocuments.length
+            ? state.analysisGroupModalDocuments.map((document) => renderAnalysisDocumentCard(document)).join("")
+            : "";
+    }
+    if (elements.analysisGroupLoadMoreButton) {
+        elements.analysisGroupLoadMoreButton.hidden = !state.analysisGroupModalHasMore;
+        elements.analysisGroupLoadMoreButton.disabled = state.analysisGroupModalLoading;
+        elements.analysisGroupLoadMoreButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length > 0
+            ? "Loading..."
+            : "Load more";
+    }
+}
+
+function renderAnalysisExampleCard(example) {
+    return `
+        <blockquote class="analysis-example">
+            <span class="analysis-example-row">Row ${Number(example.row_number || 0)}${example.translated ? " | translated to English" : ""}</span>
+            <p>${escapeHtml(example.text || "")}</p>
+            ${example.translated && normalizeValue(example.source_text)
+                ? `<p class="analysis-example-source"><strong>Original:</strong> ${escapeHtml(example.source_text || "")}</p>`
+                : ""}
+        </blockquote>
+    `;
+}
+
+function renderAnalysisDocumentCard(document) {
+    return `
+        <blockquote class="analysis-example analysis-example-full">
+            <span class="analysis-example-row">Row ${Number(document.row_number || 0)}</span>
+            <p>${escapeHtml(document.text || "")}</p>
+        </blockquote>
+    `;
+}
+
+async function loadAnalysisGroupDocuments({ reset = false } = {}) {
+    const group = getActiveAnalysisGroup();
+    if (!group || !state.resultId || state.analysisGroupModalLoading) {
+        return;
+    }
+
+    const offset = reset ? 0 : state.analysisGroupModalOffset;
+    state.analysisGroupModalLoading = true;
+    hideAnalysisGroupModalMessage();
+    renderAnalysisGroupModal();
+
+    try {
+        const query = new URLSearchParams({
+            group_id: String(group.group_id || ""),
+            offset: String(offset),
+            limit: String(FULL_DATA_ROW_PAGE_SIZE),
+        });
+        const response = await fetch(`/analysis-group-documents/${encodeURIComponent(state.resultId)}?${query.toString()}`);
+        if (response.status === 401) {
+            sessionStorage.removeItem(RESULT_STORAGE_KEY);
+            window.location.assign("/login");
+            return;
+        }
+        const payload = await parseJson(response);
+        if (!response.ok) {
+            throw new Error(payload.detail || "Unable to load group responses.");
+        }
+
+        const documents = Array.isArray(payload.documents) ? payload.documents : [];
+        state.analysisGroupModalDocuments = reset
+            ? documents
+            : state.analysisGroupModalDocuments.concat(documents);
+        state.analysisGroupModalOffset = Number(payload.offset || 0) + documents.length;
+        state.analysisGroupModalHasMore = Boolean(payload.has_more);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load group responses.";
+        showAnalysisGroupModalMessage("error", message);
+    } finally {
+        state.analysisGroupModalLoading = false;
+        renderAnalysisGroupModal();
+    }
 }
 
 function renderColumnRoleModal() {
@@ -885,6 +1082,9 @@ function renderAnalysisResultsHeader() {
         `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
         `${formatNumber(result.valid_document_count || 0)} usable responses`,
     ];
+    if (Number(result.translated_document_count || 0) > 0) {
+        details.push(`${formatNumber(result.translated_document_count || 0)} translated for display`);
+    }
     if (hasActiveFilters()) {
         details.push(`${Object.keys(state.activeFilters).length} active filter${Object.keys(state.activeFilters).length === 1 ? "" : "s"}`);
     }
@@ -956,9 +1156,24 @@ function renderAnalysisChart(groups, scatterPoints = []) {
         chartTitle,
         yAxisLabel,
     });
+    elements.analysisList?.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const openButton = target.closest("[data-open-analysis-group]");
+        if (!(openButton instanceof HTMLElement)) {
+            return;
+        }
+        const groupIndex = Number(openButton.dataset.openAnalysisGroup);
+        if (Number.isFinite(groupIndex)) {
+            openAnalysisGroupModalByIndex(groupIndex);
+        }
+    });
     if (!rendered && plotContainer instanceof HTMLElement) {
         plotContainer.outerHTML = renderFallbackGroupChart(groups);
     }
+    queueAnalysisPlotResize();
 }
 
 function renderKmeansScatterChart(scatterPoints) {
@@ -978,11 +1193,11 @@ function renderKmeansScatterChart(scatterPoints) {
             </div>
         `;
     }
+    queueAnalysisPlotResize();
 }
 
 function renderAnalysisGroup(group, index) {
     const terms = Array.isArray(group.terms) ? group.terms : [];
-    const examples = Array.isArray(group.examples) ? group.examples : [];
     const count = Number(group.count || 0);
     const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
     const comment = normalizeValue(group.comment);
@@ -990,14 +1205,6 @@ function renderAnalysisGroup(group, index) {
     const termsMarkup = terms.length
         ? terms.map((term) => `<span>${escapeHtml(term)}</span>`).join("")
         : "<span>No terms returned</span>";
-    const examplesMarkup = examples.length
-        ? examples.map((example) => `
-            <blockquote class="analysis-example">
-                <span class="analysis-example-row">Row ${Number(example.row_number || 0)}</span>
-                <p>${escapeHtml(example.text || "")}</p>
-            </blockquote>
-        `).join("")
-        : "<p class=\"analysis-sample\">No representative examples were returned for this group.</p>";
 
     return `
         <article class="analysis-item" id="analysis-group-card-${index}">
@@ -1005,9 +1212,14 @@ function renderAnalysisGroup(group, index) {
                 <h4>${escapeHtml(group.label || "Unlabelled group")}</h4>
                 <div class="analysis-item-count">${count} responses${percent ? ` | ${percent}%` : ""}</div>
             </div>
+            ${group.translated && normalizeValue(group.source_label)
+                ? `<p class="analysis-source-note"><strong>Original topic name:</strong> ${escapeHtml(group.source_label || "")}</p>`
+                : ""}
             ${comment ? `<p class="analysis-comment">${escapeHtml(comment)}</p>` : ""}
             <div class="analysis-meta">${termsMarkup}</div>
-            <div class="analysis-examples">${examplesMarkup}</div>
+            <div class="analysis-item-actions">
+                <button type="button" class="button button-ghost" data-open-analysis-group="${index}">View responses</button>
+            </div>
         </article>
     `;
 }
@@ -1017,7 +1229,12 @@ function renderNgramBucket(bucket, index) {
     const listMarkup = items.length
         ? items.map((item) => `
             <li class="analysis-ngram-item">
-                <span class="analysis-ngram-term">${escapeHtml(item.term || "")}</span>
+                <span class="analysis-ngram-term">
+                    ${escapeHtml(item.term || "")}
+                    ${item.translated && normalizeValue(item.source_term)
+                        ? `<span class="analysis-source-note">Original: ${escapeHtml(item.source_term || "")}</span>`
+                        : ""}
+                </span>
                 <span class="analysis-ngram-count">${Number(item.count || 0)}</span>
             </li>
         `).join("")
@@ -1068,6 +1285,7 @@ function renderNgramCharts(buckets) {
         const plotContainer = document.getElementById(`analysis-ngram-plot-${index}`);
         renderInteractiveNgramChart(plotContainer, bucket, index);
     });
+    queueAnalysisPlotResize();
 }
 
 function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisLabel }) {
@@ -1167,7 +1385,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
                     const point = event?.points?.[0];
                     const groupIndex = Number(point?.customdata?.[0]);
                     if (Number.isFinite(groupIndex)) {
-                        focusAnalysisTarget(`analysis-group-card-${groupIndex}`);
+                        openAnalysisGroupModalByIndex(groupIndex);
                     }
                 });
             }
@@ -1239,8 +1457,8 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
         window.innerWidth || 0,
         document.documentElement?.clientWidth || 0,
     );
-    const plotWidth = Math.round(Math.min(1700, Math.max(1080, viewportWidth * 1.08)));
-    const plotHeight = Math.round(Math.min(980, Math.max(720, plotWidth * 0.56)));
+    const plotWidth = Math.round(Math.min(1275, Math.max(810, viewportWidth * 0.81)));
+    const plotHeight = Math.round(Math.min(735, Math.max(540, plotWidth * 0.56)));
     const legendMargin = viewportWidth <= 1180 ? 250 : viewportWidth <= 1440 ? 300 : 340;
 
     const plotPromise = plotly.newPlot(
@@ -1320,7 +1538,7 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
                         ? state.analysisResult.groups.findIndex((group) => String(group.group_id) === groupId)
                         : -1;
                     if (groupIndex >= 0) {
-                        focusAnalysisTarget(`analysis-group-card-${groupIndex}`);
+                        openAnalysisGroupModalByIndex(groupIndex);
                     }
                 });
             }
@@ -1486,6 +1704,14 @@ function resizeAnalysisPlots() {
         } catch (_error) {
             // Ignore resize failures for charts that are being re-rendered.
         }
+    });
+}
+
+function queueAnalysisPlotResize() {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            resizeAnalysisPlots();
+        });
     });
 }
 
@@ -1931,6 +2157,7 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
         return;
     }
 
+    closeAnalysisGroupModal();
     state.analysisRunning = true;
     state.analysisResult = null;
     renderAnalysisControls();
@@ -1967,8 +2194,8 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
         state.analysisResult = payload;
         clearAnalysisSetupMessage();
         state.currentWorkspace = "analysis-results";
-        renderAnalysisOutput();
         updateWorkspaceVisibility();
+        renderAnalysisOutput();
         if (scrollIntoView) {
             window.scrollTo({ top: 0, behavior: "smooth" });
         }
@@ -1983,15 +2210,17 @@ async function runAnalysis({ scrollIntoView = false } = {}) {
             filtered_row_count: 0,
             valid_document_count: 0,
             skipped_document_count: 0,
+            translated_document_count: 0,
             warnings: [],
             error: message,
             groups: [],
             ngram_buckets: [],
+            scatter_points: [],
         };
         clearAnalysisSetupMessage();
         state.currentWorkspace = "analysis-results";
-        renderAnalysisOutput();
         updateWorkspaceVisibility();
+        renderAnalysisOutput();
     } finally {
         state.analysisRunning = false;
         renderAnalysisControls();
@@ -2188,6 +2417,24 @@ function hideFilterModalMessage() {
     elements.filterModalMessage.hidden = true;
     elements.filterModalMessage.textContent = "";
     elements.filterModalMessage.className = "analysis-message";
+}
+
+function showAnalysisGroupModalMessage(kind, message) {
+    if (!elements.analysisGroupModalMessage) {
+        return;
+    }
+    elements.analysisGroupModalMessage.hidden = false;
+    elements.analysisGroupModalMessage.className = `analysis-message analysis-message-${kind}`;
+    elements.analysisGroupModalMessage.textContent = message;
+}
+
+function hideAnalysisGroupModalMessage() {
+    if (!elements.analysisGroupModalMessage) {
+        return;
+    }
+    elements.analysisGroupModalMessage.hidden = true;
+    elements.analysisGroupModalMessage.textContent = "";
+    elements.analysisGroupModalMessage.className = "analysis-message";
 }
 
 function persistCurrentPayload() {

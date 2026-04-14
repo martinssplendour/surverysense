@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from app.core.auth import require_authenticated_user
 from app.core.exceptions import CsvDecodeError, IngestionError, RowLimitExceededError
 from app.models.api import (
+    AnalysisGroupDocumentsResponse,
     AnalysisRunRequest,
     AnalysisRunResponse,
     ColumnRoleUpdateRequest,
@@ -201,7 +202,45 @@ def build_ingest_router(
             text_column_name=analysis_request.text_column_name,
             available_verbatim_columns=selection.verbatim_columns,
         )
+        result_store_service.save_analysis_snapshot(
+            result_id,
+            text_column_name=analysis_request.text_column_name,
+            analysis_result=result,
+        )
         return AnalysisRunResponse.model_validate(result)
+
+    @router.get("/analysis-group-documents/{result_id}", response_model=AnalysisGroupDocumentsResponse)
+    async def get_analysis_group_documents(
+        request: Request,
+        result_id: str,
+        group_id: str = Query(..., min_length=1),
+        offset: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=500),
+    ) -> AnalysisGroupDocumentsResponse:
+        require_authenticated_user(request)
+        try:
+            page = result_store_service.get_analysis_group_page(
+                result_id,
+                group_id=group_id,
+                offset=offset,
+                limit=limit,
+            )
+        except ResultNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        return AnalysisGroupDocumentsResponse(
+            result_id=page.result_id,
+            group_id=page.group_id,
+            group_label=page.group_label,
+            text_column_name=page.text_column_name,
+            total_count=page.total_count,
+            offset=page.offset,
+            limit=page.limit,
+            has_more=page.has_more,
+            documents=page.documents,
+        )
 
     @router.post("/result-columns/{result_id}", response_model=ColumnRoleUpdateResponse)
     async def update_result_columns(

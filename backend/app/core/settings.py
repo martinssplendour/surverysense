@@ -28,7 +28,7 @@ class Settings:
     transformed_preview_size: int = int(os.getenv("TRANSFORM_PREVIEW_SIZE", "25"))
     topic_embedding_model: str = os.getenv(
         "TOPIC_EMBEDDING_MODEL",
-        "sentence-transformers/all-mpnet-base-v2",
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     ).strip()
     topic_kmeans_clusters: int = int(os.getenv("TOPIC_KMEANS_CLUSTERS", "8"))
     topic_kmeans_random_state: int = int(os.getenv("TOPIC_KMEANS_RANDOM_STATE", "42"))
@@ -36,10 +36,22 @@ class Settings:
     topic_hdbscan_min_samples: int = int(os.getenv("TOPIC_HDBSCAN_MIN_SAMPLES", "3"))
     topic_hdbscan_metric: str = os.getenv("TOPIC_HDBSCAN_METRIC", "euclidean").strip()
     topic_bertopic_language: str = os.getenv("TOPIC_BERTOPIC_LANGUAGE", "multilingual").strip()
+    topic_bertopic_reduce_outliers: bool = os.getenv("TOPIC_BERTOPIC_REDUCE_OUTLIERS", "true").strip().casefold() in {"1", "true", "yes", "on"}
+    topic_bertopic_outlier_threshold: float = float(os.getenv("TOPIC_BERTOPIC_OUTLIER_THRESHOLD", "0.0"))
     topic_top_terms: int = int(os.getenv("TOPIC_TOP_TERMS", "6"))
     topic_top_ngrams: int = int(os.getenv("TOPIC_TOP_NGRAMS", "12"))
     topic_representative_examples: int = int(os.getenv("TOPIC_REPRESENTATIVE_EXAMPLES", "3"))
     topic_max_document_chars: int = int(os.getenv("TOPIC_MAX_DOCUMENT_CHARS", "3000"))
+    topic_translation_enabled: bool = os.getenv("TOPIC_TRANSLATION_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
+    topic_translation_source_language: str = os.getenv("TOPIC_TRANSLATION_SOURCE_LANGUAGE", "auto").strip()
+    topic_translation_target_language: str = os.getenv("TOPIC_TRANSLATION_TARGET_LANGUAGE", "en").strip()
+    topic_translation_batch_size: int = int(os.getenv("TOPIC_TRANSLATION_BATCH_SIZE", "8"))
+    topic_ai_labeling_enabled: bool = os.getenv("TOPIC_AI_LABELING_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
+    topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "8"))
+    topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "10"))
+    topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "3"))
+    topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
+    topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
     session_secret: str = os.getenv("SESSION_SECRET", "verbatim-app-dev-session-secret-change-me").strip()
     session_https_only: bool = os.getenv("SESSION_HTTPS_ONLY", "false").strip().casefold() in {"1", "true", "yes", "on"}
     google_oauth_client_json_path: str = os.getenv("GOOGLE_OAUTH_CLIENT_JSON_PATH", "").strip()

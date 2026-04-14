@@ -83,11 +83,21 @@ class AnalysisRunRequest(BaseModel):
 class AnalysisExampleModel(BaseModel):
     row_number: int
     text: str
+    source_text: str | None = None
+    translated: bool = False
+
+
+class AnalysisGroupDocumentModel(BaseModel):
+    row_number: int
+    text: str
 
 
 class AnalysisGroupModel(BaseModel):
     group_id: str
     label: str
+    source_label: str | None = None
+    translated: bool = False
+    ai_generated: bool = False
     comment: str
     count: int
     share: float
@@ -98,6 +108,8 @@ class AnalysisGroupModel(BaseModel):
 
 class AnalysisNgramItemModel(BaseModel):
     term: str
+    source_term: str | None = None
+    translated: bool = False
     count: int
 
 
@@ -126,8 +138,21 @@ class AnalysisRunResponse(BaseModel):
     filtered_row_count: int
     valid_document_count: int
     skipped_document_count: int
+    translated_document_count: int = 0
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)
     scatter_points: list[AnalysisScatterPointModel] = Field(default_factory=list)
+
+
+class AnalysisGroupDocumentsResponse(BaseModel):
+    result_id: str
+    group_id: str
+    group_label: str
+    text_column_name: str
+    total_count: int
+    offset: int
+    limit: int
+    has_more: bool
+    documents: list[AnalysisGroupDocumentModel] = Field(default_factory=list)

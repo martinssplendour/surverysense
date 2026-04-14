@@ -194,6 +194,53 @@ class ResultStoreServiceTests(unittest.TestCase):
             ],
         )
 
+    def test_get_analysis_group_page_returns_paged_group_documents(self) -> None:
+        service = self.build_service()
+        transformed_df = pd.DataFrame(
+            [
+                {"country__idx_1": "UK", "verbatim": "Need more maths"},
+                {"country__idx_1": "US", "verbatim": "Need more science"},
+            ]
+        )
+        analysis_df = transformed_df.copy()
+
+        result_id = service.save(
+            transformed_df,
+            analysis_df,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+        service.save_analysis_snapshot(
+            result_id,
+            text_column_name="verbatim",
+            analysis_result={
+                "groups": [
+                    {
+                        "group_id": "0",
+                        "label": "More Resources",
+                        "count": 2,
+                        "_documents": [
+                            {"row_number": 1, "text": "Need more maths"},
+                            {"row_number": 2, "text": "Need more science"},
+                        ],
+                    }
+                ]
+            },
+        )
+
+        page = service.get_analysis_group_page(
+            result_id,
+            group_id="0",
+            offset=0,
+            limit=1,
+        )
+
+        self.assertEqual(page.group_label, "More Resources")
+        self.assertEqual(page.text_column_name, "verbatim")
+        self.assertEqual(page.total_count, 2)
+        self.assertTrue(page.has_more)
+        self.assertEqual(page.documents, [{"row_number": 1, "text": "Need more maths"}])
+
 
 if __name__ == "__main__":
     unittest.main()

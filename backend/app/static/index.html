@@ -242,6 +242,41 @@
         </section>
     </div>
 
+    <div class="modal-shell" id="analysis-group-modal" hidden>
+        <div class="modal-backdrop" id="analysis-group-backdrop"></div>
+        <section class="modal-card analysis-group-modal-card" role="dialog" aria-modal="true" aria-labelledby="analysis-group-title">
+            <div class="modal-header">
+                <div>
+                    <p class="panel-kicker">Group Details</p>
+                    <h3 id="analysis-group-title">Group Responses</h3>
+                    <p class="modal-current-role analysis-group-modal-meta" id="analysis-group-meta"></p>
+                </div>
+                <button type="button" class="button button-ghost" id="close-analysis-group-modal-btn">Close</button>
+            </div>
+
+            <div class="modal-body analysis-group-modal-body">
+                <div class="analysis-message" id="analysis-group-modal-message" hidden></div>
+                <div class="analysis-meta analysis-group-modal-terms" id="analysis-group-terms"></div>
+
+                <section class="analysis-group-modal-section">
+                    <div class="analysis-group-modal-section-header">
+                        <h4>Representative Responses</h4>
+                        <button type="button" class="button button-ghost" id="analysis-group-load-all-btn">Show all responses</button>
+                    </div>
+                    <div class="analysis-group-modal-list" id="analysis-group-examples"></div>
+                </section>
+
+                <section class="analysis-group-modal-section" id="analysis-group-full-section" hidden>
+                    <div class="analysis-group-modal-section-header">
+                        <h4 id="analysis-group-full-title">All Responses</h4>
+                        <button type="button" class="button button-ghost" id="analysis-group-load-more-btn" hidden>Load more</button>
+                    </div>
+                    <div class="analysis-group-modal-list analysis-group-modal-list-full" id="analysis-group-documents"></div>
+                </section>
+            </div>
+        </section>
+    </div>
+
     <script src="/static/upload.js" defer></script>
     <script src="/static/results.js" defer></script>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>

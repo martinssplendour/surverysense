@@ -1973,8 +1973,8 @@ tbody tr:last-child td {
 }
 
 .analysis-plot-surface-wide {
-    min-width: clamp(1080px, 112vw, 1700px);
-    min-height: clamp(720px, 72vh, 980px);
+    min-width: clamp(810px, 84vw, 1275px);
+    min-height: clamp(540px, 54vh, 735px);
 }
 
 .analysis-chart-fallback {
@@ -2090,6 +2090,12 @@ tbody tr:last-child td {
     font-size: 1.06rem;
 }
 
+.analysis-item-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 14px;
+}
+
 .analysis-comment {
     margin: 14px 0 0;
     color: var(--muted);
@@ -2139,6 +2145,69 @@ tbody tr:last-child td {
     margin: 0;
     color: #3d352d;
     line-height: 1.65;
+}
+
+.analysis-example-source {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.analysis-source-note {
+    display: block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.analysis-group-modal-card {
+    width: min(980px, calc(100vw - 32px));
+}
+
+.analysis-group-modal-body {
+    display: grid;
+    gap: 18px;
+}
+
+.analysis-group-modal-meta {
+    margin: 6px 0 0;
+}
+
+.analysis-group-modal-terms {
+    margin-top: 0;
+}
+
+.analysis-group-modal-section {
+    display: grid;
+    gap: 12px;
+}
+
+.analysis-group-modal-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.analysis-group-modal-section-header h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.analysis-group-modal-list {
+    display: grid;
+    gap: 12px;
+}
+
+.analysis-group-modal-list-full {
+    max-height: min(56vh, 620px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.analysis-example-full {
+    border-left-color: rgba(89, 68, 42, 0.18);
 }
 
 .analysis-ngram-grid {

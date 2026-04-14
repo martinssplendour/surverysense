@@ -47,6 +47,33 @@ class StoredDatasetSelection:
     verbatim_columns: list[str]
 
 
+@dataclass(slots=True)
+class StoredAnalysisGroupSnapshot:
+    group_id: str
+    label: str
+    count: int
+    documents: list[dict[str, object]]
+
+
+@dataclass(slots=True)
+class StoredAnalysisSnapshot:
+    text_column_name: str
+    groups: dict[str, StoredAnalysisGroupSnapshot]
+
+
+@dataclass(slots=True)
+class AnalysisGroupDocumentsPage:
+    result_id: str
+    group_id: str
+    group_label: str
+    text_column_name: str
+    total_count: int
+    offset: int
+    limit: int
+    has_more: bool
+    documents: list[dict[str, object]]
+
+
 class ResultNotFoundError(KeyError):
     """Raised when a stored transformation result is unavailable."""
 
@@ -65,6 +92,7 @@ class ResultStoreService:
         self.analysis_ready_service = analysis_ready_service
         self.max_results = max_results
         self._results: OrderedDict[str, StoredResultDatasets] = OrderedDict()
+        self._analysis_snapshots: dict[str, StoredAnalysisSnapshot] = {}
         self._lock = Lock()
 
     def save(
@@ -91,7 +119,8 @@ class ResultStoreService:
             self._results[result_id] = stored
             self._results.move_to_end(result_id)
             while len(self._results) > self.max_results:
-                self._results.popitem(last=False)
+                evicted_result_id, _evicted = self._results.popitem(last=False)
+                self._analysis_snapshots.pop(evicted_result_id, None)
 
         return result_id
 
@@ -140,6 +169,7 @@ class ResultStoreService:
             stored.metadata_columns = resolved_metadata
             stored.verbatim_columns = resolved_verbatim
             stored.available_filters = available_filters
+            self._analysis_snapshots.pop(result_id, None)
             self._results.move_to_end(result_id)
             return StoredResultDatasets(
                 transformed_df=stored.transformed_df.copy(),
@@ -175,6 +205,93 @@ class ResultStoreService:
             total_row_count=int(len(unfiltered_df)),
             metadata_columns=list(stored.metadata_columns),
             verbatim_columns=list(stored.verbatim_columns),
+        )
+
+    def save_analysis_snapshot(
+        self,
+        result_id: str,
+        *,
+        text_column_name: str,
+        analysis_result: dict[str, object],
+    ) -> None:
+        with self._lock:
+            if result_id not in self._results:
+                raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
+
+            groups_payload = analysis_result.get("groups", [])
+            if not isinstance(groups_payload, list):
+                self._analysis_snapshots.pop(result_id, None)
+                return
+
+            groups: dict[str, StoredAnalysisGroupSnapshot] = {}
+            for group in groups_payload:
+                if not isinstance(group, dict):
+                    continue
+                group_id = str(group.get("group_id", "")).strip()
+                if not group_id:
+                    continue
+                documents_payload = group.get("_documents", [])
+                documents: list[dict[str, object]] = []
+                if isinstance(documents_payload, list):
+                    for document in documents_payload:
+                        if not isinstance(document, dict):
+                            continue
+                        row_number = int(document.get("row_number", 0) or 0)
+                        text = str(document.get("text", "")).strip()
+                        if row_number <= 0 or not text:
+                            continue
+                        documents.append(
+                            {
+                                "row_number": row_number,
+                                "text": text,
+                            }
+                        )
+                groups[group_id] = StoredAnalysisGroupSnapshot(
+                    group_id=group_id,
+                    label=str(group.get("label", "Unlabelled group")).strip() or "Unlabelled group",
+                    count=int(group.get("count", len(documents)) or 0),
+                    documents=documents,
+                )
+
+            self._analysis_snapshots[result_id] = StoredAnalysisSnapshot(
+                text_column_name=text_column_name,
+                groups=groups,
+            )
+
+    def get_analysis_group_page(
+        self,
+        result_id: str,
+        *,
+        group_id: str,
+        offset: int,
+        limit: int,
+    ) -> AnalysisGroupDocumentsPage:
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer.")
+
+        with self._lock:
+            snapshot = self._analysis_snapshots.get(result_id)
+
+        if snapshot is None:
+            raise ResultNotFoundError(f"No stored analysis snapshot exists for id '{result_id}'.")
+
+        normalized_group_id = str(group_id).strip()
+        group = snapshot.groups.get(normalized_group_id)
+        if group is None:
+            raise ValueError(f"Analysis group '{normalized_group_id}' is not available.")
+
+        normalized_offset = max(0, offset)
+        documents = group.documents[normalized_offset: normalized_offset + limit]
+        return AnalysisGroupDocumentsPage(
+            result_id=result_id,
+            group_id=group.group_id,
+            group_label=group.label,
+            text_column_name=snapshot.text_column_name,
+            total_count=int(group.count),
+            offset=normalized_offset,
+            limit=limit,
+            has_more=(normalized_offset + len(documents)) < len(group.documents),
+            documents=[dict(document) for document in documents],
         )
 
     def get_page(

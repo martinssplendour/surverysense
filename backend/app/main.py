@@ -32,7 +32,12 @@ from app.services.cleaning_services import (
 from app.services.csv_ingestion_service import CsvIngestionService
 from app.services.encoding_service import EncodingDetectionService
 from app.services.google_oauth_service import GoogleOAuthService
+from app.services.language_normalization_service import (
+    EnglishTranslationConfig,
+    EnglishTranslationService,
+)
 from app.services.metadata_filter_service import MetadataFilterService
+from app.services.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
 from app.services.result_store_service import ResultStoreService
 from app.services.topic_analysis_services import (
     BertopicAnalysisService,
@@ -123,6 +128,14 @@ def create_app() -> FastAPI:
     )
     keyword_service = TopicAnalysisKeywordService()
     narrative_service = TopicAnalysisNarrativeService(keyword_service)
+    translation_service = EnglishTranslationService(
+        config=EnglishTranslationConfig(
+            enabled=settings.topic_translation_enabled,
+            source_language=settings.topic_translation_source_language,
+            target_language=settings.topic_translation_target_language,
+            batch_size=settings.topic_translation_batch_size,
+        )
+    )
     topic_analysis_service = TopicAnalysisService(
         config=TopicAnalysisConfig(
             embedding_model=settings.topic_embedding_model,
@@ -132,6 +145,8 @@ def create_app() -> FastAPI:
             hdbscan_min_samples=settings.topic_hdbscan_min_samples,
             hdbscan_metric=settings.topic_hdbscan_metric,
             bertopic_language=settings.topic_bertopic_language,
+            bertopic_reduce_outliers=settings.topic_bertopic_reduce_outliers,
+            bertopic_outlier_threshold=settings.topic_bertopic_outlier_threshold,
             top_terms_per_group=settings.topic_top_terms,
             top_ngrams_per_bucket=settings.topic_top_ngrams,
             representative_examples_per_group=settings.topic_representative_examples,
@@ -140,6 +155,7 @@ def create_app() -> FastAPI:
         input_validation_service=TopicAnalysisInputValidationService(),
         text_preparation_service=TopicAnalysisTextPreparationService(
             max_document_chars=settings.topic_max_document_chars,
+            translation_service=translation_service,
         ),
         keyword_service=keyword_service,
         narrative_service=narrative_service,
@@ -149,6 +165,19 @@ def create_app() -> FastAPI:
         kmeans_service=KMeansAnalysisService(),
         hdbscan_service=HdbscanAnalysisService(),
         bertopic_service=BertopicAnalysisService(),
+        ai_label_service=TopicAiLabelService(
+            config=TopicAiLabelingConfig(
+                enabled=settings.topic_ai_labeling_enabled,
+                gemini_api_key=settings.gemini_api_key,
+                gemini_model=settings.gemini_model,
+                gemini_temperature=settings.gemini_temperature,
+                timeout_seconds=settings.topic_ai_labeling_timeout_seconds,
+                max_groups=settings.topic_ai_labeling_max_groups,
+                max_examples_per_group=settings.topic_ai_labeling_max_examples,
+                max_terms_per_group=settings.topic_ai_labeling_max_terms,
+                max_chars_per_example=settings.topic_ai_labeling_max_chars_per_example,
+            )
+        ),
     )
 
     app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
