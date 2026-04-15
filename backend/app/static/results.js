@@ -655,7 +655,7 @@ function openAnalysisGroupModalByIndex(groupIndex) {
     state.analysisGroupModalTerm = "";
     state.analysisGroupModalSourceTerm = "";
     state.analysisGroupModalHitCount = 0;
-    state.analysisGroupModalTotalCount = 0;
+    state.analysisGroupModalTotalCount = Number(group.count || 0);
     state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
     state.analysisGroupModalHasMore = false;
@@ -664,6 +664,7 @@ function openAnalysisGroupModalByIndex(groupIndex) {
     hideAnalysisGroupModalMessage();
     elements.analysisGroupModal.hidden = false;
     renderAnalysisGroupModal();
+    void loadAnalysisGroupDocuments({ reset: true });
 }
 
 function openAnalysisNgramModal(bucketIndex, itemIndex) {
@@ -727,7 +728,7 @@ function syncAnalysisGroupModalAppearance() {
     }
     elements.analysisGroupModalCard.classList.toggle(
         "analysis-group-modal-card-ngram",
-        state.analysisGroupModalMode === "ngram",
+        state.analysisGroupModalMode === "ngram" || state.analysisGroupModalMode === "group",
     );
 }
 
@@ -763,15 +764,27 @@ function renderAnalysisGroupModal() {
         return;
     }
 
-    const count = Number(group.count || 0);
+    const count = Number(state.analysisGroupModalTotalCount || group.count || 0);
+    const loadedCount = state.analysisGroupModalDocuments.length;
     const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
-    const examples = Array.isArray(group.examples) ? group.examples : [];
+    const modelKey = state.analysisResult?.model_key || state.selectedAnalysisModel;
+    const subjectLabel = modelKey === "bertopic" ? "Theme" : "Group";
+    const contextItems = [
+        group.source_label ? `Original label: ${group.source_label}` : "",
+        group.ai_generated ? "AI-generated label" : "",
+        group.translated && !group.ai_generated ? "Translated label" : "",
+        Array.isArray(group.terms) && group.terms.length
+            ? `Top terms: ${group.terms.slice(0, 4).join(", ")}`
+            : "",
+        group.is_noise ? "Outlier bucket" : "",
+    ];
+    const detailsMarkup = renderAnalysisModalContext(contextItems);
 
     if (elements.analysisGroupTitle) {
         elements.analysisGroupTitle.textContent = group.label || "Unlabelled group";
     }
     if (elements.analysisGroupKicker) {
-        elements.analysisGroupKicker.textContent = "Group Details";
+        elements.analysisGroupKicker.textContent = `${subjectLabel} Responses`;
     }
     if (elements.analysisGroupMeta) {
         elements.analysisGroupMeta.innerHTML = renderAnalysisModalStatPills([
@@ -780,43 +793,42 @@ function renderAnalysisGroupModal() {
         ]);
     }
     if (elements.analysisGroupTerms) {
-        elements.analysisGroupTerms.hidden = true;
-        elements.analysisGroupTerms.innerHTML = "";
+        elements.analysisGroupTerms.hidden = !detailsMarkup;
+        elements.analysisGroupTerms.innerHTML = detailsMarkup;
     }
     if (elements.analysisGroupExamplesSection) {
-        elements.analysisGroupExamplesSection.hidden = false;
+        elements.analysisGroupExamplesSection.hidden = true;
     }
     if (elements.analysisGroupExamplesTitle) {
-        elements.analysisGroupExamplesTitle.textContent = "Representative Responses";
+        elements.analysisGroupExamplesTitle.textContent = "";
     }
     if (elements.analysisGroupExamplesSubtitle) {
-        elements.analysisGroupExamplesSubtitle.textContent = "Sampled highlights from responses";
+        elements.analysisGroupExamplesSubtitle.textContent = "";
     }
     if (elements.analysisGroupExamples) {
-        elements.analysisGroupExamples.innerHTML = examples.length
-            ? examples.map((example) => renderAnalysisExampleCard(example)).join("")
-            : "<p class=\"analysis-sample\">No representative responses were returned for this group.</p>";
+        elements.analysisGroupExamples.innerHTML = "";
     }
     if (elements.analysisGroupLoadAllButton) {
-        elements.analysisGroupLoadAllButton.hidden = false;
-        elements.analysisGroupLoadAllButton.disabled = state.analysisGroupModalLoading || count <= 0;
-        elements.analysisGroupLoadAllButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length === 0
-            ? "Loading responses..."
-            : `See all ${formatNumber(count)} responses`;
+        elements.analysisGroupLoadAllButton.hidden = true;
     }
     if (elements.analysisGroupFullSection) {
-        elements.analysisGroupFullSection.hidden = state.analysisGroupModalDocuments.length === 0;
+        elements.analysisGroupFullSection.hidden = false;
     }
     if (elements.analysisGroupFullTitle) {
-        const loadedCount = state.analysisGroupModalDocuments.length;
         elements.analysisGroupFullTitle.textContent = loadedCount
-            ? `All Responses (${formatNumber(loadedCount)} of ${formatNumber(count)})`
-            : "All Responses";
+            ? `${subjectLabel} Responses (${formatNumber(loadedCount)} of ${formatNumber(count)})`
+            : `${subjectLabel} Responses`;
     }
     if (elements.analysisGroupDocuments) {
-        elements.analysisGroupDocuments.innerHTML = state.analysisGroupModalDocuments.length
-            ? state.analysisGroupModalDocuments.map((document) => renderAnalysisDocumentCard(document)).join("")
-            : "";
+        if (loadedCount) {
+            elements.analysisGroupDocuments.innerHTML = state.analysisGroupModalDocuments
+                .map((document) => renderAnalysisDocumentCard(document))
+                .join("");
+        } else if (state.analysisGroupModalLoading) {
+            elements.analysisGroupDocuments.innerHTML = `<p class="analysis-sample">Loading ${subjectLabel.toLowerCase()} responses...</p>`;
+        } else {
+            elements.analysisGroupDocuments.innerHTML = `<p class="analysis-sample">No responses were found for this ${subjectLabel.toLowerCase()}.</p>`;
+        }
     }
     if (elements.analysisGroupLoadMoreButton) {
         elements.analysisGroupLoadMoreButton.hidden = !state.analysisGroupModalHasMore;
@@ -958,6 +970,7 @@ async function loadAnalysisGroupDocuments({ reset = false } = {}) {
             : state.analysisGroupModalDocuments.concat(documents);
         state.analysisGroupModalOffset = Number(payload.offset || 0) + documents.length;
         state.analysisGroupModalHasMore = Boolean(payload.has_more);
+        state.analysisGroupModalTotalCount = Number(payload.total_count || state.analysisGroupModalTotalCount || group.count || 0);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load group responses.";
         showAnalysisGroupModalMessage("error", message);
