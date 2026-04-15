@@ -213,6 +213,7 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
+            model_key="bertopic",
             analysis_result={
                 "groups": [
                     {
@@ -260,6 +261,7 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
+            model_key="ngrams",
             analysis_result={
                 "ngram_buckets": [
                     {
@@ -315,6 +317,7 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
+            model_key="bertopic",
             analysis_result={
                 "groups": [
                     {

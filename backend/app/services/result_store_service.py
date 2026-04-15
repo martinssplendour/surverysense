@@ -14,6 +14,13 @@ from app.services.metadata_filter_service import MetadataFilterDefinition, Metad
 
 DatasetName = Literal["transformed", "analysis"]
 
+_MODEL_LABELS: dict[str, str] = {
+    "bertopic": "AI Themes",
+    "kmeans": "Response Groups",
+    "hdbscan": "Natural Groups",
+    "ngrams": "Common Phrases",
+}
+
 
 @dataclass(slots=True)
 class StoredResultDatasets:
@@ -53,6 +60,7 @@ class StoredAnalysisGroupSnapshot:
     label: str
     count: int
     documents: list[dict[str, object]]
+    meta: dict[str, object]
 
 
 @dataclass(slots=True)
@@ -67,8 +75,10 @@ class StoredAnalysisNgramSnapshot:
 @dataclass(slots=True)
 class StoredAnalysisSnapshot:
     text_column_name: str
+    model_key: str
     groups: dict[str, StoredAnalysisGroupSnapshot]
     ngram_items: dict[str, StoredAnalysisNgramSnapshot]
+    scatter_points: list[dict[str, object]]
 
 
 @dataclass(slots=True)
@@ -243,6 +253,7 @@ class ResultStoreService:
         result_id: str,
         *,
         text_column_name: str,
+        model_key: str,
         analysis_result: dict[str, object],
     ) -> None:
         with self._lock:
@@ -277,11 +288,20 @@ class ResultStoreService:
                                 "text": text,
                             }
                         )
+                meta = {
+                    "source_label": group.get("source_label"),
+                    "translated": bool(group.get("translated", False)),
+                    "ai_generated": bool(group.get("ai_generated", False)),
+                    "terms": list(group.get("terms", [])),
+                    "examples": list(group.get("examples", [])),
+                    "is_noise": bool(group.get("is_noise", False)),
+                }
                 groups[group_id] = StoredAnalysisGroupSnapshot(
                     group_id=group_id,
                     label=str(group.get("label", "Unlabelled group")).strip() or "Unlabelled group",
                     count=int(group.get("count", len(documents)) or 0),
                     documents=documents,
+                    meta=meta,
                 )
 
             ngram_items_payload = analysis_result.get("ngram_buckets", [])
@@ -329,11 +349,142 @@ class ResultStoreService:
                             documents=documents,
                         )
 
+            scatter_points_payload = analysis_result.get("scatter_points", [])
+            scatter_points: list[dict[str, object]] = []
+            if isinstance(scatter_points_payload, list):
+                for point in scatter_points_payload:
+                    if not isinstance(point, dict):
+                        continue
+                    row_number = int(point.get("row_number", 0) or 0)
+                    if row_number <= 0:
+                        continue
+                    scatter_points.append(
+                        {
+                            "row_number": row_number,
+                            "text": str(point.get("text", "")),
+                            "group_id": str(point.get("group_id", "")),
+                            "group_label": str(point.get("group_label", "")),
+                            "x": float(point.get("x", 0.0)),
+                            "y": float(point.get("y", 0.0)),
+                        }
+                    )
+
             self._analysis_snapshots[result_id] = StoredAnalysisSnapshot(
                 text_column_name=text_column_name,
+                model_key=model_key,
                 groups=groups,
                 ngram_items=ngram_items,
+                scatter_points=scatter_points,
             )
+
+    def get_fast_filtered_result(
+        self,
+        result_id: str,
+        *,
+        model_key: str,
+        text_column_name: str,
+        filters: dict[str, list[str]] | None,
+    ) -> dict[str, object] | None:
+        """Return a filtered analysis result from the cached snapshot without re-running ML.
+
+        Returns None when the fast path is unavailable (no snapshot, or model/column mismatch).
+        """
+        with self._lock:
+            snapshot = self._analysis_snapshots.get(result_id)
+            stored = self._results.get(result_id)
+
+        if snapshot is None or stored is None:
+            return None
+        if snapshot.model_key != model_key or snapshot.text_column_name != text_column_name:
+            return None
+
+        filtered_df = self.metadata_filter_service.apply_filters(
+            stored.analysis_df,
+            filters=filters or {},
+            allowed_columns={d.column_name for d in stored.available_filters},
+        )
+        filtered_row_numbers: frozenset[int] = frozenset(int(idx) + 1 for idx in filtered_df.index)
+
+        surviving: dict[str, list[dict[str, object]]] = {}
+        for group in snapshot.groups.values():
+            surviving[group.group_id] = [
+                doc for doc in group.documents
+                if doc["row_number"] in filtered_row_numbers
+            ]
+        total_surviving = sum(len(docs) for docs in surviving.values())
+        total_denom = max(1, total_surviving)
+
+        rebuilt_groups: list[dict[str, object]] = []
+        for group in snapshot.groups.values():
+            docs = surviving[group.group_id]
+            count = len(docs)
+            if count == 0:
+                continue
+            share = round(count / total_denom, 4)
+            share_pct = round(share * 100)
+            comment = (
+                f"{group.label} appears in {count} response(s), "
+                f"representing {share_pct}% of the filtered sample."
+            )
+            rebuilt_groups.append(
+                {
+                    "group_id": group.group_id,
+                    "label": group.label,
+                    **group.meta,
+                    "count": count,
+                    "share": share,
+                    "total_documents": total_denom,
+                    "comment": comment,
+                }
+            )
+        rebuilt_groups.sort(key=lambda g: (-int(g["count"]), str(g["group_id"])))
+
+        filtered_scatter: list[dict[str, object]] = [
+            pt for pt in snapshot.scatter_points
+            if pt["row_number"] in filtered_row_numbers
+        ]
+
+        from collections import defaultdict as _defaultdict
+        buckets_by_size: dict[int, list[dict[str, object]]] = _defaultdict(list)
+        for item in snapshot.ngram_items.values():
+            filtered_docs = [d for d in item.documents if d["row_number"] in filtered_row_numbers]
+            filtered_count = len(filtered_docs)
+            if filtered_count == 0:
+                continue
+            buckets_by_size[item.ngram_size].append(
+                {
+                    "term": item.term,
+                    "source_term": item.source_term,
+                    "count": filtered_count,
+                    "document_count": filtered_count,
+                }
+            )
+        _ngram_size_labels = {1: "Single Words", 2: "Two-Word Phrases", 3: "Three-Word Phrases"}
+        ngram_buckets: list[dict[str, object]] = [
+            {
+                "label": _ngram_size_labels.get(size, f"{size}-Word Phrases"),
+                "ngram_size": size,
+                "items": sorted(items, key=lambda x: -int(x["count"])),
+            }
+            for size, items in sorted(buckets_by_size.items())
+        ]
+
+        return {
+            "ok": True,
+            "result_id": result_id,
+            "model_key": model_key,
+            "model_label": _MODEL_LABELS.get(model_key, model_key.upper()),
+            "text_column_name": text_column_name,
+            "filtered_row_count": int(len(filtered_df)),
+            "valid_document_count": total_surviving,
+            "skipped_document_count": int(len(filtered_df)) - total_surviving,
+            "translated_document_count": 0,
+            "warnings": [],
+            "error": None,
+            "groups": rebuilt_groups,
+            "ngram_buckets": ngram_buckets,
+            "scatter_points": filtered_scatter,
+        }
 
     def get_analysis_group_page(
         self,

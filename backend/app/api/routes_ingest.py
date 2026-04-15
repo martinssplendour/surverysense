@@ -186,6 +186,16 @@ def build_ingest_router(
         analysis_request: AnalysisRunRequest,
     ) -> AnalysisRunResponse:
         require_authenticated_user(request)
+
+        fast_result = result_store_service.get_fast_filtered_result(
+            result_id,
+            model_key=analysis_request.model_key,
+            text_column_name=analysis_request.text_column_name,
+            filters=analysis_request.filters or {},
+        )
+        if fast_result is not None:
+            return AnalysisRunResponse.model_validate(fast_result)
+
         try:
             selection = result_store_service.get_dataset(
                 result_id,
@@ -207,6 +217,7 @@ def build_ingest_router(
         result_store_service.save_analysis_snapshot(
             result_id,
             text_column_name=analysis_request.text_column_name,
+            model_key=analysis_request.model_key,
             analysis_result=result,
         )
         return AnalysisRunResponse.model_validate(result)

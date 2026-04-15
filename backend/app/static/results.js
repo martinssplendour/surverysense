@@ -12,6 +12,8 @@ const ANALYSIS_MODE_OPTIONS = [
     { key: "ngrams", label: "N-grams", description: "Show the most common words and phrases." },
 ];
 
+let activeAnalysisAbortController = null;
+
 const state = {
     response: null,
     resultId: null,
@@ -2349,6 +2351,12 @@ async function runAnalysis({
         renderAnalysisOutput();
     }
 
+    if (activeAnalysisAbortController) {
+        activeAnalysisAbortController.abort();
+    }
+    activeAnalysisAbortController = new AbortController();
+    const signal = activeAnalysisAbortController.signal;
+
     try {
         const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
             method: "POST",
@@ -2360,6 +2368,7 @@ async function runAnalysis({
                 text_column_name: textColumnName,
                 filters: state.activeFilters,
             }),
+            signal,
         });
         if (response.status === 401) {
             sessionStorage.removeItem(RESULT_STORAGE_KEY);
@@ -2386,6 +2395,9 @@ async function runAnalysis({
             window.scrollTo({ top: 0, behavior: "smooth" });
         }
     } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+        }
         const message = error instanceof Error ? error.message : "Unable to run analysis.";
         state.analysisResult = {
             ok: false,
@@ -2407,6 +2419,7 @@ async function runAnalysis({
         updateWorkspaceVisibility();
         renderAnalysisOutput();
     } finally {
+        activeAnalysisAbortController = null;
         state.analysisRunning = false;
         renderAnalysisControls();
     }
