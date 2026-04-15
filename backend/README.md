@@ -67,6 +67,24 @@ Set `GEMINI_API_KEY` to enable the LLM architect. If the key is missing or Gemin
 
 Environment variables can be placed in [`.env.example`](C:/Users/HP/Downloads/tvp-analysis-main/Verbatim%20App/backend/.env.example) format as `Verbatim App/backend/.env`. The backend now auto-loads that file on startup when `python-dotenv` is installed.
 
+## Google OAuth
+
+Google sign-in can be configured either with direct env vars or with the legacy client JSON file.
+
+Preferred env vars:
+
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET` optional for the current credential-verification flow
+- `GOOGLE_OAUTH_REDIRECT_URIS` optional comma-separated list
+- `GOOGLE_OAUTH_JAVASCRIPT_ORIGINS` optional comma-separated list
+- `GOOGLE_OAUTH_ALLOWED_DOMAINS`
+
+Backward-compatible fallback:
+
+- `GOOGLE_OAUTH_CLIENT_JSON_PATH`
+
+If `GOOGLE_OAUTH_CLIENT_ID` is set, the backend uses the env config and does not need the JSON file.
+
 ## Translation
 
 Analysis-time translation is controlled with:

@@ -20,6 +20,14 @@ def _load_env_file() -> None:
 _load_env_file()
 
 
+def _parse_csv_env(name: str) -> tuple[str, ...]:
+    return tuple(
+        item.strip()
+        for item in os.getenv(name, "").split(",")
+        if item.strip()
+    )
+
+
 @dataclass(slots=True)
 class Settings:
     ingest_sample_size: int = int(os.getenv("INGEST_SAMPLE_SIZE", "25"))
@@ -54,11 +62,14 @@ class Settings:
     topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
     session_secret: str = os.getenv("SESSION_SECRET", "verbatim-app-dev-session-secret-change-me").strip()
     session_https_only: bool = os.getenv("SESSION_HTTPS_ONLY", "false").strip().casefold() in {"1", "true", "yes", "on"}
+    google_oauth_client_id: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+    google_oauth_client_secret: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+    google_oauth_redirect_uris: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_REDIRECT_URIS")
+    google_oauth_javascript_origins: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_JAVASCRIPT_ORIGINS")
     google_oauth_client_json_path: str = os.getenv("GOOGLE_OAUTH_CLIENT_JSON_PATH", "").strip()
-    google_oauth_allowed_domains: tuple[str, ...] = tuple(
-        domain.strip()
-        for domain in os.getenv("GOOGLE_OAUTH_ALLOWED_DOMAINS", "twinkl.co.uk,twinkl.com").split(",")
-        if domain.strip()
+    google_oauth_allowed_domains: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_ALLOWED_DOMAINS") or (
+        "twinkl.co.uk",
+        "twinkl.com",
     )
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "").strip()
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()

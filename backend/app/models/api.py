@@ -171,3 +171,25 @@ class AnalysisNgramDocumentsResponse(BaseModel):
     limit: int
     has_more: bool
     documents: list[AnalysisGroupDocumentModel] = Field(default_factory=list)
+
+
+class AnalysisExportFilterModel(BaseModel):
+    column_name: str
+    display_name: str | None = None
+    values: list[str] = Field(default_factory=list)
+
+
+class AnalysisExportChartModel(BaseModel):
+    title: str
+    caption: str | None = None
+    image_data_url: str
+
+
+class AnalysisExportRequest(BaseModel):
+    format: Literal["pdf", "docx", "pptx"]
+    report_title: str
+    source_filename: str | None = None
+    subtitle: str | None = None
+    active_filters: list[AnalysisExportFilterModel] = Field(default_factory=list)
+    charts: list[AnalysisExportChartModel] = Field(default_factory=list)
+    analysis_result: AnalysisRunResponse

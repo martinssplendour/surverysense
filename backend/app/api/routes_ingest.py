@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 
 from app.core.auth import register_session_result_id, require_authenticated_user
 from app.core.exceptions import CsvDecodeError, IngestionError, RowLimitExceededError
 from app.models.api import (
+    AnalysisExportRequest,
     AnalysisGroupDocumentsResponse,
     AnalysisNgramDocumentsResponse,
     AnalysisRunRequest,
@@ -23,6 +24,7 @@ from app.models.api import (
 from app.services.architect_service import DiagnosticMode, ManifestArchitectService
 from app.services.cleaning_services import AnalysisReadyDatasetService
 from app.services.csv_ingestion_service import CsvIngestionService
+from app.services.report_export_service import AnalysisReportExportService
 from app.services.result_store_service import ResultNotFoundError, ResultStoreService
 from app.services.topic_analysis_services import TopicAnalysisService
 from app.services.transformation_service import DataTransformationService
@@ -36,6 +38,7 @@ def build_ingest_router(
     transformation_service: DataTransformationService,
     analysis_ready_service: AnalysisReadyDatasetService,
     topic_analysis_service: TopicAnalysisService,
+    report_export_service: AnalysisReportExportService,
     result_store_service: ResultStoreService,
     preview_size: int,
     architect_sample_size: int,
@@ -290,6 +293,32 @@ def build_ingest_router(
             limit=page.limit,
             has_more=page.has_more,
             documents=page.documents,
+        )
+
+    @router.post("/analysis-export/{result_id}")
+    async def export_analysis_report(
+        request: Request,
+        result_id: str,
+        export_request: AnalysisExportRequest,
+    ) -> Response:
+        require_authenticated_user(request)
+        try:
+            result_store_service.get_filters(result_id)
+            artifact = report_export_service.export_report(
+                result_id=result_id,
+                request=export_request,
+            )
+        except ResultNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        return Response(
+            content=artifact.content,
+            media_type=artifact.media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{artifact.filename}"',
+            },
         )
 
     @router.post("/result-columns/{result_id}", response_model=ColumnRoleUpdateResponse)

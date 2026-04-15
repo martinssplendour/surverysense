@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -37,6 +38,7 @@ from app.services.language_normalization_service import (
     EnglishTranslationService,
 )
 from app.services.metadata_filter_service import MetadataFilterService
+from app.services.report_export_service import AnalysisReportExportService
 from app.services.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
 from app.services.result_store_service import ResultStoreService
 from app.services.topic_analysis_services import (
@@ -85,6 +87,10 @@ class AuthRedirectMiddleware(BaseHTTPMiddleware):
 def create_app() -> FastAPI:
     settings = get_settings()
     google_oauth_service = GoogleOAuthService(
+        client_id=settings.google_oauth_client_id,
+        client_secret=settings.google_oauth_client_secret,
+        redirect_uris=settings.google_oauth_redirect_uris,
+        javascript_origins=settings.google_oauth_javascript_origins,
         client_json_path=settings.google_oauth_client_json_path,
         allowed_domains=settings.google_oauth_allowed_domains,
     )
@@ -126,6 +132,7 @@ def create_app() -> FastAPI:
         MetadataFilterService(),
         analysis_ready_service=analysis_ready_service,
     )
+    report_export_service = AnalysisReportExportService()
     keyword_service = TopicAnalysisKeywordService()
     narrative_service = TopicAnalysisNarrativeService(keyword_service)
     translation_service = EnglishTranslationService(
@@ -202,6 +209,7 @@ def create_app() -> FastAPI:
             transformation_service=transformation_service,
             analysis_ready_service=analysis_ready_service,
             topic_analysis_service=topic_analysis_service,
+            report_export_service=report_export_service,
             result_store_service=result_store_service,
             preview_size=settings.transformed_preview_size,
             architect_sample_size=settings.architect_sample_size,
@@ -211,11 +219,14 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def warm_topic_models() -> None:
-        try:
-            topic_analysis_service.warm_up()
-            logger.info("Topic embedding model warmed and cached for the current process.")
-        except Exception as exc:  # pragma: no cover - startup guard
-            logger.warning("Topic model warmup failed: %s", exc)
+        async def _warm_models_after_startup() -> None:
+            try:
+                await asyncio.to_thread(topic_analysis_service.warm_up)
+                logger.info("Topic embedding model warmed and cached for the current process.")
+            except Exception as exc:  # pragma: no cover - startup guard
+                logger.warning("Topic model warmup failed: %s", exc)
+
+        app.state.topic_model_warmup_task = asyncio.create_task(_warm_models_after_startup())
 
     @app.get("/", include_in_schema=False, response_model=None)
     async def index(request: Request):

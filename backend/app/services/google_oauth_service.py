@@ -35,6 +35,10 @@ class GoogleOAuthService:
     def __init__(
         self,
         *,
+        client_id: str,
+        client_secret: str,
+        redirect_uris: tuple[str, ...] | list[str],
+        javascript_origins: tuple[str, ...] | list[str],
         client_json_path: str,
         allowed_domains: tuple[str, ...],
     ) -> None:
@@ -47,7 +51,13 @@ class GoogleOAuthService:
                 }
             )
         )
-        self._config = self._load_client_config(client_json_path)
+        self._config = self._load_client_config(
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uris=redirect_uris,
+            javascript_origins=javascript_origins,
+            client_json_path=client_json_path,
+        )
 
     @property
     def is_configured(self) -> bool:
@@ -98,7 +108,32 @@ class GoogleOAuthService:
         domain = candidate.rsplit("@", 1)[1]
         return domain in self.allowed_domains
 
-    def _load_client_config(self, client_json_path: str) -> GoogleOAuthClientConfig | None:
+    def _load_client_config(
+        self,
+        *,
+        client_id: str,
+        client_secret: str,
+        redirect_uris: tuple[str, ...] | list[str],
+        javascript_origins: tuple[str, ...] | list[str],
+        client_json_path: str,
+    ) -> GoogleOAuthClientConfig | None:
+        env_client_id = client_id.strip()
+        if env_client_id:
+            return GoogleOAuthClientConfig(
+                client_id=env_client_id,
+                client_secret=client_secret.strip(),
+                redirect_uris=[
+                    str(uri).strip()
+                    for uri in redirect_uris
+                    if str(uri).strip()
+                ],
+                javascript_origins=[
+                    str(origin).strip()
+                    for origin in javascript_origins
+                    if str(origin).strip()
+                ],
+            )
+
         resolved_path = self._resolve_client_json_path(client_json_path)
         if resolved_path is None:
             return None

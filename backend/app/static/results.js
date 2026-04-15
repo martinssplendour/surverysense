@@ -40,6 +40,9 @@ const state = {
     selectedAnalysisModel: "bertopic",
     analysisResult: null,
     analysisRunning: false,
+    analysisExportFormat: "pdf",
+    analysisExportMenuOpen: false,
+    analysisExportRunning: false,
     analysisGroupModalMode: "group",
     analysisGroupModalGroupId: "",
     analysisGroupModalNgramSize: 0,
@@ -120,6 +123,9 @@ const elements = {
     analysisChart: document.getElementById("analysis-chart"),
     analysisList: document.getElementById("analysis-list"),
     analysisNgramGrid: document.getElementById("analysis-ngram-grid"),
+    downloadAnalysisReportButton: document.getElementById("download-analysis-report-btn"),
+    analysisExportToggleButton: document.getElementById("analysis-export-toggle-btn"),
+    analysisExportMenu: document.getElementById("analysis-export-menu"),
     runAnalysisButton: document.getElementById("run-analysis-btn"),
     analysisGroupModal: document.getElementById("analysis-group-modal"),
     analysisGroupModalCard: document.querySelector("#analysis-group-modal .analysis-group-modal-card"),
@@ -186,6 +192,45 @@ function bindEvents() {
     });
     elements.backToDashboardResultsButton?.addEventListener("click", () => {
         openWorkspace("dashboard");
+    });
+    elements.downloadAnalysisReportButton?.addEventListener("click", () => {
+        void downloadAnalysisReport();
+    });
+    elements.analysisExportToggleButton?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (state.analysisExportRunning) {
+            return;
+        }
+        state.analysisExportMenuOpen = !state.analysisExportMenuOpen;
+        renderAnalysisExportControls();
+    });
+    elements.analysisExportMenu?.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const formatButton = target.closest("[data-export-format]");
+        if (!(formatButton instanceof HTMLElement)) {
+            return;
+        }
+        const format = normalizeAnalysisExportFormat(formatButton.dataset.exportFormat);
+        state.analysisExportFormat = format;
+        state.analysisExportMenuOpen = false;
+        renderAnalysisExportControls();
+    });
+    document.addEventListener("click", (event) => {
+        if (!state.analysisExportMenuOpen) {
+            return;
+        }
+        const target = event.target;
+        if (!(target instanceof Node)) {
+            return;
+        }
+        if (elements.analysisExportMenu?.contains(target) || elements.analysisExportToggleButton?.contains(target)) {
+            return;
+        }
+        state.analysisExportMenuOpen = false;
+        renderAnalysisExportControls();
     });
     elements.analysisEmptyActionButton?.addEventListener("click", () => {
         openWorkspace("analysis");
@@ -322,6 +367,9 @@ function applyPayload(payload) {
     state.selectedAnalysisModel = "bertopic";
     state.analysisResult = null;
     state.analysisRunning = false;
+    state.analysisExportFormat = "pdf";
+    state.analysisExportMenuOpen = false;
+    state.analysisExportRunning = false;
     state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = "";
     state.analysisGroupModalNgramSize = 0;
@@ -432,6 +480,9 @@ function resetToUploadState() {
     state.analysisResult = null;
     state.analysisRows = [];
     state.transformedRows = [];
+    state.analysisExportFormat = "pdf";
+    state.analysisExportMenuOpen = false;
+    state.analysisExportRunning = false;
     state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = "";
     state.analysisGroupModalNgramSize = 0;
@@ -770,8 +821,6 @@ function renderAnalysisGroupModal() {
     const modelKey = state.analysisResult?.model_key || state.selectedAnalysisModel;
     const subjectLabel = modelKey === "bertopic" ? "Theme" : "Group";
     const contextItems = [
-        group.source_label ? `Original label: ${group.source_label}` : "",
-        group.ai_generated ? "AI-generated label" : "",
         group.translated && !group.ai_generated ? "Translated label" : "",
         Array.isArray(group.terms) && group.terms.length
             ? `Top terms: ${group.terms.slice(0, 4).join(", ")}`
@@ -928,8 +977,7 @@ function renderAnalysisDocumentCard(document) {
     return `
         <blockquote class="analysis-example analysis-example-full">
             <div class="analysis-example-header">
-                <span class="analysis-example-pill">Row</span>
-                <span class="analysis-example-row">Row ${Number(document.row_number || 0)}</span>
+                <span class="analysis-example-pill">Row ${Number(document.row_number || 0)}</span>
             </div>
             <p>${escapeHtml(document.text || "")}</p>
         </blockquote>
@@ -1263,6 +1311,7 @@ function renderAnalysisControls() {
 function renderAnalysisOutput() {
     renderAnalysisResultsHeader();
     renderFilterBar();
+    renderAnalysisExportControls();
 
     if (!state.analysisResult) {
         elements.analysisSummary.innerHTML = "";
@@ -1270,7 +1319,7 @@ function renderAnalysisOutput() {
         clearAnalysisChart();
         elements.analysisList.innerHTML = "";
         elements.analysisNgramGrid.innerHTML = "";
-        elements.analysisMessage.hidden = true;
+        clearAnalysisMessage();
         setAnalysisEmptyState(true);
         return;
     }
@@ -1295,9 +1344,7 @@ function renderAnalysisOutput() {
     setAnalysisEmptyState(false);
     elements.analysisSummary.innerHTML = "";
     elements.analysisSummary.hidden = true;
-    elements.analysisMessage.hidden = true;
-    elements.analysisMessage.textContent = "";
-    elements.analysisMessage.className = "analysis-message";
+    clearAnalysisMessage();
 
     if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
         elements.analysisList.innerHTML = "";
@@ -1317,6 +1364,46 @@ function renderAnalysisOutput() {
             </div>
         `;
     renderAnalysisChart(groups, Array.isArray(result.scatter_points) ? result.scatter_points : []);
+}
+
+function renderAnalysisExportControls() {
+    const hasReadyAnalysis = Boolean(state.resultId && state.analysisResult && state.analysisResult.ok);
+    const selectedFormat = normalizeAnalysisExportFormat(state.analysisExportFormat);
+    const selectedFormatLabel = displayAnalysisExportFormat(selectedFormat);
+    if (!hasReadyAnalysis || state.analysisExportRunning) {
+        state.analysisExportMenuOpen = false;
+    }
+    const isMenuOpen = hasReadyAnalysis && !state.analysisExportRunning && Boolean(state.analysisExportMenuOpen);
+    if (elements.downloadAnalysisReportButton) {
+        elements.downloadAnalysisReportButton.disabled = !hasReadyAnalysis || state.analysisExportRunning;
+        elements.downloadAnalysisReportButton.textContent = state.analysisExportRunning
+            ? "Preparing Report..."
+            : "Download Report";
+        elements.downloadAnalysisReportButton.title = hasReadyAnalysis
+            ? `Download report as ${selectedFormatLabel}`
+            : "Run an analysis to enable report download";
+    }
+    if (elements.analysisExportToggleButton) {
+        elements.analysisExportToggleButton.disabled = !hasReadyAnalysis || state.analysisExportRunning;
+        elements.analysisExportToggleButton.setAttribute("aria-expanded", isMenuOpen ? "true" : "false");
+        elements.analysisExportToggleButton.title = hasReadyAnalysis
+            ? `Choose report format. Current format: ${selectedFormatLabel}`
+            : "Run an analysis to choose a report format";
+    }
+    if (elements.analysisExportMenu) {
+        elements.analysisExportMenu.hidden = !isMenuOpen;
+        const items = elements.analysisExportMenu.querySelectorAll("[data-export-format]");
+        items.forEach((item) => {
+            if (!(item instanceof HTMLElement)) {
+                return;
+            }
+            const itemFormat = normalizeAnalysisExportFormat(item.dataset.exportFormat);
+            const isSelected = itemFormat === selectedFormat;
+            item.classList.toggle("analysis-export-menu-item-selected", isSelected);
+            item.setAttribute("aria-checked", isSelected ? "true" : "false");
+            item.tabIndex = isMenuOpen ? 0 : -1;
+        });
+    }
 }
 
 function renderAnalysisResultsHeader() {
@@ -1354,6 +1441,15 @@ function renderAnalysisMessage(kind, message) {
     elements.analysisMessage.hidden = false;
     elements.analysisMessage.className = `analysis-message analysis-message-${kind}`;
     elements.analysisMessage.textContent = message;
+}
+
+function clearAnalysisMessage() {
+    if (!elements.analysisMessage) {
+        return;
+    }
+    elements.analysisMessage.hidden = true;
+    elements.analysisMessage.textContent = "";
+    elements.analysisMessage.className = "analysis-message";
 }
 
 function renderAnalysisChart(groups, scatterPoints = []) {
@@ -1897,6 +1993,194 @@ function getPlotly() {
     return typeof window !== "undefined" && typeof window.Plotly !== "undefined"
         ? window.Plotly
         : null;
+}
+
+async function downloadAnalysisReport() {
+    if (!state.resultId || !state.analysisResult?.ok || state.analysisExportRunning) {
+        return;
+    }
+
+    state.analysisExportFormat = normalizeAnalysisExportFormat(state.analysisExportFormat);
+    state.analysisExportMenuOpen = false;
+    state.analysisExportRunning = true;
+    renderAnalysisExportControls();
+
+    try {
+        const charts = await captureRenderedAnalysisCharts();
+        const response = await fetch(`/analysis-export/${encodeURIComponent(state.resultId)}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                format: state.analysisExportFormat || "pdf",
+                report_title: buildAnalysisExportTitle(),
+                source_filename: state.response?.filename || "",
+                subtitle: elements.analysisResultsSubtitle?.textContent?.trim() || "",
+                active_filters: buildAnalysisExportFilters(),
+                charts,
+                analysis_result: state.analysisResult,
+            }),
+        });
+        if (response.status === 401) {
+            sessionStorage.removeItem(RESULT_STORAGE_KEY);
+            window.location.assign("/login");
+            return;
+        }
+        if (response.status === 404) {
+            const payload = await parseJson(response);
+            handleMissingResultState(payload.detail || "The processed result is no longer available.");
+            return;
+        }
+        if (!response.ok) {
+            const payload = await parseJson(response);
+            throw new Error(payload.detail || "Unable to export the report.");
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = parseDownloadFilename(response.headers.get("Content-Disposition"))
+            || `${buildAnalysisExportFileStem()}.${state.analysisExportFormat || "pdf"}`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+        clearAnalysisMessage();
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to export the report.";
+        renderAnalysisMessage("error", message);
+    } finally {
+        state.analysisExportRunning = false;
+        renderAnalysisExportControls();
+    }
+}
+
+function normalizeAnalysisExportFormat(value) {
+    return value === "docx" || value === "pptx" || value === "pdf"
+        ? value
+        : "pdf";
+}
+
+function displayAnalysisExportFormat(value) {
+    switch (normalizeAnalysisExportFormat(value)) {
+    case "docx":
+        return "Doc";
+    case "pptx":
+        return "Slides";
+    default:
+        return "PDF";
+    }
+}
+
+function buildAnalysisExportTitle() {
+    if (!state.analysisResult) {
+        return "Verbatim Analysis Report";
+    }
+    return `${displayColumnLabel(state.analysisResult.text_column_name)} - ${state.analysisResult.model_label} Report`;
+}
+
+function buildAnalysisExportFileStem() {
+    const sourceName = stripFilenameExtension(state.response?.filename || "verbatim-analysis");
+    const methodSlug = slugify(displayAnalysisMode(state.analysisResult?.model_key || state.selectedAnalysisModel));
+    return `${slugify(sourceName)}-${methodSlug || "analysis"}-report`;
+}
+
+function buildAnalysisExportFilters() {
+    return Object.entries(state.activeFilters).map(([columnName, values]) => {
+        const definition = getFilterDefinition(columnName);
+        return {
+            column_name: columnName,
+            display_name: displayFilterName(definition) || columnName,
+            values: Array.isArray(values) ? values : [],
+        };
+    });
+}
+
+async function captureRenderedAnalysisCharts() {
+    const plotly = getPlotly();
+    if (!plotly || typeof plotly.toImage !== "function" || !(elements.analysisChart instanceof HTMLElement)) {
+        return [];
+    }
+
+    const plotSurfaces = Array.from(elements.analysisChart.querySelectorAll(".analysis-plot-surface"));
+    if (!plotSurfaces.length) {
+        return [];
+    }
+
+    const chartDefinitions = buildAnalysisChartDefinitions(plotSurfaces.length);
+    const images = await Promise.all(
+        plotSurfaces.map(async (plotSurface, index) => {
+            if (!(plotSurface instanceof HTMLElement)) {
+                return null;
+            }
+            const rect = plotSurface.getBoundingClientRect();
+            const width = Math.max(1200, Math.round(rect.width * 2) || 1200);
+            const height = Math.max(720, Math.round(rect.height * 2) || 720);
+            try {
+                const imageDataUrl = await plotly.toImage(plotSurface, {
+                    format: "png",
+                    width,
+                    height,
+                });
+                const definition = chartDefinitions[index] || chartDefinitions[0] || {
+                    title: `Chart ${index + 1}`,
+                    caption: "",
+                };
+                return {
+                    title: definition.title,
+                    caption: definition.caption,
+                    image_data_url: imageDataUrl,
+                };
+            } catch (error) {
+                console.warn("[Verbatim App] Unable to capture chart image for export.", error);
+                return null;
+            }
+        }),
+    );
+
+    return images.filter(Boolean);
+}
+
+function buildAnalysisChartDefinitions(surfaceCount) {
+    const result = state.analysisResult;
+    if (!result) {
+        return [];
+    }
+    const chartCaption = elements.analysisChart?.querySelector(".analysis-chart-caption")?.textContent?.trim() || "";
+    const chartTitle = elements.analysisChart?.querySelector(".analysis-chart-title")?.textContent?.trim() || "";
+
+    if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
+        return result.ngram_buckets.slice(0, surfaceCount).map((bucket) => ({
+            title: bucket.label || `${bucket.ngram_size}-grams`,
+            caption: chartCaption,
+        }));
+    }
+
+    if (result.model_key === "kmeans") {
+        return [
+            {
+                title: "Response map",
+                caption: "Spatial view of the clustered responses currently shown on screen.",
+            },
+        ];
+    }
+
+    return [
+        {
+            title: chartTitle || `${displayAnalysisMode(result.model_key)} distribution`,
+            caption: chartCaption,
+        },
+    ];
+}
+
+function parseDownloadFilename(contentDisposition) {
+    if (!contentDisposition) {
+        return "";
+    }
+    const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+    return match ? match[1] : "";
 }
 
 function buildPercentLabel(share) {
@@ -2491,6 +2775,22 @@ function displayColumnLabel(value) {
 
 function displayAnalysisMode(modelKey) {
     return ANALYSIS_MODE_OPTIONS.find((option) => option.key === modelKey)?.label || modelKey;
+}
+
+function stripFilenameExtension(value) {
+    const normalized = `${value || ""}`.trim();
+    if (!normalized.includes(".")) {
+        return normalized;
+    }
+    return normalized.replace(/\.[^/.]+$/, "");
+}
+
+function slugify(value) {
+    return `${value || ""}`
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
 }
 
 function buildPreviewEmptyMessage() {

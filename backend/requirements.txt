@@ -14,3 +14,7 @@ deep-translator
 hdbscan
 umap-learn
 bertopic
+reportlab
+python-docx
+python-pptx
+Pillow

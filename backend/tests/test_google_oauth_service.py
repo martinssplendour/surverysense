@@ -24,6 +24,10 @@ class GoogleOAuthServiceTests(unittest.TestCase):
             )
 
             service = GoogleOAuthService(
+                client_id="",
+                client_secret="",
+                redirect_uris=(),
+                javascript_origins=(),
                 client_json_path=str(path),
                 allowed_domains=("twinkl.co.uk", "twinkl.com"),
             )
@@ -36,6 +40,10 @@ class GoogleOAuthServiceTests(unittest.TestCase):
 
     def test_allows_only_configured_twinkl_domains(self) -> None:
         service = GoogleOAuthService(
+            client_id="",
+            client_secret="",
+            redirect_uris=(),
+            javascript_origins=(),
             client_json_path="",
             allowed_domains=("twinkl.co.uk", "twinkl.com"),
         )
@@ -44,6 +52,20 @@ class GoogleOAuthServiceTests(unittest.TestCase):
         self.assertTrue(service.is_allowed_email("person@twinkl.com"))
         self.assertFalse(service.is_allowed_email("person@gmail.com"))
         self.assertFalse(service.is_allowed_email("person@twinkl.org"))
+
+    def test_loads_client_config_from_env_values(self) -> None:
+        service = GoogleOAuthService(
+            client_id="client-id.apps.googleusercontent.com",
+            client_secret="secret-value",
+            redirect_uris=("https://verbatimapp.onrender.com/auth/callback",),
+            javascript_origins=("https://verbatimapp.onrender.com",),
+            client_json_path="",
+            allowed_domains=("twinkl.co.uk", "twinkl.com"),
+        )
+
+        self.assertTrue(service.is_configured)
+        self.assertEqual(service.client_id, "client-id.apps.googleusercontent.com")
+        self.assertEqual(service.redirect_uris, ["https://verbatimapp.onrender.com/auth/callback"])
 
 
 if __name__ == "__main__":

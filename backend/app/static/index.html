@@ -97,8 +97,27 @@
                             </p>
                         </div>
                         <div class="workspace-actions analysis-results-actions">
-                            <button type="button" class="button button-ghost" id="back-to-analysis-setup-btn">Change Question Or Method</button>
-                            <button type="button" class="button button-ghost" id="back-to-dashboard-results-btn">Return To Dashboard</button>
+                            <div class="analysis-results-action-stack">
+                                <button type="button" class="button button-ghost analysis-results-change-button" id="back-to-analysis-setup-btn">Change Question or Method</button>
+                                <div class="analysis-export-split">
+                                    <button type="button" class="button button-primary analysis-export-main-button" id="download-analysis-report-btn">Download Report</button>
+                                    <button
+                                        type="button"
+                                        class="button button-primary analysis-export-toggle-button"
+                                        id="analysis-export-toggle-btn"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                        aria-label="Choose report format"
+                                    >
+                                        <span aria-hidden="true">&#9662;</span>
+                                    </button>
+                                    <div class="analysis-export-menu" id="analysis-export-menu" role="menu" hidden>
+                                        <button type="button" class="analysis-export-menu-item" data-export-format="pdf" role="menuitemradio">PDF</button>
+                                        <button type="button" class="analysis-export-menu-item" data-export-format="docx" role="menuitemradio">Doc</button>
+                                        <button type="button" class="analysis-export-menu-item" data-export-format="pptx" role="menuitemradio">Slides</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
