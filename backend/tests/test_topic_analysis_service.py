@@ -8,8 +8,8 @@ import pandas as pd
 from app.services.language_normalization_service import EnglishTranslationBatchResult
 from app.services.topic_label_ai_service import TopicAiLabelingBatchResult
 from app.services.topic_analysis_services import (
+    AgglomerativeAnalysisService,
     BertopicAnalysisService,
-    HdbscanAnalysisService,
     KMeansAnalysisService,
     NgramAnalysisService,
     RepresentativeExampleSelectionService,
@@ -284,9 +284,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
             kmeans_clusters=4,
             kmeans_random_state=42,
-            hdbscan_min_cluster_size=5,
-            hdbscan_min_samples=3,
-            hdbscan_metric="euclidean",
+            agglomerative_max_clusters=12,
             bertopic_language="multilingual",
             bertopic_reduce_outliers=True,
             bertopic_outlier_threshold=0.0,
@@ -322,7 +320,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_UnusedService(),
         )
         dataframe = pd.DataFrame(
@@ -373,7 +371,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_UnusedService(),
         )
         dataframe = pd.DataFrame(
@@ -408,7 +406,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_UnusedService(),
         )
         dataframe = pd.DataFrame(
@@ -460,7 +458,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_UnusedService(),
         )
         dataframe = pd.DataFrame(
@@ -482,7 +480,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["model_label"], "Response Groups")
+        self.assertEqual(result["model_label"], "Fixed Similarity Groups")
         self.assertEqual(len(result["groups"]), 2)
         self.assertEqual(result["groups"][0]["count"], 2)
         self.assertEqual(result["groups"][0]["label"], "Responses about teaching support")
@@ -514,7 +512,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_UnusedService(),
             ai_label_service=_FakeAiLabelService({"0": "Teaching Support"}),
         )
@@ -566,7 +564,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_FakeBertopicService(),
         )
         dataframe = pd.DataFrame(
@@ -606,7 +604,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=_FakeEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
+            agglomerative_service=_UnusedService(),
             bertopic_service=_UnusedService(),
             ai_label_service=_FailingAiLabelService(),
         )
@@ -644,7 +642,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             embedding_service=SentenceEmbeddingService(),
             ngram_service=self.ngram_service,
             kmeans_service=KMeansAnalysisService(),
-            hdbscan_service=HdbscanAnalysisService(),
+            agglomerative_service=AgglomerativeAnalysisService(),
             bertopic_service=BertopicAnalysisService(),
         )
         dataframe = pd.DataFrame({"verbatim": ["Need more resources"]})

@@ -6,10 +6,10 @@ const FULL_DATA_ROW_PAGE_SIZE = 50;
 const FULL_DATA_INITIAL_VISIBLE_ROW_TARGET = 50;
 const FULL_DATA_VISIBLE_COLUMN_COUNT = 12;
 const ANALYSIS_MODE_OPTIONS = [
-    { key: "bertopic", label: "BERTopic", description: "AI-generated themes and representative responses." },
-    { key: "kmeans", label: "K-means", description: "Group similar responses into clear categories." },
-    { key: "hdbscan", label: "HDBSCAN", description: "Find natural response groups and outliers." },
-    { key: "ngrams", label: "N-grams", description: "Show the most common words and phrases." },
+    { key: "bertopic", label: "BERTopic", description: "Groups similar responses into topics and compares topic size." },
+    { key: "kmeans", label: "K-means", description: "Splits responses into a fixed number of similarity groups." },
+    { key: "hdbscan", label: "Agglomerative", description: "Builds natural clusters by merging the closest responses first." },
+    { key: "ngrams", label: "N-grams", description: "Highlights the most repeated words and phrases in the text." },
 ];
 
 let activeAnalysisAbortController = null;
@@ -1877,7 +1877,7 @@ function renderInteractiveNgramChart(plotContainer, bucket, bucketIndex) {
             bargap: 0.26,
             xaxis: {
                 title: {
-                    text: "Number of times the phrase appears",
+                    text: `Number of times the ${itemTypeLabel.toLowerCase()} appears`,
                 },
                 gridcolor: "rgba(89, 68, 42, 0.1)",
                 zeroline: false,
@@ -2119,15 +2119,15 @@ async function captureRenderedAnalysisCharts() {
             const width = Math.max(1200, Math.round(rect.width * 2) || 1200);
             const height = Math.max(720, Math.round(rect.height * 2) || 720);
             try {
-                const imageDataUrl = await plotly.toImage(plotSurface, {
-                    format: "png",
-                    width,
-                    height,
-                });
                 const definition = chartDefinitions[index] || chartDefinitions[0] || {
                     title: `Chart ${index + 1}`,
                     caption: "",
                 };
+                const imageDataUrl = await captureAnalysisChartImage(plotly, plotSurface, {
+                    width,
+                    height,
+                    definition,
+                });
                 return {
                     title: definition.title,
                     caption: definition.caption,
@@ -2155,6 +2155,8 @@ function buildAnalysisChartDefinitions(surfaceCount) {
         return result.ngram_buckets.slice(0, surfaceCount).map((bucket) => ({
             title: bucket.label || `${bucket.ngram_size}-grams`,
             caption: chartCaption,
+            kind: "ngram",
+            ngramSize: Number(bucket.ngram_size || 0),
         }));
     }
 
@@ -2163,6 +2165,7 @@ function buildAnalysisChartDefinitions(surfaceCount) {
             {
                 title: "Response map",
                 caption: "Spatial view of the clustered responses currently shown on screen.",
+                kind: "scatter",
             },
         ];
     }
@@ -2171,8 +2174,123 @@ function buildAnalysisChartDefinitions(surfaceCount) {
         {
             title: chartTitle || `${displayAnalysisMode(result.model_key)} distribution`,
             caption: chartCaption,
+            kind: "group",
         },
     ];
+}
+
+async function captureAnalysisChartImage(plotly, plotSurface, { width, height, definition }) {
+    const baseLayout = clonePlotlyFigureValue(plotSurface.layout) || {};
+    const exportOverrides = buildAnalysisExportLayoutOverrides(definition, baseLayout);
+    if (!Object.keys(exportOverrides).length) {
+        return plotly.toImage(plotSurface, {
+            format: "png",
+            width,
+            height,
+        });
+    }
+
+    const exportContainer = document.createElement("div");
+    exportContainer.style.position = "fixed";
+    exportContainer.style.left = "-10000px";
+    exportContainer.style.top = "0";
+    exportContainer.style.pointerEvents = "none";
+    exportContainer.style.width = `${width}px`;
+    exportContainer.style.height = `${height}px`;
+    document.body.appendChild(exportContainer);
+
+    try {
+        const data = clonePlotlyFigureValue(plotSurface.data) || [];
+        const layout = {
+            ...baseLayout,
+            ...exportOverrides,
+            width,
+            height,
+        };
+        const config = {
+            displaylogo: false,
+            responsive: false,
+            modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
+            staticPlot: true,
+        };
+        await plotly.newPlot(exportContainer, data, layout, config);
+        return await plotly.toImage(exportContainer, {
+            format: "png",
+            width,
+            height,
+        });
+    } finally {
+        if (typeof plotly.purge === "function") {
+            plotly.purge(exportContainer);
+        }
+        exportContainer.remove();
+    }
+}
+
+function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
+    const kind = definition?.kind || "";
+    const ngramSize = Number(definition?.ngramSize || 0);
+    const baseMargin = baseLayout?.margin || {};
+    const baseFont = baseLayout?.font || {};
+    const baseXAxis = baseLayout?.xaxis || {};
+    const baseYAxis = baseLayout?.yaxis || {};
+
+    const overrides = {
+        paper_bgcolor: "#fffaf2",
+    };
+
+    if (kind === "ngram") {
+        overrides.margin = {
+            ...baseMargin,
+            l: Math.max(Number(baseMargin.l || 0), 240),
+            r: Math.max(Number(baseMargin.r || 0), 18),
+            t: Math.max(Number(baseMargin.t || 0), 34),
+            b: Math.max(Number(baseMargin.b || 0), 42),
+        };
+        overrides.font = {
+            ...baseFont,
+            size: Math.max(Number(baseFont.size || 0), 11),
+        };
+        overrides.xaxis = {
+            ...baseXAxis,
+            tickfont: {
+                ...(baseXAxis.tickfont || {}),
+                size: Math.max(Number(baseXAxis?.tickfont?.size || 0), 11),
+            },
+        };
+        overrides.yaxis = {
+            ...baseYAxis,
+            automargin: true,
+            tickfont: {
+                ...(baseYAxis.tickfont || {}),
+                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), ngramSize === 3 ? 17 : 24),
+            },
+        };
+    }
+
+    if (kind === "group") {
+        overrides.margin = {
+            ...baseMargin,
+            l: Math.max(Number(baseMargin.l || 0), 160),
+        };
+        overrides.yaxis = {
+            ...baseYAxis,
+            automargin: true,
+            tickfont: {
+                ...(baseYAxis.tickfont || {}),
+                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 11),
+            },
+        };
+    }
+
+    return overrides;
+}
+
+function clonePlotlyFigureValue(value) {
+    if (value === null || value === undefined) {
+        return value;
+    }
+    return JSON.parse(JSON.stringify(value));
 }
 
 function parseDownloadFilename(contentDisposition) {

@@ -8,6 +8,7 @@ from PIL import Image
 from unittest import TestCase
 
 from app.models.api import (
+    AnalysisExampleModel,
     AnalysisExportChartModel,
     AnalysisExportFilterModel,
     AnalysisExportRequest,
@@ -25,9 +26,9 @@ class AnalysisReportExportServiceTests(TestCase):
 
         self.request = AnalysisExportRequest(
             format="pdf",
-            report_title="Requests for resources - AI Themes Report",
+            report_title="Requests for resources - Topic Clusters Report",
             source_filename="sample.csv",
-            subtitle="AI Themes · question_text · 120 filtered rows · 100 usable responses",
+            subtitle="Topic Clusters · question_text · 120 filtered rows · 100 usable responses",
             active_filters=[
                 AnalysisExportFilterModel(
                     column_name="country",
@@ -46,7 +47,7 @@ class AnalysisReportExportServiceTests(TestCase):
                 ok=True,
                 result_id="abc123",
                 model_key="bertopic",
-                model_label="AI Themes",
+                model_label="Topic Clusters",
                 text_column_name="question_text",
                 filtered_row_count=120,
                 valid_document_count=100,
@@ -65,7 +66,11 @@ class AnalysisReportExportServiceTests(TestCase):
                         count=40,
                         share=0.4,
                         terms=["resources", "support", "materials"],
-                        examples=[],
+                        examples=[
+                            AnalysisExampleModel(row_number=4, text="Give us clearer guidance and more classroom resources."),
+                            AnalysisExampleModel(row_number=11, text="More practical support materials would build confidence."),
+                            AnalysisExampleModel(row_number=18, text="Access to better planning resources would help a lot."),
+                        ],
                         is_noise=False,
                     )
                 ],
@@ -80,7 +85,7 @@ class AnalysisReportExportServiceTests(TestCase):
 
         artifact = self.service.export_report(result_id="abc123", request=self.request)
 
-        self.assertEqual(artifact.filename, "sample-ai-themes-report.pdf")
+        self.assertEqual(artifact.filename, "sample-topic-clusters-report.pdf")
         self.assertEqual(artifact.media_type, "application/pdf")
         self.assertTrue(artifact.content.startswith(b"%PDF"))
 

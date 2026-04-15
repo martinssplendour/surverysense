@@ -15,10 +15,10 @@ from app.services.metadata_filter_service import MetadataFilterDefinition, Metad
 DatasetName = Literal["transformed", "analysis"]
 
 _MODEL_LABELS: dict[str, str] = {
-    "bertopic": "AI Themes",
-    "kmeans": "Response Groups",
-    "hdbscan": "Natural Groups",
-    "ngrams": "Common Phrases",
+    "bertopic": "Topic Clusters",
+    "kmeans": "Fixed Similarity Groups",
+    "hdbscan": "Agglomerative Clusters",
+    "ngrams": "Repeated Words and Phrases",
 }
 
 

@@ -19,10 +19,10 @@ from app.services.topic_label_ai_service import TopicAiLabelService
 
 
 MODEL_LABELS = {
-    "bertopic": "AI Themes",
-    "kmeans": "Response Groups",
-    "hdbscan": "Natural Groups",
-    "ngrams": "Common Phrases",
+    "bertopic": "Topic Clusters",
+    "kmeans": "Fixed Similarity Groups",
+    "hdbscan": "Agglomerative Clusters",
+    "ngrams": "Repeated Words and Phrases",
 }
 
 logger = logging.getLogger(__name__)
@@ -33,9 +33,7 @@ class TopicAnalysisConfig:
     embedding_model: str
     kmeans_clusters: int
     kmeans_random_state: int
-    hdbscan_min_cluster_size: int
-    hdbscan_min_samples: int
-    hdbscan_metric: str
+    agglomerative_max_clusters: int
     bertopic_language: str
     bertopic_reduce_outliers: bool
     bertopic_outlier_threshold: float
@@ -113,15 +111,15 @@ class TopicAnalysisInputValidationService:
 
         if model_key == "hdbscan" and valid_count < 5:
             warnings.append(
-                "Natural Groups works best with at least 5 usable responses. Smaller samples may not form clear groups."
+                "Agglomerative Clusters works best with at least 5 usable responses. Smaller samples may not form clear groups."
             )
         if model_key == "bertopic" and valid_count < 5:
             warnings.append(
-                "AI Themes works best with a larger sample. Smaller samples can produce unstable themes."
+                "Topic Clusters works best with a larger sample. Smaller samples can produce unstable topics."
             )
         if model_key == "kmeans" and valid_count < 5:
             warnings.append(
-                "Response Groups is running on a small sample, so the groups may be weak."
+                "Fixed Similarity Groups is running on a small sample, so the groups may be weak."
             )
         return warnings
 
@@ -701,7 +699,7 @@ class KMeansAnalysisService:
         labels = model.fit_predict(embeddings)
         if n_clusters < requested_clusters:
             warnings.append(
-                f"Response Groups reduced the number of groups to {n_clusters} because the filtered sample was smaller than the configured target."
+                f"Fixed Similarity Groups reduced the number of groups to {n_clusters} because the filtered sample was smaller than the configured target."
             )
 
         return {
@@ -710,44 +708,66 @@ class KMeansAnalysisService:
         }
 
 
-class HdbscanAnalysisService:
-    def run(
-        self,
-        embeddings,
-        *,
-        min_cluster_size: int,
-        min_samples: int,
-        metric: str,
-    ) -> dict[str, object]:
+class AgglomerativeAnalysisService:
+    """Hierarchical (Ward linkage) clustering for survey text analysis.
+
+    Agglomerative clustering is a better fit than HDBSCAN for sentence embeddings:
+    - Assigns every response to a group — no noise/outlier concept
+    - Ward linkage minimises within-cluster variance, producing compact semantic groups
+    - Auto-detects the natural number of clusters by finding the largest gap in the
+      merge-distance tree (where groups are most distinctly separate)
+    - Deterministic: same input always produces the same output
+    """
+
+    def run(self, embeddings, *, max_clusters: int) -> dict[str, object]:
         try:
-            import hdbscan
+            import numpy as np
+            from sklearn.cluster import AgglomerativeClustering
         except Exception as exc:  # pragma: no cover - dependency error path
             raise TopicAnalysisDependencyError(
-                "hdbscan is required for density-based analysis."
+                "scikit-learn is required for Agglomerative Clusters analysis."
             ) from exc
 
         if getattr(embeddings, "shape", (0,))[0] == 0:
             return {"assignments": [], "warnings": []}
 
-        n_samples = int(embeddings.shape[0])
-        cluster_size = max(2, min(min_cluster_size, n_samples))
-        sample_floor = max(1, min(min_samples, cluster_size))
-        clusterer = hdbscan.HDBSCAN(
-            min_cluster_size=cluster_size,
-            min_samples=sample_floor,
-            metric=metric,
-        )
-        labels = clusterer.fit_predict(embeddings)
+        embedding_array = np.asarray(embeddings)
+        n_samples = int(embedding_array.shape[0])
+        if n_samples == 1:
+            return {"assignments": [0], "warnings": []}
 
-        warnings: list[str] = []
-        if all(int(label) == -1 for label in labels.tolist()):
-            warnings.append(
-                "Natural Groups could not find clear groups in the current filtered sample."
+        effective_max = max(2, min(max_clusters, n_samples))
+
+        # Auto-detect the natural number of clusters by analysing the merge tree.
+        # We build the full dendrogram, inspect the last `effective_max` merge distances,
+        # and find the largest gap. A large gap between consecutive merges signals that
+        # the two groups about to be joined are genuinely distinct — a natural partition.
+        n_clusters = effective_max
+        if n_samples > effective_max:
+            dendrogram = AgglomerativeClustering(
+                n_clusters=None,
+                distance_threshold=0,
+                linkage="ward",
+                compute_distances=True,
             )
+            dendrogram.fit(embedding_array)
+
+            # distances_[-effective_max:] are the last `effective_max` merge distances,
+            # corresponding to going from (effective_max + 1) down to 1 cluster.
+            top_merges = dendrogram.distances_[-effective_max:]
+            gaps = np.diff(top_merges)
+            if len(gaps) >= 1:
+                best_k = int(np.argmax(gaps))
+                # gap at index k means the merge at position k+1 is unusually expensive;
+                # optimal cut keeps (effective_max - k) clusters.
+                n_clusters = max(2, effective_max - best_k)
+
+        model = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
+        labels = model.fit_predict(embedding_array)
 
         return {
-            "assignments": [int(value) for value in labels.tolist()],
-            "warnings": warnings,
+            "assignments": [int(v) for v in labels.tolist()],
+            "warnings": [],
         }
 
 
@@ -916,7 +936,7 @@ class TopicAnalysisService:
         embedding_service: SentenceEmbeddingService,
         ngram_service: NgramAnalysisService,
         kmeans_service: KMeansAnalysisService,
-        hdbscan_service: HdbscanAnalysisService,
+        agglomerative_service: AgglomerativeAnalysisService,
         bertopic_service: BertopicAnalysisService,
         ai_label_service: TopicAiLabelService | None = None,
     ) -> None:
@@ -929,7 +949,7 @@ class TopicAnalysisService:
         self.embedding_service = embedding_service
         self.ngram_service = ngram_service
         self.kmeans_service = kmeans_service
-        self.hdbscan_service = hdbscan_service
+        self.agglomerative_service = agglomerative_service
         self.bertopic_service = bertopic_service
         self.ai_label_service = ai_label_service
 
@@ -1014,12 +1034,12 @@ class TopicAnalysisService:
                     prepared.texts,
                     model_name=self.config.embedding_model,
                 )
-                # PCA pre-reduction for K-means: 384 → 50 dims.
-                # Improves cluster quality (fewer dimensions → less curse of dimensionality)
-                # and speeds up clustering. The reduced embeddings are reused for scatter
-                # projection so PCA runs only once per analysis.
-                kmeans_embeddings = embeddings
-                if model_key == "kmeans":
+                # PCA pre-reduction: 384 → 50 dims shared by K-means and HDBSCAN.
+                # Restores meaningful density/distance structure (curse of dimensionality),
+                # speeds up clustering, and improves group quality. For HDBSCAN this is the
+                # primary reason it stops labelling everything as outliers.
+                reduced_embeddings = embeddings
+                if model_key in ("kmeans", "hdbscan"):
                     try:
                         import numpy as np
                         from sklearn.decomposition import PCA as _PCA
@@ -1031,22 +1051,23 @@ class TopicAnalysisService:
                         ):
                             _n_pca = min(50, _arr.shape[1], _arr.shape[0] - 1)
                             if _n_pca >= 2:
-                                kmeans_embeddings = _PCA(
+                                reduced_embeddings = _PCA(
                                     n_components=_n_pca, random_state=42
                                 ).fit_transform(_arr)
                     except Exception:  # pragma: no cover - sklearn always present
                         pass
+
+                if model_key == "kmeans":
+                    kmeans_embeddings = reduced_embeddings
                     model_result = self.kmeans_service.run(
                         kmeans_embeddings,
                         requested_clusters=self.config.kmeans_clusters,
                         random_state=self.config.kmeans_random_state,
                     )
                 elif model_key == "hdbscan":
-                    model_result = self.hdbscan_service.run(
-                        embeddings,
-                        min_cluster_size=self.config.hdbscan_min_cluster_size,
-                        min_samples=self.config.hdbscan_min_samples,
-                        metric=self.config.hdbscan_metric,
+                    model_result = self.agglomerative_service.run(
+                        reduced_embeddings,
+                        max_clusters=self.config.agglomerative_max_clusters,
                     )
                 else:  # pragma: no cover - guarded by request validation
                     raise TopicAnalysisInputError(f"Unsupported analysis mode '{model_key}'.")
