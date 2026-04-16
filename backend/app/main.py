@@ -42,8 +42,8 @@ from app.services.report_export_service import AnalysisReportExportService
 from app.services.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
 from app.services.result_store_service import ResultStoreService
 from app.services.topic_analysis_services import (
-    AgglomerativeAnalysisService,
     BertopicAnalysisService,
+    HdbscanAnalysisService,
     KMeansAnalysisService,
     NgramAnalysisService,
     RepresentativeExampleSelectionService,
@@ -146,9 +146,12 @@ def create_app() -> FastAPI:
     topic_analysis_service = TopicAnalysisService(
         config=TopicAnalysisConfig(
             embedding_model=settings.topic_embedding_model,
+            embedding_local_path=settings.topic_embedding_local_path,
             kmeans_clusters=settings.topic_kmeans_clusters,
             kmeans_random_state=settings.topic_kmeans_random_state,
-            agglomerative_max_clusters=settings.topic_agglomerative_max_clusters,
+            hdbscan_min_cluster_size=settings.topic_hdbscan_min_cluster_size,
+            hdbscan_min_samples=settings.topic_hdbscan_min_samples,
+            hdbscan_metric=settings.topic_hdbscan_metric,
             bertopic_language=settings.topic_bertopic_language,
             bertopic_reduce_outliers=settings.topic_bertopic_reduce_outliers,
             bertopic_outlier_threshold=settings.topic_bertopic_outlier_threshold,
@@ -168,7 +171,7 @@ def create_app() -> FastAPI:
         embedding_service=SentenceEmbeddingService(),
         ngram_service=NgramAnalysisService(keyword_service),
         kmeans_service=KMeansAnalysisService(),
-        agglomerative_service=AgglomerativeAnalysisService(),
+        hdbscan_service=HdbscanAnalysisService(),
         bertopic_service=BertopicAnalysisService(),
         ai_label_service=TopicAiLabelService(
             config=TopicAiLabelingConfig(

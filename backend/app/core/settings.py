@@ -38,9 +38,15 @@ class Settings:
         "TOPIC_EMBEDDING_MODEL",
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     ).strip()
+    topic_embedding_local_path: str = os.getenv(
+        "TOPIC_EMBEDDING_LOCAL_PATH",
+        "models/paraphrase-multilingual-MiniLM-L12-v2",
+    ).strip()
     topic_kmeans_clusters: int = int(os.getenv("TOPIC_KMEANS_CLUSTERS", "8"))
     topic_kmeans_random_state: int = int(os.getenv("TOPIC_KMEANS_RANDOM_STATE", "42"))
-    topic_agglomerative_max_clusters: int = int(os.getenv("TOPIC_AGGLOMERATIVE_MAX_CLUSTERS", "12"))
+    topic_hdbscan_min_cluster_size: int = int(os.getenv("TOPIC_HDBSCAN_MIN_CLUSTER_SIZE", "5"))
+    topic_hdbscan_min_samples: int = int(os.getenv("TOPIC_HDBSCAN_MIN_SAMPLES", "3"))
+    topic_hdbscan_metric: str = os.getenv("TOPIC_HDBSCAN_METRIC", "euclidean").strip()
     topic_bertopic_language: str = os.getenv("TOPIC_BERTOPIC_LANGUAGE", "multilingual").strip()
     topic_bertopic_reduce_outliers: bool = os.getenv("TOPIC_BERTOPIC_REDUCE_OUTLIERS", "true").strip().casefold() in {"1", "true", "yes", "on"}
     topic_bertopic_outlier_threshold: float = float(os.getenv("TOPIC_BERTOPIC_OUTLIER_THRESHOLD", "0.0"))

@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 import logging
 import math
+from pathlib import Path
 import re
 from threading import Lock
 from typing import Any, Iterable
@@ -21,7 +22,7 @@ from app.services.topic_label_ai_service import TopicAiLabelService
 MODEL_LABELS = {
     "bertopic": "Topic Clusters",
     "kmeans": "Fixed Similarity Groups",
-    "hdbscan": "Agglomerative Clusters",
+    "hdbscan": "Natural Groups",
     "ngrams": "Repeated Words and Phrases",
 }
 
@@ -31,9 +32,12 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class TopicAnalysisConfig:
     embedding_model: str
+    embedding_local_path: str
     kmeans_clusters: int
     kmeans_random_state: int
-    agglomerative_max_clusters: int
+    hdbscan_min_cluster_size: int
+    hdbscan_min_samples: int
+    hdbscan_metric: str
     bertopic_language: str
     bertopic_reduce_outliers: bool
     bertopic_outlier_threshold: float
@@ -111,7 +115,7 @@ class TopicAnalysisInputValidationService:
 
         if model_key == "hdbscan" and valid_count < 5:
             warnings.append(
-                "Agglomerative Clusters works best with at least 5 usable responses. Smaller samples may not form clear groups."
+                "Natural Groups works best with at least 5 usable responses. Smaller samples may not form clear groups."
             )
         if model_key == "bertopic" and valid_count < 5:
             warnings.append(
@@ -590,7 +594,21 @@ class SentenceEmbeddingService:
         self._models: dict[str, object] = {}
         self._lock = Lock()
 
-    def _get_model(self, model_name: str):
+    def _resolve_model_source(
+        self,
+        *,
+        model_name: str,
+        local_model_path: str,
+    ) -> tuple[str, bool]:
+        if local_model_path:
+            candidate_path = Path(local_model_path).expanduser()
+            if not candidate_path.is_absolute():
+                candidate_path = Path(__file__).resolve().parents[2] / candidate_path
+            if candidate_path.exists():
+                return (str(candidate_path), True)
+        return (model_name, False)
+
+    def _get_model(self, model_name: str, *, local_model_path: str = ""):
         try:
             from sentence_transformers import SentenceTransformer
         except Exception as exc:  # pragma: no cover - dependency error path
@@ -598,19 +616,33 @@ class SentenceEmbeddingService:
                 "sentence-transformers is required for embedding-based analysis."
             ) from exc
 
+        model_source, local_only = self._resolve_model_source(
+            model_name=model_name,
+            local_model_path=local_model_path,
+        )
         with self._lock:
-            model = self._models.get(model_name)
+            model = self._models.get(model_source)
             if model is None:
-                model = SentenceTransformer(model_name)
-                self._models[model_name] = model
+                load_kwargs: dict[str, object] = {}
+                if local_only:
+                    load_kwargs["local_files_only"] = True
+                model = SentenceTransformer(model_source, **load_kwargs)
+                self._models[model_source] = model
         return model
 
-    def warm_up(self, *, model_name: str) -> None:
+    def warm_up(self, *, model_name: str, local_model_path: str = "") -> None:
         if not model_name:
             return
-        self._get_model(model_name)
+        model = self._get_model(model_name, local_model_path=local_model_path)
+        # Run a dummy encode to trigger PyTorch and Numba JIT compilation at startup.
+        # Without this, the first real request pays a ~20s JIT cold-start penalty on the
+        # first batch regardless of model caching.
+        try:
+            model.encode(["warmup"], show_progress_bar=False, normalize_embeddings=True)
+        except Exception:
+            pass
 
-    def encode(self, texts: list[str], *, model_name: str):
+    def encode(self, texts: list[str], *, model_name: str, local_model_path: str = ""):
         if not texts:
             return []
 
@@ -621,12 +653,13 @@ class SentenceEmbeddingService:
                 "numpy is required for embedding-based analysis."
             ) from exc
 
-        model = self._get_model(model_name)
+        model = self._get_model(model_name, local_model_path=local_model_path)
 
         embeddings = model.encode(
             texts,
             show_progress_bar=False,
             normalize_embeddings=True,
+            batch_size=64,  # default=32; larger batches reduce dispatch overhead on CPU
         )
         return np.array(embeddings)
 
@@ -708,66 +741,44 @@ class KMeansAnalysisService:
         }
 
 
-class AgglomerativeAnalysisService:
-    """Hierarchical (Ward linkage) clustering for survey text analysis.
-
-    Agglomerative clustering is a better fit than HDBSCAN for sentence embeddings:
-    - Assigns every response to a group — no noise/outlier concept
-    - Ward linkage minimises within-cluster variance, producing compact semantic groups
-    - Auto-detects the natural number of clusters by finding the largest gap in the
-      merge-distance tree (where groups are most distinctly separate)
-    - Deterministic: same input always produces the same output
-    """
-
-    def run(self, embeddings, *, max_clusters: int) -> dict[str, object]:
+class HdbscanAnalysisService:
+    def run(
+        self,
+        embeddings,
+        *,
+        min_cluster_size: int,
+        min_samples: int,
+        metric: str,
+    ) -> dict[str, object]:
         try:
-            import numpy as np
-            from sklearn.cluster import AgglomerativeClustering
+            import hdbscan
         except Exception as exc:  # pragma: no cover - dependency error path
             raise TopicAnalysisDependencyError(
-                "scikit-learn is required for Agglomerative Clusters analysis."
+                "hdbscan is required for density-based analysis."
             ) from exc
 
         if getattr(embeddings, "shape", (0,))[0] == 0:
             return {"assignments": [], "warnings": []}
 
-        embedding_array = np.asarray(embeddings)
-        n_samples = int(embedding_array.shape[0])
-        if n_samples == 1:
-            return {"assignments": [0], "warnings": []}
+        n_samples = int(embeddings.shape[0])
+        cluster_size = max(2, min(min_cluster_size, n_samples))
+        sample_floor = max(1, min(min_samples, cluster_size))
+        clusterer = hdbscan.HDBSCAN(
+            min_cluster_size=cluster_size,
+            min_samples=sample_floor,
+            metric=metric,
+        )
+        labels = clusterer.fit_predict(embeddings)
 
-        effective_max = max(2, min(max_clusters, n_samples))
-
-        # Auto-detect the natural number of clusters by analysing the merge tree.
-        # We build the full dendrogram, inspect the last `effective_max` merge distances,
-        # and find the largest gap. A large gap between consecutive merges signals that
-        # the two groups about to be joined are genuinely distinct — a natural partition.
-        n_clusters = effective_max
-        if n_samples > effective_max:
-            dendrogram = AgglomerativeClustering(
-                n_clusters=None,
-                distance_threshold=0,
-                linkage="ward",
-                compute_distances=True,
+        warnings: list[str] = []
+        if all(int(label) == -1 for label in labels.tolist()):
+            warnings.append(
+                "Natural Groups could not find clear groups in the current filtered sample."
             )
-            dendrogram.fit(embedding_array)
-
-            # distances_[-effective_max:] are the last `effective_max` merge distances,
-            # corresponding to going from (effective_max + 1) down to 1 cluster.
-            top_merges = dendrogram.distances_[-effective_max:]
-            gaps = np.diff(top_merges)
-            if len(gaps) >= 1:
-                best_k = int(np.argmax(gaps))
-                # gap at index k means the merge at position k+1 is unusually expensive;
-                # optimal cut keeps (effective_max - k) clusters.
-                n_clusters = max(2, effective_max - best_k)
-
-        model = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
-        labels = model.fit_predict(embedding_array)
 
         return {
-            "assignments": [int(v) for v in labels.tolist()],
-            "warnings": [],
+            "assignments": [int(value) for value in labels.tolist()],
+            "warnings": warnings,
         }
 
 
@@ -936,7 +947,7 @@ class TopicAnalysisService:
         embedding_service: SentenceEmbeddingService,
         ngram_service: NgramAnalysisService,
         kmeans_service: KMeansAnalysisService,
-        agglomerative_service: AgglomerativeAnalysisService,
+        hdbscan_service: HdbscanAnalysisService,
         bertopic_service: BertopicAnalysisService,
         ai_label_service: TopicAiLabelService | None = None,
     ) -> None:
@@ -949,13 +960,26 @@ class TopicAnalysisService:
         self.embedding_service = embedding_service
         self.ngram_service = ngram_service
         self.kmeans_service = kmeans_service
-        self.agglomerative_service = agglomerative_service
+        self.hdbscan_service = hdbscan_service
         self.bertopic_service = bertopic_service
         self.ai_label_service = ai_label_service
 
     def warm_up(self) -> None:
         self.text_preparation_service.warm_up()
-        self.embedding_service.warm_up(model_name=self.config.embedding_model)
+        self.embedding_service.warm_up(
+            model_name=self.config.embedding_model,
+            local_model_path=self.config.embedding_local_path,
+        )
+        # Trigger Numba JIT compilation for UMAP at startup so the first real BERTopic
+        # run doesn't pay a ~40s cold-start penalty. A tiny 20-point fit is enough to
+        # compile all Numba kernels used by the full-size run.
+        try:
+            import numpy as _np
+            import umap as _umap
+            _dummy = _np.random.default_rng(0).random((20, 10))
+            _umap.UMAP(n_neighbors=5, n_components=2, random_state=42).fit_transform(_dummy)
+        except Exception:
+            pass
 
     def run(
         self,
@@ -1020,6 +1044,7 @@ class TopicAnalysisService:
                 embeddings = self.embedding_service.encode(
                     prepared.texts,
                     model_name=self.config.embedding_model,
+                    local_model_path=self.config.embedding_local_path,
                 )
                 model_result = self.bertopic_service.run(
                     prepared.texts,
@@ -1033,13 +1058,14 @@ class TopicAnalysisService:
                 embeddings = self.embedding_service.encode(
                     prepared.texts,
                     model_name=self.config.embedding_model,
+                    local_model_path=self.config.embedding_local_path,
                 )
-                # PCA pre-reduction: 384 → 50 dims shared by K-means and HDBSCAN.
-                # Restores meaningful density/distance structure (curse of dimensionality),
-                # speeds up clustering, and improves group quality. For HDBSCAN this is the
-                # primary reason it stops labelling everything as outliers.
+                # PCA pre-reduction for K-means: 384 → 50 dims.
+                # Improves cluster quality (fewer dimensions → less curse of dimensionality)
+                # and speeds up clustering. The reduced embeddings are reused for scatter
+                # projection so PCA runs only once per analysis.
                 reduced_embeddings = embeddings
-                if model_key in ("kmeans", "hdbscan"):
+                if model_key == "kmeans":
                     try:
                         import numpy as np
                         from sklearn.decomposition import PCA as _PCA
@@ -1065,9 +1091,11 @@ class TopicAnalysisService:
                         random_state=self.config.kmeans_random_state,
                     )
                 elif model_key == "hdbscan":
-                    model_result = self.agglomerative_service.run(
-                        reduced_embeddings,
-                        max_clusters=self.config.agglomerative_max_clusters,
+                    model_result = self.hdbscan_service.run(
+                        embeddings,
+                        min_cluster_size=self.config.hdbscan_min_cluster_size,
+                        min_samples=self.config.hdbscan_min_samples,
+                        metric=self.config.hdbscan_metric,
                     )
                 else:  # pragma: no cover - guarded by request validation
                     raise TopicAnalysisInputError(f"Unsupported analysis mode '{model_key}'.")
@@ -1106,44 +1134,6 @@ class TopicAnalysisService:
             base_response["error"] = f"Analysis failed unexpectedly: {exc}"
             return base_response
 
-    def _pretranslate_bertopic_groups(
-        self,
-        grouped_documents: dict[int, list[PreparedDocument]],
-        ordered_group_ids: list[int],
-        explicit_groups: dict[str, dict[str, object]],
-    ) -> None:
-        """Warm the translation cache for all BERTopic group samples and terms in one batch.
-
-        Without this, _build_bertopic_display_context is called once per group, each time
-        making a separate Google Translate API request (2 × N_groups serial calls). By
-        collecting every text and term up-front and passing them through the translation
-        service in a single call, subsequent per-group calls become instant cache hits.
-        """
-        translation_service = self.text_preparation_service.translation_service
-        if translation_service is None:
-            return
-
-        all_texts: list[str] = []
-        for group_id in ordered_group_ids:
-            grouped_rows = grouped_documents[group_id]
-            grouped_texts = [doc.text for doc in grouped_rows]
-
-            sample_size = max(2, min(len(grouped_texts), self.config.representative_examples_per_group + 1))
-            all_texts.extend(self._sample_group_texts(grouped_texts, limit=sample_size))
-
-            explicit_group = explicit_groups.get(str(group_id), {})
-            terms = [
-                str(t)
-                for t in explicit_group.get("terms", [])
-                if isinstance(t, str) and str(t).strip()
-            ]
-            terms = self.keyword_service.sanitize_terms(terms, top_n=self.config.top_terms_per_group)
-            if not terms:
-                terms = self.keyword_service.top_terms(grouped_texts, top_n=self.config.top_terms_per_group)
-            all_texts.extend(terms)
-
-        if all_texts:
-            translation_service.translate(all_texts)
 
     def _build_groups(
         self,
@@ -1164,11 +1154,7 @@ class TopicAnalysisService:
             key=lambda group_id: (-len(grouped_documents[group_id]), group_id),
         )
 
-        # For BERTopic, pre-warm the translation cache with one batched API call covering
-        # all groups, so the per-group calls in _build_bertopic_display_context are cache hits.
-        if model_key == "bertopic":
-            self._pretranslate_bertopic_groups(grouped_documents, ordered_group_ids, explicit_groups)
-
+        fallback_prefix = "Theme" if model_key == "bertopic" else "Group"
         for group_id in ordered_group_ids:
             group_key = str(group_id)
             grouped_rows = grouped_documents[group_id]
@@ -1179,39 +1165,14 @@ class TopicAnalysisService:
                 for term in explicit_group.get("terms", [])
                 if isinstance(term, str) and term.strip()
             ]
-            terms = self.keyword_service.sanitize_terms(
-                terms,
-                top_n=self.config.top_terms_per_group,
-            )
+            terms = self.keyword_service.sanitize_terms(terms, top_n=self.config.top_terms_per_group)
             if not terms:
-                terms = self.keyword_service.top_terms(
-                    grouped_texts,
-                    top_n=self.config.top_terms_per_group,
-                )
+                terms = self.keyword_service.top_terms(grouped_texts, top_n=self.config.top_terms_per_group)
 
             is_noise = bool(explicit_group.get("is_noise", group_id == -1))
-            fallback_prefix = "Theme" if model_key == "bertopic" else "Group"
-            display_texts = grouped_texts
-            display_terms = list(terms)
-            label_translation_warnings: list[str] = []
-
-            if model_key == "bertopic":
-                display_texts, display_terms, label_translation_warnings = self._build_bertopic_display_context(
-                    grouped_texts=grouped_texts,
-                    terms=terms,
-                )
-
-            raw_label = self.narrative_service.build_label(
+            label = self.narrative_service.build_label(
                 texts=grouped_texts,
                 terms=terms,
-                is_noise=is_noise,
-                fallback_prefix=fallback_prefix,
-                fallback_id=group_key,
-                prefer_terms=model_key == "bertopic",
-            )
-            label = self.narrative_service.build_label(
-                texts=display_texts,
-                terms=display_terms,
                 is_noise=is_noise,
                 fallback_prefix=fallback_prefix,
                 fallback_id=group_key,
@@ -1232,14 +1193,14 @@ class TopicAnalysisService:
                 {
                     "group_id": group_key,
                     "label": label,
-                    "source_label": raw_label if label != raw_label else None,
-                    "translated": label != raw_label,
+                    "source_label": None,
+                    "translated": False,
                     "ai_generated": False,
                     "comment": comment,
                     "count": int(len(grouped_rows)),
                     "share": round(len(grouped_rows) / total_documents, 4),
                     "total_documents": total_documents,
-                    "terms": display_terms,
+                    "terms": list(terms),
                     "examples": examples,
                     "is_noise": is_noise,
                     "_documents": [
@@ -1250,54 +1211,102 @@ class TopicAnalysisService:
                         for document in grouped_rows
                         if int(document.row_number) > 0 and document.text
                     ],
-                    "_label_translation_warnings": label_translation_warnings,
                 }
             )
 
+        if model_key == "bertopic":
+            groups = self._translate_and_merge_bertopic_groups(groups)
+
         return groups
 
-    def _build_bertopic_display_context(
-        self,
-        *,
-        grouped_texts: list[str],
-        terms: list[str],
-    ) -> tuple[list[str], list[str], list[str]]:
+    def _translate_and_merge_bertopic_groups(
+        self, groups: list[dict[str, object]]
+    ) -> list[dict[str, object]]:
+        """Translate all BERTopic topic terms to English in one batch, rebuild labels,
+        then merge any topics whose first translated term matches (same concept, different source language)."""
         translation_service = self.text_preparation_service.translation_service
-        if translation_service is None:
-            return grouped_texts, list(terms), []
 
-        warnings: list[str] = []
-        sample_size = max(2, min(len(grouped_texts), self.config.representative_examples_per_group + 1))
-        sampled_texts = self._sample_group_texts(grouped_texts, limit=sample_size)
-        display_texts = list(grouped_texts)
-        if sampled_texts:
-            sample_result = translation_service.translate(sampled_texts)
-            warnings.extend(sample_result.warnings)
-            if sample_result.translated_count:
-                display_texts = sample_result.texts
+        # Collect all unique raw terms across non-noise groups
+        all_terms: list[str] = []
+        seen_terms: set[str] = set()
+        for group in groups:
+            if group.get("is_noise"):
+                continue
+            for term in group.get("terms", []):
+                if term and term not in seen_terms:
+                    seen_terms.add(term)
+                    all_terms.append(term)
 
-        display_terms = self.keyword_service.sanitize_terms(
-            terms,
-            top_n=self.config.top_terms_per_group,
-        )
-        if terms:
-            term_result = translation_service.translate(terms)
-            warnings.extend(term_result.warnings)
-            if term_result.translated_count:
-                translated_terms = [
-                    translated.strip() if translated_flag and translated.strip() else source
-                    for source, translated, translated_flag in zip(
-                        terms,
-                        term_result.texts,
-                        term_result.translated_flags,
-                    )
-                ]
-                display_terms = self.keyword_service.sanitize_terms(
-                    translated_terms,
-                    top_n=self.config.top_terms_per_group,
-                )
+        # Single translation batch — terms only, not documents
+        term_to_english: dict[str, str] = {t: t for t in all_terms}
+        if translation_service and all_terms:
+            result = translation_service.translate(all_terms)
+            for source, translated, was_translated in zip(all_terms, result.texts, result.translated_flags):
+                if was_translated and translated.strip():
+                    term_to_english[source] = translated.strip()
 
-        return display_texts, display_terms, warnings
+        # Rebuild each group's terms and label using English translations
+        for group in groups:
+            if group.get("is_noise"):
+                continue
+            raw_terms = list(group.get("terms", []))
+            translated_terms: list[str] = []
+            seen: set[str] = set()
+            for t in raw_terms:
+                english = term_to_english.get(t, t)
+                key = english.casefold()
+                if key not in seen:
+                    seen.add(key)
+                    translated_terms.append(english)
+            group["terms"] = translated_terms
+            if translated_terms:
+                new_label = " / ".join(t.replace("_", " ") for t in translated_terms[:2])
+                if new_label != group.get("label"):
+                    group["source_label"] = group["label"]
+                    group["translated"] = True
+                    group["label"] = new_label
+
+        # Merge groups that share the same first translated term
+        # Groups are already sorted largest-first, so the first occurrence wins
+        merge_into: dict[str, str] = {}
+        first_term_index: dict[str, str] = {}
+        for group in groups:
+            if group.get("is_noise"):
+                continue
+            terms = group.get("terms", [])
+            if not terms:
+                continue
+            key = terms[0].casefold().strip().rstrip("s")  # collapse simple plurals
+            gid = str(group["group_id"])
+            if key in first_term_index:
+                merge_into[gid] = first_term_index[key]
+            else:
+                first_term_index[key] = gid
+
+        if merge_into:
+            group_by_id = {str(g["group_id"]): g for g in groups}
+            for src_id, tgt_id in merge_into.items():
+                src = group_by_id[src_id]
+                tgt = group_by_id[tgt_id]
+                tgt["_documents"].extend(src.get("_documents", []))
+                tgt["count"] = int(tgt["count"]) + int(src["count"])
+            merged_ids = set(merge_into.keys())
+            groups = [g for g in groups if str(g["group_id"]) not in merged_ids]
+
+        # Recalculate share, total_documents, and comment after merges
+        grand_total = max(1, sum(int(g["count"]) for g in groups))
+        for group in groups:
+            count = int(group["count"])
+            group["share"] = round(count / grand_total, 4)
+            group["total_documents"] = grand_total
+            group["comment"] = self.narrative_service.build_comment(
+                label=str(group["label"]),
+                count=count,
+                total_documents=grand_total,
+                examples=group.get("examples", []),
+            )
+
+        return sorted(groups, key=lambda g: (-int(g["count"]), str(g["group_id"])))
 
     @staticmethod
     def _sample_group_texts(grouped_texts: list[str], *, limit: int) -> list[str]:

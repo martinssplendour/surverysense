@@ -12,6 +12,24 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## Render Deploy
+
+For Render, use:
+
+```bash
+pip install -r requirements.txt && python download_topic_model.py
+```
+
+as the build command, and:
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+as the start command.
+
+`download_topic_model.py` downloads the configured sentence-transformer into `TOPIC_EMBEDDING_LOCAL_PATH` during the build step. At runtime, the analysis pipeline loads the model from that local folder instead of the Hugging Face repo id.
+
 The analysis pipeline now groups raw verbatim responses first, using multilingual embeddings by default. When translation is enabled, only output labels and representative examples are translated to English for display after grouping.
 
 ## Endpoint
@@ -95,6 +113,15 @@ Analysis-time translation is controlled with:
 - `TOPIC_TRANSLATION_BATCH_SIZE`
 
 The current translation path uses `deep-translator` with Google Translate. It does not download a local model, but it does send translated output snippets to Google's translation service when analysis runs.
+
+## Local Embedding Model
+
+Sentence embeddings can be loaded from a local folder with:
+
+- `TOPIC_EMBEDDING_MODEL`
+- `TOPIC_EMBEDDING_LOCAL_PATH`
+
+When the local folder exists, the backend loads it with `local_files_only=True` and skips Hugging Face lookup calls during analysis. The included `download_topic_model.py` script can populate that folder during your Render build or before local testing.
 
 ## AI Topic Labels
 
