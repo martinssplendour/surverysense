@@ -10,8 +10,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches as DocxInches
 from docx.shared import Pt as DocxPt
 from docx.shared import RGBColor
-from PIL import Image
+from PIL import Image, ImageChops
 from pptx import Presentation
+from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor as PptxRGBColor
 from pptx.util import Inches as PptxInches
 from pptx.util import Pt as PptxPt
@@ -34,6 +35,12 @@ _DATA_URL_PATTERN = re.compile(r"^data:image/(?P<kind>[a-zA-Z0-9.+-]+);base64,(?
 _FILENAME_PATTERN = re.compile(r"[^a-z0-9]+")
 _REPORT_TITLE_COLOR = "#2a3f5f"
 _REPORT_TITLE_RGB = (42, 63, 95)
+_PPTX_SLIDE_WIDTH = 13.333
+_PPTX_SLIDE_HEIGHT = 7.5
+_PPTX_SLIDE_BACKGROUND_RGB = (255, 255, 255)
+_PPTX_TEXT_RGB = (93, 134, 211)
+_PPTX_CONTENT_LEFT = 1.05
+_PPTX_CONTENT_WIDTH = 11.233
 
 
 @dataclass(slots=True)
@@ -94,12 +101,15 @@ class AnalysisReportExportService:
 
         story.append(Paragraph(self._escape(self._build_report_title()), styles["title"]))
         story.append(Paragraph(self._escape(self._build_subtitle(request)), styles["subtitle"]))
-        story.append(Spacer(1, 18))
+        story.append(Spacer(1, 12))
 
         filters_text = self._filters_text(request)
         if filters_text:
             story.append(Paragraph(self._escape(filters_text), styles["body"]))
+        else:
             story.append(Spacer(1, 12))
+        story.append(Paragraph(self._escape(self._row_count_text(request)), styles["body"]))
+        story.append(Spacer(1, 12))
 
         if charts:
             for index, chart in enumerate(charts):
@@ -150,19 +160,13 @@ class AnalysisReportExportService:
         title_run.font.size = DocxPt(22)
         title_run.font.color.rgb = RGBColor(*_REPORT_TITLE_RGB)
 
-        subtitle = document.add_paragraph(self._build_subtitle(request))
-        subtitle.style = document.styles["Subtitle"]
-        for run in subtitle.runs:
+        metadata = document.add_paragraph(self._build_docx_metadata_line(request))
+        metadata.style = document.styles["Subtitle"]
+        for run in metadata.runs:
             run.font.name = "Aptos"
             run.font.size = DocxPt(10)
-        document.add_paragraph()
 
-        filters_text = self._filters_text(request)
-        if filters_text:
-            paragraph = document.add_paragraph()
-            filters_run = paragraph.add_run(filters_text)
-            filters_run.font.name = "Aptos"
-            filters_run.font.size = DocxPt(10)
+        document.add_paragraph()
 
         if charts:
             for chart in charts:
@@ -218,9 +222,7 @@ class AnalysisReportExportService:
 
     def _build_pptx_title_slide(self, presentation: Presentation, request: AnalysisExportRequest) -> None:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
-        background = slide.background.fill
-        background.solid()
-        background.fore_color.rgb = PptxRGBColor(247, 242, 234)
+        self._set_pptx_slide_background(slide)
 
         title_box = slide.shapes.add_textbox(PptxInches(0.7), PptxInches(0.8), PptxInches(11.4), PptxInches(1.2))
         title_frame = title_box.text_frame
@@ -229,44 +231,60 @@ class AnalysisReportExportService:
         title_paragraph.text = self._build_report_title()
         title_paragraph.font.size = PptxPt(24)
         title_paragraph.font.bold = True
-        title_paragraph.font.color.rgb = PptxRGBColor(*_REPORT_TITLE_RGB)
+        title_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+        title_paragraph.alignment = PP_ALIGN.CENTER
 
         subtitle_box = slide.shapes.add_textbox(PptxInches(0.72), PptxInches(1.95), PptxInches(11.2), PptxInches(1.0))
         subtitle_frame = subtitle_box.text_frame
         subtitle_frame.word_wrap = True
         subtitle_frame.paragraphs[0].text = self._build_subtitle(request)
         subtitle_frame.paragraphs[0].font.size = PptxPt(12)
-        subtitle_frame.paragraphs[0].font.color.rgb = PptxRGBColor(84, 77, 69)
-        filters_text = self._filters_text(request)
-        if filters_text:
-            filters_box = slide.shapes.add_textbox(PptxInches(0.72), PptxInches(2.5), PptxInches(11.0), PptxInches(0.8))
-            filters_frame = filters_box.text_frame
-            filters_frame.word_wrap = True
-            filters_frame.paragraphs[0].text = filters_text
-            filters_frame.paragraphs[0].font.size = PptxPt(10)
-            filters_frame.paragraphs[0].font.color.rgb = PptxRGBColor(84, 77, 69)
+        subtitle_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+        subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        metadata_box = slide.shapes.add_textbox(PptxInches(0.72), PptxInches(2.5), PptxInches(11.0), PptxInches(1.0))
+        metadata_frame = metadata_box.text_frame
+        metadata_frame.word_wrap = True
+        filters_paragraph = metadata_frame.paragraphs[0]
+        filters_paragraph.text = self._filters_text(request)
+        filters_paragraph.font.size = PptxPt(10)
+        filters_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+        filters_paragraph.alignment = PP_ALIGN.CENTER
+        row_paragraph = metadata_frame.add_paragraph()
+        row_paragraph.text = self._row_count_text(request)
+        row_paragraph.font.size = PptxPt(10)
+        row_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+        row_paragraph.alignment = PP_ALIGN.CENTER
 
     def _build_pptx_chart_slide(self, presentation: Presentation, chart: DecodedChartImage) -> None:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
         self._set_pptx_slide_background(slide)
         self._add_pptx_slide_title(slide, chart.title)
 
+        content_top = 1.0
         if chart.caption:
-            caption_box = slide.shapes.add_textbox(PptxInches(0.8), PptxInches(1.25), PptxInches(11.0), PptxInches(0.45))
+            caption_box = slide.shapes.add_textbox(
+                PptxInches(_PPTX_CONTENT_LEFT),
+                PptxInches(1.02),
+                PptxInches(_PPTX_CONTENT_WIDTH),
+                PptxInches(0.4),
+            )
             caption_frame = caption_box.text_frame
             caption_frame.paragraphs[0].text = chart.caption
             caption_frame.paragraphs[0].font.size = PptxPt(10)
-            caption_frame.paragraphs[0].font.color.rgb = PptxRGBColor(98, 91, 82)
+            caption_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+            caption_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+            content_top = 1.42
 
+        chart = self._trim_pptx_chart_image(chart)
         image = Image.open(BytesIO(chart.image_bytes))
         width_inches, height_inches = self._fit_image_to_bounds(
             width=image.width,
             height=image.height,
-            max_width=11.0,
-            max_height=5.3,
+            max_width=min(10.7, _PPTX_CONTENT_WIDTH),
+            max_height=_PPTX_SLIDE_HEIGHT - content_top - 0.45,
         )
-        left = (13.333 - width_inches) / 2
-        top = 1.65 + ((5.3 - height_inches) / 2)
+        left = max(0.4, (_PPTX_SLIDE_WIDTH - width_inches) / 2)
+        top = max(content_top, (_PPTX_SLIDE_HEIGHT - height_inches) / 2)
         slide.shapes.add_picture(
             BytesIO(chart.image_bytes),
             PptxInches(left),
@@ -290,7 +308,7 @@ class AnalysisReportExportService:
             paragraph.level = 0
             paragraph.bullet = True
             paragraph.font.size = PptxPt(14)
-            paragraph.font.color.rgb = PptxRGBColor(61, 53, 45)
+            paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
             paragraph.space_after = PptxPt(8)
 
     def _build_pptx_representative_slides(self, presentation: Presentation, request: AnalysisExportRequest) -> None:
@@ -312,12 +330,12 @@ class AnalysisReportExportService:
                 heading.text = label
                 heading.font.size = PptxPt(16)
                 heading.font.bold = True
-                heading.font.color.rgb = PptxRGBColor(41, 75, 59)
+                heading.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
                 for index, example in enumerate(examples, start=1):
                     paragraph = frame.add_paragraph()
                     paragraph.text = f"{index}. {example}"
                     paragraph.font.size = PptxPt(12)
-                    paragraph.font.color.rgb = PptxRGBColor(61, 53, 45)
+                    paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
                     paragraph.space_after = PptxPt(6)
                 top += 2.8
 
@@ -464,6 +482,17 @@ class AnalysisReportExportService:
             if item.values
         )
 
+    def _row_count_text(self, request: AnalysisExportRequest) -> str:
+        return f"{int(request.analysis_result.filtered_row_count)} rows"
+
+    def _build_docx_metadata_line(self, request: AnalysisExportRequest) -> str:
+        parts = [self._build_subtitle(request)]
+        filters_text = self._filters_text(request)
+        if filters_text:
+            parts.append(filters_text)
+        parts.append(self._row_count_text(request))
+        return " · ".join(part for part in parts if part)
+
     def _decode_chart(self, chart: AnalysisExportChartModel) -> DecodedChartImage:
         match = _DATA_URL_PATTERN.match(chart.image_data_url.strip())
         if match is None:
@@ -532,17 +561,70 @@ class AnalysisReportExportService:
             return ""
         return caption
 
+    def _trim_pptx_chart_image(self, chart: DecodedChartImage) -> DecodedChartImage:
+        image = Image.open(BytesIO(chart.image_bytes)).convert("RGB")
+        background_color = image.getpixel((0, 0))
+        background = Image.new("RGB", image.size, background_color)
+        difference = ImageChops.difference(image, background).convert("L")
+        mask = difference.point(lambda value: 255 if value > 8 else 0)
+        bbox = mask.getbbox()
+        if bbox is None:
+            return chart
+
+        padding = 10
+        left = max(0, bbox[0] - padding)
+        top = max(0, bbox[1] - padding)
+        right = min(image.width, bbox[2] + padding)
+        bottom = min(image.height, bbox[3] + padding)
+        cropped = image.crop((left, top, right, bottom))
+
+        # Remove the duplicate Plotly title/corner header from the exported chart image.
+        top_trim = min(max(18, int(cropped.height * 0.06)), max(0, cropped.height // 5))
+        if top_trim > 0:
+            cropped = cropped.crop((0, top_trim, cropped.width, cropped.height))
+
+        # Normalize any near-background pixels to pure white so the slide reads as one white canvas.
+        white = Image.new("RGB", cropped.size, _PPTX_SLIDE_BACKGROUND_RGB)
+        recolored = cropped.copy()
+        pixels = recolored.load()
+        for x in range(recolored.width):
+            for y in range(recolored.height):
+                r, g, b = pixels[x, y]
+                if (
+                    abs(r - background_color[0]) <= 20
+                    and abs(g - background_color[1]) <= 20
+                    and abs(b - background_color[2]) <= 20
+                ):
+                    pixels[x, y] = _PPTX_SLIDE_BACKGROUND_RGB
+        cropped = ImageChops.blend(white, recolored, 1.0)
+
+        normalized = BytesIO()
+        cropped.save(normalized, format="PNG")
+        return DecodedChartImage(
+            title=chart.title,
+            caption=chart.caption,
+            image_bytes=normalized.getvalue(),
+            width=int(cropped.width),
+            height=int(cropped.height),
+        )
+
     def _set_pptx_slide_background(self, slide) -> None:
         background = slide.background.fill
         background.solid()
-        background.fore_color.rgb = PptxRGBColor(247, 242, 234)
+        background.fore_color.rgb = PptxRGBColor(*_PPTX_SLIDE_BACKGROUND_RGB)
 
     def _add_pptx_slide_title(self, slide, title: str) -> None:
-        title_box = slide.shapes.add_textbox(PptxInches(0.7), PptxInches(0.45), PptxInches(11.4), PptxInches(0.55))
+        title_box = slide.shapes.add_textbox(
+            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(0.45),
+            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(0.55),
+        )
         title_frame = title_box.text_frame
         title_frame.clear()
         paragraph = title_frame.paragraphs[0]
         paragraph.text = title
-        paragraph.font.size = PptxPt(22)
+        paragraph.font.size = PptxPt(20)
         paragraph.font.bold = True
-        paragraph.font.color.rgb = PptxRGBColor(41, 75, 59)
+        paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+        paragraph.alignment = PP_ALIGN.CENTER

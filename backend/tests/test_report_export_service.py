@@ -15,7 +15,7 @@ from app.models.api import (
     AnalysisGroupModel,
     AnalysisRunResponse,
 )
-from app.services.report_export_service import AnalysisReportExportService
+from app.services.report_export_service import AnalysisReportExportService, DecodedChartImage
 
 
 class AnalysisReportExportServiceTests(TestCase):
@@ -100,6 +100,11 @@ class AnalysisReportExportServiceTests(TestCase):
         )
         with ZipFile(BytesIO(artifact.content)) as archive:
             self.assertIn("word/document.xml", archive.namelist())
+            document_xml = archive.read("word/document.xml").decode("utf-8")
+            self.assertIn("question_text", document_xml)
+            self.assertIn("Country: United Kingdom", document_xml)
+            self.assertIn("120 rows", document_xml)
+            self.assertIn("question_text · Country: United Kingdom · 120 rows", document_xml)
 
     def test_export_report_builds_pptx_document(self) -> None:
         self.request.format = "pptx"
@@ -112,3 +117,27 @@ class AnalysisReportExportServiceTests(TestCase):
         )
         with ZipFile(BytesIO(artifact.content)) as archive:
             self.assertIn("ppt/presentation.xml", archive.namelist())
+            slide_xml = archive.read("ppt/slides/slide1.xml").decode("utf-8")
+            self.assertIn("Country: United Kingdom", slide_xml)
+            self.assertIn("120 rows", slide_xml)
+
+    def test_trim_pptx_chart_image_removes_uniform_border(self) -> None:
+        buffer = BytesIO()
+        image = Image.new("RGB", (220, 140), "#f7f2ea")
+        for x in range(60, 180):
+            for y in range(40, 110):
+                image.putpixel((x, y), (41, 75, 59))
+        image.save(buffer, format="PNG")
+
+        trimmed = self.service._trim_pptx_chart_image(
+            DecodedChartImage(
+                title="Single Words",
+                caption="",
+                image_bytes=buffer.getvalue(),
+                width=220,
+                height=140,
+            )
+        )
+
+        self.assertLess(trimmed.width, 220)
+        self.assertLess(trimmed.height, 140)

@@ -59,7 +59,7 @@ class Settings:
     topic_translation_target_language: str = os.getenv("TOPIC_TRANSLATION_TARGET_LANGUAGE", "en").strip()
     topic_translation_batch_size: int = int(os.getenv("TOPIC_TRANSLATION_BATCH_SIZE", "8"))
     topic_ai_labeling_enabled: bool = os.getenv("TOPIC_AI_LABELING_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
-    topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "8"))
+    topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "30"))
     topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "10"))
     topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "3"))
     topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
