@@ -17,7 +17,7 @@ DatasetName = Literal["transformed", "analysis"]
 _MODEL_LABELS: dict[str, str] = {
     "bertopic": "Topic Clusters",
     "kmeans": "Fixed Similarity Groups",
-    "hdbscan": "Agglomerative Clusters",
+    "hdbscan": "Natural Groups",
     "ngrams": "Repeated Words and Phrases",
 }
 

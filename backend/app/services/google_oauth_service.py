@@ -41,6 +41,7 @@ class GoogleOAuthService:
         javascript_origins: tuple[str, ...] | list[str],
         client_json_path: str,
         allowed_domains: tuple[str, ...],
+        clock_skew_seconds: int = 30,
     ) -> None:
         self.allowed_domains = tuple(
             sorted(
@@ -51,6 +52,7 @@ class GoogleOAuthService:
                 }
             )
         )
+        self.clock_skew_seconds = max(0, int(clock_skew_seconds))
         self._config = self._load_client_config(
             client_id=client_id,
             client_secret=client_secret,
@@ -85,6 +87,7 @@ class GoogleOAuthService:
             credential,
             GoogleRequest(),
             self._config.client_id,
+            clock_skew_in_seconds=self.clock_skew_seconds,
         )
         email = str(token_info.get("email", "")).strip()
         email_verified = bool(token_info.get("email_verified"))

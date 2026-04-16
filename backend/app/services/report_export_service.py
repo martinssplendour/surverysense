@@ -39,8 +39,8 @@ _PPTX_SLIDE_WIDTH = 13.333
 _PPTX_SLIDE_HEIGHT = 7.5
 _PPTX_SLIDE_BACKGROUND_RGB = (255, 255, 255)
 _PPTX_TEXT_RGB = (93, 134, 211)
-_PPTX_CONTENT_LEFT = 1.05
-_PPTX_CONTENT_WIDTH = 11.233
+_PPTX_CONTENT_LEFT = 0.45
+_PPTX_CONTENT_WIDTH = _PPTX_SLIDE_WIDTH - (_PPTX_CONTENT_LEFT * 2)
 
 
 @dataclass(slots=True)
@@ -224,7 +224,12 @@ class AnalysisReportExportService:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
         self._set_pptx_slide_background(slide)
 
-        title_box = slide.shapes.add_textbox(PptxInches(0.7), PptxInches(0.8), PptxInches(11.4), PptxInches(1.2))
+        title_box = slide.shapes.add_textbox(
+            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(0.8),
+            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(1.2),
+        )
         title_frame = title_box.text_frame
         title_frame.clear()
         title_paragraph = title_frame.paragraphs[0]
@@ -232,28 +237,38 @@ class AnalysisReportExportService:
         title_paragraph.font.size = PptxPt(24)
         title_paragraph.font.bold = True
         title_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        title_paragraph.alignment = PP_ALIGN.CENTER
+        title_paragraph.alignment = PP_ALIGN.LEFT
 
-        subtitle_box = slide.shapes.add_textbox(PptxInches(0.72), PptxInches(1.95), PptxInches(11.2), PptxInches(1.0))
+        subtitle_box = slide.shapes.add_textbox(
+            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(1.95),
+            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(1.0),
+        )
         subtitle_frame = subtitle_box.text_frame
         subtitle_frame.word_wrap = True
         subtitle_frame.paragraphs[0].text = self._build_subtitle(request)
         subtitle_frame.paragraphs[0].font.size = PptxPt(12)
         subtitle_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-        metadata_box = slide.shapes.add_textbox(PptxInches(0.72), PptxInches(2.5), PptxInches(11.0), PptxInches(1.0))
+        subtitle_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        metadata_box = slide.shapes.add_textbox(
+            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(2.5),
+            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(1.0),
+        )
         metadata_frame = metadata_box.text_frame
         metadata_frame.word_wrap = True
         filters_paragraph = metadata_frame.paragraphs[0]
         filters_paragraph.text = self._filters_text(request)
         filters_paragraph.font.size = PptxPt(10)
         filters_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        filters_paragraph.alignment = PP_ALIGN.CENTER
+        filters_paragraph.alignment = PP_ALIGN.LEFT
         row_paragraph = metadata_frame.add_paragraph()
         row_paragraph.text = self._row_count_text(request)
         row_paragraph.font.size = PptxPt(10)
         row_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        row_paragraph.alignment = PP_ALIGN.CENTER
+        row_paragraph.alignment = PP_ALIGN.LEFT
 
     def _build_pptx_chart_slide(self, presentation: Presentation, chart: DecodedChartImage) -> None:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
@@ -272,7 +287,7 @@ class AnalysisReportExportService:
             caption_frame.paragraphs[0].text = chart.caption
             caption_frame.paragraphs[0].font.size = PptxPt(10)
             caption_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-            caption_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+            caption_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
             content_top = 1.42
 
         chart = self._trim_pptx_chart_image(chart)
@@ -280,10 +295,10 @@ class AnalysisReportExportService:
         width_inches, height_inches = self._fit_image_to_bounds(
             width=image.width,
             height=image.height,
-            max_width=min(10.7, _PPTX_CONTENT_WIDTH),
+            max_width=_PPTX_CONTENT_WIDTH,
             max_height=_PPTX_SLIDE_HEIGHT - content_top - 0.45,
         )
-        left = max(0.4, (_PPTX_SLIDE_WIDTH - width_inches) / 2)
+        left = _PPTX_CONTENT_LEFT
         top = max(content_top, (_PPTX_SLIDE_HEIGHT - height_inches) / 2)
         slide.shapes.add_picture(
             BytesIO(chart.image_bytes),
@@ -298,7 +313,12 @@ class AnalysisReportExportService:
         self._set_pptx_slide_background(slide)
         self._add_pptx_slide_title(slide, self._build_summary_heading(request))
 
-        box = slide.shapes.add_textbox(PptxInches(0.8), PptxInches(1.35), PptxInches(11.3), PptxInches(5.6))
+        box = slide.shapes.add_textbox(
+            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(1.35),
+            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(5.6),
+        )
         frame = box.text_frame
         frame.word_wrap = True
         findings = self._build_summary_lines(request)[:8]
@@ -323,7 +343,12 @@ class AnalysisReportExportService:
 
             top = 1.25
             for label, examples in sections[chunk_start:chunk_start + 2]:
-                group_box = slide.shapes.add_textbox(PptxInches(0.8), PptxInches(top), PptxInches(11.3), PptxInches(2.6))
+                group_box = slide.shapes.add_textbox(
+                    PptxInches(_PPTX_CONTENT_LEFT),
+                    PptxInches(top),
+                    PptxInches(_PPTX_CONTENT_WIDTH),
+                    PptxInches(2.6),
+                )
                 frame = group_box.text_frame
                 frame.word_wrap = True
                 heading = frame.paragraphs[0]
@@ -627,4 +652,4 @@ class AnalysisReportExportService:
         paragraph.font.size = PptxPt(20)
         paragraph.font.bold = True
         paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        paragraph.alignment = PP_ALIGN.CENTER
+        paragraph.alignment = PP_ALIGN.LEFT

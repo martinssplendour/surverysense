@@ -8,7 +8,7 @@ const FULL_DATA_VISIBLE_COLUMN_COUNT = 12;
 const ANALYSIS_MODE_OPTIONS = [
     { key: "bertopic", label: "BERTopic", description: "Groups similar responses into topics and compares topic size." },
     { key: "kmeans", label: "K-means", description: "Splits responses into a fixed number of similarity groups." },
-    { key: "hdbscan", label: "Agglomerative", description: "Builds natural clusters by merging the closest responses first." },
+    { key: "hdbscan", label: "Natural Groups", description: "Finds dense similarity groups and can leave outliers unassigned." },
     { key: "ngrams", label: "N-grams", description: "Highlights the most repeated words and phrases in the text." },
 ];
 

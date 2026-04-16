@@ -1,6 +1,7 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.services.google_oauth_service import GoogleOAuthService
 
@@ -66,6 +67,38 @@ class GoogleOAuthServiceTests(unittest.TestCase):
         self.assertTrue(service.is_configured)
         self.assertEqual(service.client_id, "client-id.apps.googleusercontent.com")
         self.assertEqual(service.redirect_uris, ["https://verbatimapp.onrender.com/auth/callback"])
+
+    def test_verify_credential_allows_small_clock_skew(self) -> None:
+        service = GoogleOAuthService(
+            client_id="client-id.apps.googleusercontent.com",
+            client_secret="secret-value",
+            redirect_uris=("https://verbatimapp.onrender.com/auth/callback",),
+            javascript_origins=("https://verbatimapp.onrender.com",),
+            client_json_path="",
+            allowed_domains=("twinkl.co.uk", "twinkl.com"),
+        )
+
+        with patch("app.services.google_oauth_service.GoogleRequest", return_value=object()), patch(
+            "app.services.google_oauth_service.id_token"
+        ) as mock_id_token:
+            mock_id_token.verify_oauth2_token.return_value = {
+                "email": "person@twinkl.com",
+                "email_verified": True,
+                "name": "Person Example",
+                "picture": "https://example.com/avatar.png",
+            }
+
+            user = service.verify_credential("test-credential")
+
+        mock_id_token.verify_oauth2_token.assert_called_once_with(
+            "test-credential",
+            unittest.mock.ANY,
+            "client-id.apps.googleusercontent.com",
+            clock_skew_in_seconds=30,
+        )
+        self.assertEqual(user.email, "person@twinkl.com")
+        self.assertEqual(user.name, "Person Example")
+        self.assertEqual(user.picture, "https://example.com/avatar.png")
 
 
 if __name__ == "__main__":
