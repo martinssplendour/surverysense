@@ -27,7 +27,10 @@ from app.services.topic_analysis_services import (
 
 
 class _FakeEmbeddingService:
+    last_texts: list[str] = []
+
     def encode(self, texts: list[str], *, model_name: str, local_model_path: str = ""):
+        type(self).last_texts = list(texts)
         return [[float(index), float(index + 1)] for index, _text in enumerate(texts)]
 
 
@@ -254,6 +257,19 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
 
         self.assertEqual([item["term"] for item in ngrams], ["resources", "classroom", "looking"])
 
+    def test_prepare_clustering_texts_removes_stopwords_but_falls_back_when_empty(self) -> None:
+        service = TopicAnalysisKeywordService()
+
+        texts = service.prepare_clustering_texts(
+            [
+                "What I need is more support in the classroom",
+                "to be or not to be",
+            ]
+        )
+
+        self.assertEqual(texts[0], "support classroom")
+        self.assertEqual(texts[1], "to be or not to be")
+
 
 class BertopicAnalysisServiceTests(unittest.TestCase):
     def test_run_reassigns_outliers_to_nearest_existing_theme(self) -> None:
@@ -334,6 +350,7 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
 
 class TopicAnalysisServiceTests(unittest.TestCase):
     def setUp(self) -> None:
+        _FakeEmbeddingService.last_texts = []
         keyword_service = TopicAnalysisKeywordService()
         self.config = TopicAnalysisConfig(
             embedding_model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -650,6 +667,55 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertIn("materials", result["groups"][0]["terms"])
         self.assertIn("more", result["groups"][0]["terms"])
         self.assertNotIn("mai", result["groups"][0]["label"])
+
+    def test_run_strips_stopwords_before_embeddings_but_keeps_original_examples(self) -> None:
+        service = TopicAnalysisService(
+            config=self.config,
+            input_validation_service=self.validation_service,
+            text_preparation_service=TopicAnalysisTextPreparationService(max_document_chars=300),
+            keyword_service=self.keyword_service,
+            narrative_service=self.narrative_service,
+            representative_example_service=self.example_service,
+            embedding_service=_FakeEmbeddingService(),
+            ngram_service=self.ngram_service,
+            kmeans_service=_FakeKMeansService(),
+            hdbscan_service=_UnusedService(),
+            bertopic_service=_UnusedService(),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "What I need is more support in the classroom",
+                    "Need more maths challenge activities",
+                    "What I need is support in class",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key="kmeans",
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            _FakeEmbeddingService.last_texts,
+            [
+                "support classroom",
+                "maths challenge activities",
+                "support class",
+            ],
+        )
+        self.assertIn(
+            result["groups"][0]["examples"][0]["text"],
+            {
+                "What I need is more support in the classroom",
+                "Need more maths challenge activities",
+            },
+        )
 
     def test_run_keeps_heuristic_labels_when_ai_labeling_fails(self) -> None:
         service = TopicAnalysisService(

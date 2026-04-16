@@ -427,6 +427,13 @@ class TopicAnalysisKeywordService:
         terms = self.top_terms(texts, top_n=2)
         return " ".join(terms).strip()
 
+    def prepare_clustering_texts(self, texts: list[str]) -> list[str]:
+        prepared_texts: list[str] = []
+        for text in texts:
+            stripped = " ".join(self._tokenize(text))
+            prepared_texts.append(stripped or text)
+        return prepared_texts
+
     def _tokenize(self, text: str) -> list[str]:
         tokens: list[str] = []
         for token in self.TOKEN_PATTERN.findall(text.casefold()):
@@ -1040,14 +1047,15 @@ class TopicAnalysisService:
                 base_response["ngram_buckets"] = ngram_buckets
                 return base_response
 
+            clustering_texts = self.keyword_service.prepare_clustering_texts(prepared.texts)
             if model_key == "bertopic":
                 embeddings = self.embedding_service.encode(
-                    prepared.texts,
+                    clustering_texts,
                     model_name=self.config.embedding_model,
                     local_model_path=self.config.embedding_local_path,
                 )
                 model_result = self.bertopic_service.run(
-                    prepared.texts,
+                    clustering_texts,
                     embeddings,
                     top_terms=self.config.top_terms_per_group,
                     language=self.config.bertopic_language,
@@ -1056,7 +1064,7 @@ class TopicAnalysisService:
                 )
             else:
                 embeddings = self.embedding_service.encode(
-                    prepared.texts,
+                    clustering_texts,
                     model_name=self.config.embedding_model,
                     local_model_path=self.config.embedding_local_path,
                 )
