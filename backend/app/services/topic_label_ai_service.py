@@ -140,7 +140,7 @@ class TopicAiLabelService:
     ) -> dict[str, Any]:
         endpoint = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.config.gemini_model}:generateContent?key={self.config.gemini_api_key}"
+            f"{self.config.gemini_model}:generateContent"
         )
         request_payload = {
             "contents": [
@@ -167,7 +167,10 @@ class TopicAiLabelService:
         request = urllib.request.Request(
             endpoint,
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.config.gemini_api_key,
+            },
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:

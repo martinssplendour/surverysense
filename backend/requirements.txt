@@ -1,21 +1,50 @@
-fastapi
-uvicorn
-pandas
-python-multipart
-chardet
-python-dotenv
-google-auth
-requests
-itsdangerous
-numpy
-scikit-learn
-sentence-transformers
-huggingface-hub
-deep-translator
-hdbscan
-umap-learn
-bertopic
-reportlab
-python-docx
-python-pptx
-Pillow
+# Core web framework
+fastapi==0.111.0
+uvicorn==0.30.1
+starlette==0.37.2
+python-multipart==0.0.9
+itsdangerous==2.2.0
+
+# Data processing
+pandas==2.3.2
+numpy==1.26.4
+chardet==7.4.1
+
+# ML / NLP — pin tightly; frequent breaking changes across these packages
+scikit-learn==1.8.0
+sentence-transformers==5.2.2
+bertopic==0.17.3
+umap-learn==0.5.9.post2
+hdbscan==0.8.41
+torch==2.3.1
+transformers==4.44.2
+tokenizers==0.19.1
+safetensors==0.6.2
+huggingface-hub==0.36.0
+numba==0.62.1
+llvmlite==0.45.1
+scipy==1.13.1
+joblib==1.5.2
+tqdm==4.67.1
+accelerate==0.33.0
+
+# Auth & HTTP
+google-auth==2.42.0
+requests==2.31.0
+slowapi==0.1.9
+
+# Translation
+deep-translator==1.11.4
+
+# Config
+python-dotenv==1.0.0
+
+# Report export
+reportlab==4.4.5
+python-docx==1.2.0
+python-pptx==1.0.2
+Pillow==10.4.0
+
+# Validation
+pydantic==2.7.4
+pydantic-settings==2.3.4

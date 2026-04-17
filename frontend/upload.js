@@ -1,5 +1,7 @@
 (function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
+const RESULT_HANDOFF_MAX_ATTEMPTS = 20;
+const RESULT_HANDOFF_RETRY_MS = 100;
 
 const state = {
     file: null,
@@ -146,11 +148,7 @@ async function handleSubmit(event) {
         );
         setBusyState(false);
         showStatus("neutral", "File processed.");
-        if (typeof window.verbatimApplyProcessedResult === "function") {
-            window.verbatimApplyProcessedResult(payload);
-            return;
-        }
-        window.dispatchEvent(new CustomEvent("verbatim:result-ready", { detail: payload }));
+        handoffProcessedResult(payload);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Processing failed.";
         showStatus("error", message);
@@ -166,6 +164,29 @@ function setBusyState(isBusy) {
 function showStatus(kind, message) {
     elements.statusMessage.textContent = message;
     elements.statusMessage.className = `status-message status-${kind}`;
+}
+
+function handoffProcessedResult(payload, attempt = 0) {
+    if (typeof window.verbatimApplyProcessedResult === "function") {
+        window.verbatimApplyProcessedResult(payload);
+        return;
+    }
+
+    window.dispatchEvent(new CustomEvent("verbatim:result-ready", { detail: payload }));
+
+    if (typeof window.verbatimApplyProcessedResult === "function") {
+        window.verbatimApplyProcessedResult(payload);
+        return;
+    }
+
+    if (attempt >= RESULT_HANDOFF_MAX_ATTEMPTS) {
+        window.location.assign("/");
+        return;
+    }
+
+    window.setTimeout(() => {
+        handoffProcessedResult(payload, attempt + 1);
+    }, RESULT_HANDOFF_RETRY_MS);
 }
 
 async function parseJson(response) {

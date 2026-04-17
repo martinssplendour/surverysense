@@ -257,18 +257,18 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
 
         self.assertEqual([item["term"] for item in ngrams], ["resources", "classroom", "looking"])
 
-    def test_prepare_clustering_texts_removes_stopwords_but_falls_back_when_empty(self) -> None:
+    def test_top_terms_drop_two_letter_tokens_during_label_cleanup(self) -> None:
         service = TopicAnalysisKeywordService()
 
-        texts = service.prepare_clustering_texts(
+        terms = service.top_terms(
             [
-                "What I need is more support in the classroom",
-                "to be or not to be",
-            ]
+                "AI support in UK schools",
+                "UK support for AI in class",
+            ],
+            top_n=10,
         )
 
-        self.assertEqual(texts[0], "support classroom")
-        self.assertEqual(texts[1], "to be or not to be")
+        self.assertEqual(terms, ["support", "schools", "class"])
 
 
 class BertopicAnalysisServiceTests(unittest.TestCase):
@@ -668,7 +668,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertIn("more", result["groups"][0]["terms"])
         self.assertNotIn("mai", result["groups"][0]["label"])
 
-    def test_run_strips_stopwords_before_embeddings_but_keeps_original_examples(self) -> None:
+    def test_run_embeds_original_cleaned_text_but_keeps_filtered_topic_terms(self) -> None:
         service = TopicAnalysisService(
             config=self.config,
             input_validation_service=self.validation_service,
@@ -704,9 +704,9 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(
             _FakeEmbeddingService.last_texts,
             [
-                "support classroom",
-                "maths challenge activities",
-                "support class",
+                "What I need is more support in the classroom",
+                "Need more maths challenge activities",
+                "What I need is support in class",
             ],
         )
         self.assertIn(

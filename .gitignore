@@ -1,11 +1,52 @@
-backend/.env
-**/__pycache__/
+# Python
+__pycache__/
 *.py[cod]
-.pytest_cache/
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
 .venv/
 venv/
-bq-results-20260213-113630-1770982673076.csv
-client_secret_*.json
-*.transformed.csv
-testfile2.csv
-backend/app/services/archserve
+env/
+ENV/
+
+# Environment & secrets — NEVER commit these
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/client_secret_*.json
+*.pem
+*.key
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large data files (use git-lfs or keep locally)
+*.csv
+*.xlsx
+!backend/tests/fixtures/**/*.csv
+
+# Model weights downloaded at runtime
+backend/models/
+
+# Node (if frontend build tools are added later)
+node_modules/
+dist/

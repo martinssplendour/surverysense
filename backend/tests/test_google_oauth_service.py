@@ -100,6 +100,29 @@ class GoogleOAuthServiceTests(unittest.TestCase):
         self.assertEqual(user.name, "Person Example")
         self.assertEqual(user.picture, "https://example.com/avatar.png")
 
+    def test_verify_credential_uses_configured_domains_in_error_message(self) -> None:
+        service = GoogleOAuthService(
+            client_id="client-id.apps.googleusercontent.com",
+            client_secret="secret-value",
+            redirect_uris=("https://verbatimapp.onrender.com/auth/callback",),
+            javascript_origins=("https://verbatimapp.onrender.com",),
+            client_json_path="",
+            allowed_domains=("example.com",),
+        )
+
+        with patch("app.services.google_oauth_service.GoogleRequest", return_value=object()), patch(
+            "app.services.google_oauth_service.id_token"
+        ) as mock_id_token:
+            mock_id_token.verify_oauth2_token.return_value = {
+                "email": "person@other.com",
+                "email_verified": True,
+            }
+
+            with self.assertRaises(PermissionError) as exc:
+                service.verify_credential("test-credential")
+
+        self.assertEqual(str(exc.exception), "Only @example.com accounts are allowed.")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 
@@ -30,6 +32,10 @@ from app.services.topic_analysis_services import TopicAnalysisService
 from app.services.transformation_service import DataTransformationService
 
 logger = logging.getLogger(__name__)
+audit_logger = logging.getLogger("verbatim.audit")
+
+if TYPE_CHECKING:
+    from slowapi import Limiter
 
 
 def build_ingest_router(
@@ -42,6 +48,7 @@ def build_ingest_router(
     result_store_service: ResultStoreService,
     preview_size: int,
     architect_sample_size: int,
+    limiter: "Limiter | None" = None,
 ) -> APIRouter:
     router = APIRouter(tags=["ingestion"])
 
@@ -112,7 +119,7 @@ def build_ingest_router(
         file: UploadFile = File(...),
         diagnostic_mode: DiagnosticMode = Form(DiagnosticMode.AI),
     ) -> UploadIngestResponse:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
         if file.filename and not file.filename.lower().endswith(".csv"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -155,10 +162,23 @@ def build_ingest_router(
                 verbatim_columns=analysis_verbatim_columns,
             )
             register_session_result_id(request, result_id)
+            audit_logger.info(
+                "upload_processed",
+                extra={
+                    "result_id": result_id,
+                    "user_email": user.email,
+                    "filename": file.filename or "upload.csv",
+                    "diagnostic_mode": diagnostic_mode.value,
+                },
+            )
         except (CsvDecodeError, RowLimitExceededError, IngestionError) as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+            logger.exception("Unexpected error in upload_ingest")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected error occurred.",
+            ) from exc
 
         return UploadIngestResponse(
             result_id=result_id,
@@ -182,13 +202,12 @@ def build_ingest_router(
             available_filters=serialize_filters(result_id),
         )
 
-    @router.post("/run-analysis/{result_id}", response_model=AnalysisRunResponse)
     async def run_analysis(
         request: Request,
         result_id: str,
         analysis_request: AnalysisRunRequest,
     ) -> AnalysisRunResponse:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
 
         fast_result = result_store_service.get_fast_filtered_result(
             result_id,
@@ -197,6 +216,15 @@ def build_ingest_router(
             filters=analysis_request.filters or {},
         )
         if fast_result is not None:
+            audit_logger.info(
+                "analysis_run_fast_path",
+                extra={
+                    "result_id": result_id,
+                    "user_email": user.email,
+                    "model_key": analysis_request.model_key,
+                    "text_column_name": analysis_request.text_column_name,
+                },
+            )
             return AnalysisRunResponse.model_validate(fast_result)
 
         try:
@@ -223,7 +251,25 @@ def build_ingest_router(
             model_key=analysis_request.model_key,
             analysis_result=result,
         )
+        audit_logger.info(
+            "analysis_run",
+            extra={
+                "result_id": result_id,
+                "user_email": user.email,
+                "model_key": analysis_request.model_key,
+                "text_column_name": analysis_request.text_column_name,
+            },
+        )
         return AnalysisRunResponse.model_validate(result)
+
+    limited_run_analysis = limiter.limit("10/minute")(run_analysis) if limiter is not None else run_analysis
+    limited_run_analysis.__signature__ = inspect.signature(run_analysis, eval_str=True)
+    router.add_api_route(
+        "/run-analysis/{result_id}",
+        limited_run_analysis,
+        methods=["POST"],
+        response_model=AnalysisRunResponse,
+    )
 
     @router.get("/analysis-group-documents/{result_id}", response_model=AnalysisGroupDocumentsResponse)
     async def get_analysis_group_documents(
@@ -233,7 +279,7 @@ def build_ingest_router(
         offset: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=500),
     ) -> AnalysisGroupDocumentsResponse:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
         try:
             page = result_store_service.get_analysis_group_page(
                 result_id,
@@ -245,6 +291,10 @@ def build_ingest_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        audit_logger.info(
+            "analysis_group_documents_accessed",
+            extra={"result_id": result_id, "user_email": user.email, "group_id": group_id},
+        )
 
         return AnalysisGroupDocumentsResponse(
             result_id=page.result_id,
@@ -267,7 +317,7 @@ def build_ingest_router(
         offset: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=500),
     ) -> AnalysisNgramDocumentsResponse:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
         try:
             page = result_store_service.get_analysis_ngram_page(
                 result_id,
@@ -280,6 +330,15 @@ def build_ingest_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        audit_logger.info(
+            "analysis_ngram_documents_accessed",
+            extra={
+                "result_id": result_id,
+                "user_email": user.email,
+                "ngram_size": ngram_size,
+                "term": term,
+            },
+        )
 
         return AnalysisNgramDocumentsResponse(
             result_id=page.result_id,
@@ -295,13 +354,12 @@ def build_ingest_router(
             documents=page.documents,
         )
 
-    @router.post("/analysis-export/{result_id}")
     async def export_analysis_report(
         request: Request,
         result_id: str,
         export_request: AnalysisExportRequest,
     ) -> Response:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
         try:
             result_store_service.get_filters(result_id)
             artifact = report_export_service.export_report(
@@ -312,6 +370,14 @@ def build_ingest_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        audit_logger.info(
+            "analysis_exported",
+            extra={
+                "result_id": result_id,
+                "user_email": user.email,
+                "format": export_request.format,
+            },
+        )
 
         return Response(
             content=artifact.content,
@@ -321,13 +387,23 @@ def build_ingest_router(
             },
         )
 
+    limited_export_analysis = (
+        limiter.limit("10/minute")(export_analysis_report) if limiter is not None else export_analysis_report
+    )
+    limited_export_analysis.__signature__ = inspect.signature(export_analysis_report, eval_str=True)
+    router.add_api_route(
+        "/analysis-export/{result_id}",
+        limited_export_analysis,
+        methods=["POST"],
+    )
+
     @router.post("/result-columns/{result_id}", response_model=ColumnRoleUpdateResponse)
     async def update_result_columns(
         request: Request,
         result_id: str,
         update_request: ColumnRoleUpdateRequest,
     ) -> ColumnRoleUpdateResponse:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
         try:
             stored = result_store_service.update_column_role(
                 result_id,
@@ -338,6 +414,15 @@ def build_ingest_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        audit_logger.info(
+            "column_role_updated",
+            extra={
+                "result_id": result_id,
+                "user_email": user.email,
+                "column_name": update_request.column_name,
+                "role": update_request.role.value,
+            },
+        )
 
         return ColumnRoleUpdateResponse(
             result_id=result_id,
@@ -357,7 +442,7 @@ def build_ingest_router(
         limit: int = Query(100, ge=1, le=1000),
         filters: str | None = Query(None),
     ) -> ResultRowsResponse:
-        require_authenticated_user(request)
+        user = require_authenticated_user(request)
         try:
             page = result_store_service.get_page(
                 result_id,
@@ -370,6 +455,16 @@ def build_ingest_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        audit_logger.info(
+            "result_rows_accessed",
+            extra={
+                "result_id": result_id,
+                "user_email": user.email,
+                "dataset": dataset,
+                "offset": offset,
+                "limit": limit,
+            },
+        )
 
         return ResultRowsResponse(
             result_id=page.result_id,

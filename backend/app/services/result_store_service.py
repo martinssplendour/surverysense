@@ -2,24 +2,21 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
+import logging
 from threading import Lock
 from typing import Literal
 from uuid import uuid4
 
 import pandas as pd
 
+from app.core.constants import MODEL_LABELS
+from app.models.enums import ColumnRole
 from app.services.cleaning_services import AnalysisReadyDatasetService
 from app.services.metadata_filter_service import MetadataFilterDefinition, MetadataFilterService
 
 
 DatasetName = Literal["transformed", "analysis"]
-
-_MODEL_LABELS: dict[str, str] = {
-    "bertopic": "Topic Clusters",
-    "kmeans": "Fixed Similarity Groups",
-    "hdbscan": "Natural Groups",
-    "ngrams": "Repeated Words and Phrases",
-}
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -172,14 +169,14 @@ class ResultStoreService:
         if stored is None:
             raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
 
-        return stored.available_filters
+        return list(stored.available_filters)
 
     def update_column_role(
         self,
         result_id: str,
         *,
         column_name: str,
-        role: Literal["metadata", "verbatim"],
+        role: ColumnRole,
     ) -> StoredResultDatasets:
         with self._lock:
             stored = self._results.get(result_id)
@@ -191,7 +188,7 @@ class ResultStoreService:
 
             metadata_columns = [column for column in stored.metadata_columns if column != column_name]
             verbatim_columns = [column for column in stored.verbatim_columns if column != column_name]
-            if role == "metadata":
+            if role == ColumnRole.METADATA:
                 metadata_columns.append(column_name)
             else:
                 verbatim_columns.append(column_name)
@@ -206,10 +203,10 @@ class ResultStoreService:
                 metadata_columns=resolved_metadata,
             )
 
-            stored.analysis_df = analysis_df
-            stored.metadata_columns = resolved_metadata
-            stored.verbatim_columns = resolved_verbatim
-            stored.available_filters = available_filters
+            stored.analysis_df = analysis_df.copy()
+            stored.metadata_columns = list(resolved_metadata)
+            stored.verbatim_columns = list(resolved_verbatim)
+            stored.available_filters = list(available_filters)
             self._analysis_snapshots.pop(result_id, None)
             self._results.move_to_end(result_id)
             return StoredResultDatasets(
@@ -233,7 +230,7 @@ class ResultStoreService:
         if stored is None:
             raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
 
-        unfiltered_df = stored.transformed_df if dataset == "transformed" else stored.analysis_df
+        unfiltered_df = (stored.transformed_df if dataset == "transformed" else stored.analysis_df).copy()
         filtered_df = self.metadata_filter_service.apply_filters(
             unfiltered_df,
             filters=filters,
@@ -473,7 +470,7 @@ class ResultStoreService:
             "ok": True,
             "result_id": result_id,
             "model_key": model_key,
-            "model_label": _MODEL_LABELS.get(model_key, model_key.upper()),
+            "model_label": MODEL_LABELS.get(model_key, model_key.upper()),
             "text_column_name": text_column_name,
             "filtered_row_count": int(len(filtered_df)),
             "valid_document_count": total_surviving,

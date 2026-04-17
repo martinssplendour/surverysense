@@ -85,6 +85,9 @@ class TopicAiLabelServiceTests(unittest.TestCase):
 
         def _fake_urlopen(request, timeout):
             self.assertEqual(timeout, 8)
+            self.assertNotIn("?key=", request.full_url)
+            headers = {key.casefold(): value for key, value in request.header_items()}
+            self.assertEqual(headers.get("x-goog-api-key"), "test-key")
             payload = json.loads(request.data.decode("utf-8"))
             prompt = payload["contents"][0]["parts"][0]["text"]
             self.assertIn('"group_id":"0"', prompt)

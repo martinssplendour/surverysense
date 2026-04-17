@@ -7,6 +7,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -59,7 +62,7 @@ from app.services.transformation_service import DataTransformationService
 
 logger = logging.getLogger(__name__)
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 PUBLIC_PATH_PREFIXES = ("/static", "/auth", "/health")
 PUBLIC_PATHS = {"/login"}
 
@@ -86,6 +89,10 @@ class AuthRedirectMiddleware(BaseHTTPMiddleware):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    if not settings.debug and settings.is_default_session_secret:
+        raise RuntimeError(
+            "SESSION_SECRET must be set to a non-default value outside development/test environments."
+        )
     google_oauth_service = GoogleOAuthService(
         client_id=settings.google_oauth_client_id,
         client_secret=settings.google_oauth_client_secret,
@@ -189,6 +196,9 @@ def create_app() -> FastAPI:
     )
 
     app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(AuthRedirectMiddleware)
     app.add_middleware(
         SessionMiddleware,
@@ -214,9 +224,10 @@ def create_app() -> FastAPI:
             result_store_service=result_store_service,
             preview_size=settings.transformed_preview_size,
             architect_sample_size=settings.architect_sample_size,
+            limiter=limiter,
         )
     )
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
     @app.on_event("startup")
     async def warm_topic_models() -> None:
@@ -233,13 +244,13 @@ def create_app() -> FastAPI:
     async def index(request: Request):
         if get_authenticated_user(request) is None:
             return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(FRONTEND_DIR / "index.html")
 
     @app.get("/login", include_in_schema=False, response_model=None)
     async def login(request: Request):
         if get_authenticated_user(request) is not None:
             return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-        return FileResponse(STATIC_DIR / "login.html")
+        return FileResponse(FRONTEND_DIR / "login.html")
 
     @app.get("/results", include_in_schema=False, response_model=None)
     async def results(request: Request):

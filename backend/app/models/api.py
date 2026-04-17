@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.enums import ColumnRole
 from app.models.manifest import TransformationManifest
 
 
@@ -61,7 +62,7 @@ class ResultRowsResponse(BaseModel):
 
 class ColumnRoleUpdateRequest(BaseModel):
     column_name: str
-    role: Literal["metadata", "verbatim"]
+    role: ColumnRole
 
 
 class ColumnRoleUpdateResponse(BaseModel):

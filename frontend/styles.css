@@ -377,8 +377,8 @@ body.dashboard-workspace-active .brand-name {
     display: grid;
     align-items: center;
     justify-items: center;
-    min-height: 680px;
-    padding: 24px 0;
+    min-height: 340px;
+    padding: 12px 0;
 }
 
 body.login-page .upload-view {
@@ -420,15 +420,16 @@ body.upload-workspace-active .upload-view {
 }
 
 .upload-card {
-    padding: 28px;
+    padding: 14px;
+    width: min(360px, 100%);
 }
 
 .dropzone {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 38px 28px;
-    border-radius: 24px;
+    gap: 5px;
+    padding: 19px 14px;
+    border-radius: 12px;
     border: 1.5px dashed rgba(41, 75, 59, 0.28);
     background:
         radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 42%),
@@ -449,29 +450,32 @@ body.upload-workspace-active .upload-view {
 
 .dropzone-label {
     color: var(--green);
-    font-size: 0.85rem;
+    font-size: 0.43rem;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
 .dropzone-title {
-    font-size: 1.34rem;
+    font-size: 0.67rem;
 }
 
 .dropzone-caption {
     color: var(--muted);
+    font-size: 0.5rem;
 }
 
 .upload-actions {
     display: flex;
     justify-content: center;
-    gap: 14px;
-    margin-top: 22px;
+    gap: 7px;
+    margin-top: 11px;
 }
 
 .upload-actions .button {
-    min-width: 148px;
+    min-width: 74px;
+    padding: 7px 11px;
+    font-size: 0.72rem;
 }
 
 .button {
@@ -530,9 +534,10 @@ body.upload-workspace-active .upload-view {
 }
 
 .status-message {
-    margin-top: 20px;
+    margin-top: 10px;
     text-align: center;
-    min-height: 24px;
+    min-height: 12px;
+    font-size: 0.7rem;
     color: var(--muted);
 }
 
@@ -979,6 +984,62 @@ body.dashboard-workspace-active .dashboard-data-link {
     grid-template-columns: minmax(220px, 280px) auto;
     gap: 12px;
     align-items: end;
+}
+
+.modal-card-compact {
+    width: min(640px, 100%);
+    max-height: min(82vh, 760px);
+    padding: 18px;
+    border-radius: 20px;
+}
+
+.modal-card-compact .modal-header {
+    gap: 12px;
+}
+
+.modal-card-compact .modal-body {
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.modal-card-compact .panel-kicker {
+    font-size: 0.65rem;
+    letter-spacing: 0.22em;
+}
+
+.modal-card-compact h3 {
+    font-size: 1.1rem;
+}
+
+.modal-card-compact .button {
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 0.9rem;
+}
+
+.modal-card-compact .filter-label {
+    font-size: 0.88rem;
+}
+
+.modal-card-compact .modal-search-input,
+.modal-card-compact .modal-column-select,
+.modal-card-compact .modal-role-controls select {
+    padding: 9px 11px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.modal-card-compact .modal-column-select {
+    min-height: 180px;
+}
+
+.modal-card-compact .modal-current-role {
+    font-size: 0.82rem;
+}
+
+.modal-card-compact .modal-role-controls {
+    grid-template-columns: minmax(180px, 220px) auto;
+    gap: 10px;
 }
 
 .panel {

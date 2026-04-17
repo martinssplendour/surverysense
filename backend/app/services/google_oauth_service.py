@@ -94,7 +94,8 @@ class GoogleOAuthService:
         if not email or not email_verified:
             raise ValueError("Google account email could not be verified.")
         if not self.is_allowed_email(email):
-            raise PermissionError("Only @twinkl.co.uk and @twinkl.com accounts are allowed.")
+            domains = ", ".join(f"@{domain}" for domain in self.allowed_domains)
+            raise PermissionError(f"Only {domains} accounts are allowed.")
 
         name = token_info.get("name")
         picture = token_info.get("picture")

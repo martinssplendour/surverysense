@@ -7,6 +7,11 @@ from threading import Lock
 
 logger = logging.getLogger(__name__)
 
+try:  # pragma: no cover - optional dependency at runtime
+    from deep_translator.exceptions import BaseError as DeepTranslatorError
+except ImportError:  # pragma: no cover - dependency may be absent until installed
+    DeepTranslatorError = Exception
+
 
 @dataclass(slots=True)
 class EnglishTranslationConfig:
@@ -59,7 +64,12 @@ class EnglishTranslationService:
         if pending_texts:
             try:
                 translator = self._get_translator()
-            except Exception:
+            except (ImportError, DeepTranslatorError) as exc:
+                logger.warning(
+                    "English normalisation translator unavailable (%s: %s).",
+                    type(exc).__name__,
+                    exc,
+                )
                 warnings.append(
                     "English normalisation is unavailable because deep-translator is not installed. Reinstall backend requirements to enable Google Translate before analysis."
                 )
@@ -71,12 +81,22 @@ class EnglishTranslationService:
                 batch = pending_texts[batch_start: batch_start + batch_size]
                 try:
                     translated_batch = self._translate_batch(translator, batch)
-                except Exception:
+                except DeepTranslatorError as exc:
+                    logger.warning(
+                        "Batch translation failed (%s: %s); falling back to single-item translation.",
+                        type(exc).__name__,
+                        exc,
+                    )
                     fallback_batch: list[str] = []
                     for text in batch:
                         try:
                             fallback_batch.append(self._translate_single(translator, text))
-                        except Exception:
+                        except DeepTranslatorError as single_exc:
+                            logger.warning(
+                                "Single-item translation failed (%s: %s).",
+                                type(single_exc).__name__,
+                                single_exc,
+                            )
                             failed_count += 1
                             fallback_batch.append(text)
                     translated_batch = fallback_batch

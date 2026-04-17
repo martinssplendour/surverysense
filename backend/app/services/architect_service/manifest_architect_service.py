@@ -5,8 +5,6 @@ import json
 import logging
 import re
 import urllib.request
-from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
 import numpy as np
@@ -14,25 +12,13 @@ import pandas as pd
 
 from app.core.exceptions import ManifestBuildError
 from app.models.manifest import LayoutState, TransformationManifest
+from app.services.architect_service.config import (
+    DEFAULT_NULL_EQUIVALENTS,
+    DiagnosticMode,
+    ManifestArchitectConfig,
+)
 
-
-DEFAULT_NULL_EQUIVALENTS = ["", "n/a", "na", "none", "null", ".", "-", "<na>", "nan"]
-IDENTIFIER_VALUE_PATTERN = re.compile(r"^[0-9a-f]{6,}(?:-[0-9a-f]{2,}){2,}$", re.IGNORECASE)
 logger = logging.getLogger(__name__)
-
-
-@dataclass(slots=True)
-class ManifestArchitectConfig:
-    gemini_api_key: str
-    gemini_model: str
-    gemini_temperature: float
-    gemini_timeout_seconds: int
-    row_limit: int
-
-
-class DiagnosticMode(str, Enum):
-    AI = "ai"
-    RULE_BASED = "rule_based"
 
 
 class ManifestArchitectService:
@@ -84,7 +70,7 @@ class ManifestArchitectService:
     ) -> TransformationManifest:
         endpoint = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.config.gemini_model}:generateContent?key={self.config.gemini_api_key}"
+            f"{self.config.gemini_model}:generateContent"
         )
 
         request_payload = {
@@ -104,7 +90,10 @@ class ManifestArchitectService:
         request = urllib.request.Request(
             endpoint,
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.config.gemini_api_key,
+            },
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=self.config.gemini_timeout_seconds) as response:

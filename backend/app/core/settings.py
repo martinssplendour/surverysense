@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.core.constants import DEFAULT_SESSION_SECRET
+
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover - optional until dependencies are installed.
@@ -30,6 +32,7 @@ def _parse_csv_env(name: str) -> tuple[str, ...]:
 
 @dataclass(slots=True)
 class Settings:
+    app_env: str = os.getenv("APP_ENV", "development").strip().casefold() or "development"
     ingest_sample_size: int = int(os.getenv("INGEST_SAMPLE_SIZE", "25"))
     architect_sample_size: int = int(os.getenv("ARCHITECT_SAMPLE_SIZE", "25"))
     row_limit: int = int(os.getenv("TRANSFORM_ROW_LIMIT", "5000"))
@@ -64,7 +67,7 @@ class Settings:
     topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "3"))
     topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
     topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
-    session_secret: str = os.getenv("SESSION_SECRET", "verbatim-app-dev-session-secret-change-me").strip()
+    session_secret: str = os.getenv("SESSION_SECRET", DEFAULT_SESSION_SECRET).strip()
     session_https_only: bool = os.getenv("SESSION_HTTPS_ONLY", "false").strip().casefold() in {"1", "true", "yes", "on"}
     google_oauth_client_id: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
     google_oauth_client_secret: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
@@ -79,6 +82,14 @@ class Settings:
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
     gemini_temperature: float = float(os.getenv("GEMINI_TEMPERATURE", "0.1"))
     gemini_timeout_seconds: int = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
+
+    @property
+    def is_default_session_secret(self) -> bool:
+        return self.session_secret == DEFAULT_SESSION_SECRET
+
+    @property
+    def debug(self) -> bool:
+        return self.app_env in {"development", "dev", "local", "test"}
 
 
 def get_settings() -> Settings:

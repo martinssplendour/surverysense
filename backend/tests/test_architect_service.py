@@ -1,4 +1,5 @@
 import unittest
+import json
 from unittest.mock import patch
 
 import pandas as pd
@@ -295,6 +296,65 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
 
         mocked_builder.assert_called_once()
         self.assertEqual(result.diagnostic_source, "gemini")
+
+    def test_build_manifest_with_gemini_uses_api_key_header(self) -> None:
+        service = ManifestArchitectService(
+            ManifestArchitectConfig(
+                gemini_api_key="test-key",
+                gemini_model="gemini-2.5-flash",
+                gemini_temperature=0.1,
+                gemini_timeout_seconds=60,
+                row_limit=5000,
+            )
+        )
+        df = pd.DataFrame([{"col_a": "value"}])
+
+        class _FakeHttpResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "candidates": [
+                            {
+                                "content": {
+                                    "parts": [
+                                        {
+                                            "text": json.dumps(
+                                                {
+                                                    "diagnostic_source": "gemini",
+                                                    "layout_state": "WIDE",
+                                                    "metadata_indices": [],
+                                                    "verbatim_indices": [0],
+                                                    "vertical_assembly": {"is_required": False},
+                                                    "null_equivalents": ["", "n/a", "none"],
+                                                    "row_limit": 5000,
+                                                    "notes": ["AI manifest"],
+                                                }
+                                            )
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ).encode("utf-8")
+
+        def _fake_urlopen(request, timeout):
+            self.assertEqual(timeout, 60)
+            self.assertNotIn("?key=", request.full_url)
+            headers = {key.casefold(): value for key, value in request.header_items()}
+            self.assertEqual(headers.get("x-goog-api-key"), "test-key")
+            return _FakeHttpResponse()
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            manifest = service._build_manifest_with_gemini(df, {0: "col_a"})
+
+        self.assertEqual(manifest.diagnostic_source, "gemini")
 
 
 if __name__ == "__main__":
