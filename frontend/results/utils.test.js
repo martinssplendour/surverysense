@@ -6,6 +6,7 @@ let escapeHtml;
 let normalizeValue;
 let parseDownloadFilename;
 let wrapPlotLabel;
+let wrapPlotLabelTwoLines;
 
 beforeAll(async () => {
     globalThis.document = {
@@ -20,6 +21,7 @@ beforeAll(async () => {
         normalizeValue,
         parseDownloadFilename,
         wrapPlotLabel,
+        wrapPlotLabelTwoLines,
     } = await import("./utils.js"));
 });
 
@@ -57,5 +59,11 @@ describe("results/utils", () => {
     it("wraps long plot labels into HTML line breaks", () => {
         expect(wrapPlotLabel("This is a deliberately long chart label", 12)).toContain("<br>");
         expect(wrapPlotLabel("", 12)).toBe("Untitled");
+    });
+
+    it("splits topic labels across exactly two lines", () => {
+        expect(wrapPlotLabelTwoLines("Editable And Diverse Resources")).toBe("Editable And<br>Diverse Resources");
+        expect(wrapPlotLabelTwoLines("Single")).toBe("Single");
+        expect(wrapPlotLabelTwoLines("")).toBe("Untitled");
     });
 });

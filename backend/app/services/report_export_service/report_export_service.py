@@ -537,7 +537,7 @@ class AnalysisReportExportService:
         ordered_groups = sorted(request.analysis_result.groups, key=lambda group: (-group.count, group.label))
         for group in ordered_groups:
             examples = [
-                self._truncate_text(example.text, limit=240)
+                " ".join(example.text.split())
                 for example in group.examples[:3]
                 if example.text.strip()
             ]

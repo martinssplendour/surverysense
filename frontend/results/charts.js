@@ -10,6 +10,7 @@ import {
     slugify,
     stripFilenameExtension,
     wrapPlotLabel,
+    wrapPlotLabelTwoLines,
 } from "./utils.js";
 
 const callbacks = {
@@ -194,7 +195,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
             {
                 type: "bar",
                 orientation: "h",
-                y: sortedGroups.map(({ group }) => wrapPlotLabel(group.label || "Unlabelled group", 18)),
+                y: sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group")),
                 x: sortedGroups.map(({ group }) => Number(group.count || 0)),
                 marker: {
                     color: sortedGroups.map(({ group }) => group.is_noise ? "#b8ac9f" : "#4f7a63"),

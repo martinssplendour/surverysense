@@ -124,6 +124,32 @@ export function wrapPlotLabel(value, maxLineLength = 28) {
     return lines.join("<br>");
 }
 
+export function wrapPlotLabelTwoLines(value) {
+    const words = normalizeValue(value).split(/\s+/).filter(Boolean);
+    if (!words.length) {
+        return "Untitled";
+    }
+    if (words.length === 1) {
+        return words[0];
+    }
+
+    let bestSplitIndex = 1;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let index = 1; index < words.length; index += 1) {
+        const firstLine = words.slice(0, index).join(" ");
+        const secondLine = words.slice(index).join(" ");
+        const score = Math.abs(firstLine.length - secondLine.length);
+        if (score < bestScore) {
+            bestScore = score;
+            bestSplitIndex = index;
+        }
+    }
+
+    const firstLine = words.slice(0, bestSplitIndex).join(" ");
+    const secondLine = words.slice(bestSplitIndex).join(" ");
+    return `${firstLine}<br>${secondLine}`;
+}
+
 function dashboardMetricIcon(kind) {
     const icons = {
         rows: `
