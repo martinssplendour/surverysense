@@ -48,13 +48,6 @@ export async function ensureDatasetRowCount(dataset, targetCount) {
     }
 }
 
-export async function warmAnalysisRows() {
-    if (!state.resultId) {
-        return;
-    }
-    await ensureDatasetRowCount("analysis", INITIAL_VISIBLE_ROW_TARGET);
-}
-
 export async function refreshFilteredDatasets({ suppressAnalysisRender = false } = {}) {
     if (!state.resultId) {
         callbacks.renderFilterBar();
@@ -89,15 +82,15 @@ export async function refreshFilteredDatasets({ suppressAnalysisRender = false }
     }
 }
 
-export function getDatasetLoadedCount(dataset) {
+function getDatasetLoadedCount(dataset) {
     return dataset === "analysis" ? state.analysisRows.length : state.transformedRows.length;
 }
 
-export function getDatasetHasMore(dataset) {
+function getDatasetHasMore(dataset) {
     return dataset === "analysis" ? state.analysisHasMore : state.transformedHasMore;
 }
 
-export function getDatasetTotalCount(dataset) {
+function getDatasetTotalCount(dataset) {
     return dataset === "analysis" ? state.analysisTotalRows : state.transformedTotalRows;
 }
 
@@ -124,7 +117,7 @@ export function currentPreviewDataset() {
     return state.showOnlyVerbatim ? "analysis" : "transformed";
 }
 
-export function getRowPageSize(dataset) {
+function getRowPageSize(dataset) {
     return dataset === "transformed" ? FULL_DATA_ROW_PAGE_SIZE : ROW_PAGE_SIZE;
 }
 
@@ -143,7 +136,7 @@ export function getVisiblePreviewColumns(columns, dataset) {
     return columns.slice(start, start + FULL_DATA_VISIBLE_COLUMN_COUNT);
 }
 
-export function resetDatasetRows(dataset) {
+function resetDatasetRows(dataset) {
     if (dataset === "transformed") {
         state.transformedRows = [];
         state.transformedHasMore = false;
@@ -158,7 +151,7 @@ export function resetDatasetRows(dataset) {
     state.analysisTotalRows = 0;
 }
 
-export function applyRowsPayload(dataset, payload) {
+function applyRowsPayload(dataset, payload) {
     if (dataset === "transformed") {
         state.transformedRows = Array.isArray(payload.rows) ? payload.rows : [];
         state.transformedHasMore = Boolean(payload.has_more);

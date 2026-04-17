@@ -2,11 +2,10 @@ import { ANALYSIS_MODE_OPTIONS, RESULT_STORAGE_KEY, elements, state } from "./sh
 import { displayAnalysisMode, displayColumnLabel, escapeHtml, formatNumber } from "./utils.js";
 import {
     clearAnalysisChart,
-    displayAnalysisExportFormat,
-    normalizeAnalysisExportFormat,
     renderAnalysisChart,
     renderNgramCharts,
 } from "./charts.js";
+import { displayAnalysisExportFormat, normalizeAnalysisExportFormat } from "./chartExport.js";
 import { parseJson } from "./rows.js";
 
 let activeAnalysisAbortController = null;
