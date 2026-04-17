@@ -6,6 +6,7 @@ import {
     parseDownloadFilename,
     slugify,
     stripFilenameExtension,
+    wrapPlotLabelTwoLines,
 } from "./utils.js";
 
 const REPORT_EXPORT_MAX_BARS = 12;
@@ -292,17 +293,24 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
 
     const overrides = {
         paper_bgcolor: "#fffaf2",
+        // The report/slides already render the chart title outside the image,
+        // so remove Plotly's internal title to avoid duplicate headers and
+        // prevent backend image cleanup from clipping the top of the plot area.
+        title: {
+            ...(baseLayout?.title || {}),
+            text: "",
+        },
     };
 
     // Report exports need a denser, print-friendly layout than the live dashboard:
     // wider label margins, larger axis text, and capped label height.
     if (kind === "ngram") {
-        const exportLeftMargin = ngramSize === 3 ? 180 : 160;
+        const exportLeftMargin = ngramSize === 3 ? 190 : 172;
         overrides.margin = {
             ...baseMargin,
             l: Math.max(Number(baseMargin.l || 0), exportLeftMargin),
             r: Math.max(Number(baseMargin.r || 0), 12),
-            t: Math.max(Number(baseMargin.t || 0), 30),
+            t: Math.max(Number(baseMargin.t || 0), 44),
             b: Math.max(Number(baseMargin.b || 0), 40),
         };
         overrides.font = {
@@ -332,10 +340,10 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
                 text: "",
             },
             automargin: true,
-            tickangle: -18,
+            tickangle: 0,
             tickfont: {
                 ...(baseYAxis.tickfont || {}),
-                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), ngramSize === 3 ? 34 : 48),
+                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), ngramSize === 3 ? 17 : 24),
             },
         };
     }
@@ -343,7 +351,8 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
     if (kind === "group") {
         overrides.margin = {
             ...baseMargin,
-            l: Math.max(Number(baseMargin.l || 0), 160),
+            l: Math.max(Number(baseMargin.l || 0), 184),
+            t: Math.max(Number(baseMargin.t || 0), 44),
             b: Math.max(Number(baseMargin.b || 0), 58),
         };
         overrides.xaxis = {
@@ -366,7 +375,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
         overrides.yaxis = {
             ...baseYAxis,
             automargin: true,
-            tickangle: -18,
+            tickangle: 0,
             title: {
                 ...(baseYAxis && typeof baseYAxis.title === "object" ? baseYAxis.title : {}),
                 text: "Topic names",
@@ -379,7 +388,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             },
             tickfont: {
                 ...(baseYAxis.tickfont || {}),
-                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 15),
+                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 13.5),
             },
         };
     }
@@ -404,7 +413,9 @@ function limitAnalysisExportData(data, definition) {
             ...trace,
             x: Array.isArray(trace.x) ? trace.x.slice(0, REPORT_EXPORT_MAX_BARS) : trace.x,
             y: Array.isArray(trace.y)
-                ? trace.y.slice(0, REPORT_EXPORT_MAX_BARS).map((label) => clampExportPlotLabel(label))
+                ? trace.y
+                    .slice(0, REPORT_EXPORT_MAX_BARS)
+                    .map((label) => clampExportPlotLabel(label, kind === "group" ? 20 : 18))
                 : trace.y,
             customdata: Array.isArray(trace.customdata) ? trace.customdata.slice(0, REPORT_EXPORT_MAX_BARS) : trace.customdata,
             text: Array.isArray(trace.text) ? trace.text.slice(0, REPORT_EXPORT_MAX_BARS) : trace.text,
@@ -413,23 +424,12 @@ function limitAnalysisExportData(data, definition) {
     });
 }
 
-function clampExportPlotLabel(label) {
+function clampExportPlotLabel(label, maxLineLength = 18) {
     const normalized = `${label || ""}`
-        .split("<br>")
-        .map((part) => part.trim())
-        .filter(Boolean);
-    if (!normalized.length) {
-        return "Untitled";
-    }
-    if (normalized.length <= 2) {
-        return normalized.join("<br>");
-    }
-
-    const secondLine = normalized.slice(1).join(" ");
-    const truncatedSecondLine = secondLine.length > 18
-        ? `${secondLine.slice(0, 15).trimEnd()}...`
-        : secondLine;
-    return `${normalized[0]}<br>${truncatedSecondLine}`;
+        .replaceAll("<br>", " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return wrapPlotLabelTwoLines(normalized, maxLineLength);
 }
 
 function resolveAnalysisExportHeight({ data, definition, fallbackHeight }) {
@@ -448,7 +448,7 @@ function resolveAnalysisExportHeight({ data, definition, fallbackHeight }) {
 
     // Height follows the trimmed bar count so export images do not keep the huge
     // whitespace from the on-screen canvas after bars are removed.
-    const barHeight = kind === "ngram" ? 42 : 46;
+    const barHeight = kind === "ngram" ? 48 : 52;
     return Math.max(560, Math.min(fallbackHeight, barCount * barHeight + 180));
 }
 

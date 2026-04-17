@@ -66,4 +66,12 @@ describe("results/utils", () => {
         expect(wrapPlotLabelTwoLines("Single")).toBe("Single");
         expect(wrapPlotLabelTwoLines("")).toBe("Untitled");
     });
+
+    it("caps wrapped topic labels at two shortened lines", () => {
+        const wrapped = wrapPlotLabelTwoLines("This topic label is much longer than it should be", 12);
+        const lines = wrapped.split("<br>");
+        expect(lines).toHaveLength(2);
+        expect(lines.every((line) => line.length <= 12)).toBe(true);
+        expect(lines[1].endsWith("...")).toBe(true);
+    });
 });

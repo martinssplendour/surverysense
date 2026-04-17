@@ -140,7 +140,7 @@ def create_app() -> FastAPI:
         MetadataFilterService(),
         analysis_ready_service=analysis_ready_service,
     )
-    report_export_service = AnalysisReportExportService()
+    report_export_service = AnalysisReportExportService(result_store_service=result_store_service)
     keyword_service = TopicAnalysisKeywordService()
     narrative_service = TopicAnalysisNarrativeService(keyword_service)
     translation_service = EnglishTranslationService(

@@ -126,17 +126,28 @@ export function wrapPlotLabel(value, maxLineLength = 28) {
     return lines.join("<br>");
 }
 
+function truncatePlotLabelLine(value, maxLineLength) {
+    const normalized = normalizeValue(value);
+    if (!normalized) {
+        return "";
+    }
+    if (normalized.length <= maxLineLength) {
+        return normalized;
+    }
+    return `${normalized.slice(0, Math.max(1, maxLineLength - 3)).trimEnd()}...`;
+}
+
 /**
- * Wraps a plot label into exactly two balanced lines separated by Plotly's "<br>" newline token.
- * Finds the word split that minimises the length difference between the two lines.
+ * Wraps a plot label into at most two lines separated by Plotly's "<br>" newline token.
+ * Prefers balanced lines, but caps each line length so long labels do not overflow the chart margin.
  */
-export function wrapPlotLabelTwoLines(value) {
+export function wrapPlotLabelTwoLines(value, maxLineLength = 18) {
     const words = normalizeValue(value).split(/\s+/).filter(Boolean);
     if (!words.length) {
         return "Untitled";
     }
     if (words.length === 1) {
-        return words[0];
+        return truncatePlotLabelLine(words[0], maxLineLength);
     }
 
     let bestSplitIndex = 1;
@@ -144,16 +155,20 @@ export function wrapPlotLabelTwoLines(value) {
     for (let index = 1; index < words.length; index += 1) {
         const firstLine = words.slice(0, index).join(" ");
         const secondLine = words.slice(index).join(" ");
-        const score = Math.abs(firstLine.length - secondLine.length);
+        const firstOverflow = Math.max(0, firstLine.length - maxLineLength);
+        const secondOverflow = Math.max(0, secondLine.length - maxLineLength);
+        const overflowScore = firstOverflow * 1000 + secondOverflow * 100;
+        const balanceScore = Math.abs(firstLine.length - secondLine.length);
+        const score = overflowScore + balanceScore;
         if (score < bestScore) {
             bestScore = score;
             bestSplitIndex = index;
         }
     }
 
-    const firstLine = words.slice(0, bestSplitIndex).join(" ");
-    const secondLine = words.slice(bestSplitIndex).join(" ");
-    return `${firstLine}<br>${secondLine}`;
+    const firstLine = truncatePlotLabelLine(words.slice(0, bestSplitIndex).join(" "), maxLineLength);
+    const secondLine = truncatePlotLabelLine(words.slice(bestSplitIndex).join(" "), maxLineLength);
+    return secondLine ? `${firstLine}<br>${secondLine}` : firstLine;
 }
 
 function dashboardMetricIcon(kind) {

@@ -4,6 +4,7 @@ import base64
 import re
 from dataclasses import dataclass
 from io import BytesIO
+from types import SimpleNamespace
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -12,8 +13,8 @@ from docx.shared import Pt as DocxPt
 from docx.shared import RGBColor
 from PIL import Image, ImageChops
 from pptx import Presentation
-from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor as PptxRGBColor
+from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches as PptxInches
 from pptx.util import Pt as PptxPt
 from reportlab.lib import colors
@@ -35,6 +36,7 @@ from app.services.report_export_service._constants import (
     _FILENAME_PATTERN,
     _PPTX_CONTENT_LEFT,
     _PPTX_CONTENT_WIDTH,
+    _PPTX_DETAIL_RGB,
     _PPTX_SLIDE_BACKGROUND_RGB,
     _PPTX_SLIDE_HEIGHT,
     _PPTX_TEXT_RGB,
@@ -59,7 +61,17 @@ class DecodedChartImage:
     height: int
 
 
+@dataclass(slots=True)
+class GroupSummarySection:
+    label: str
+    summary: str
+    examples: list[str]
+
+
 class AnalysisReportExportService:
+    def __init__(self, result_store_service=None) -> None:
+        self.result_store_service = result_store_service
+
     def export_report(self, *, result_id: str, request: AnalysisExportRequest) -> ExportedReportArtifact:
         if request.analysis_result.result_id != result_id:
             raise ValueError("The report payload does not match the requested analysis result.")
@@ -103,14 +115,6 @@ class AnalysisReportExportService:
         story.append(Paragraph(self._escape(self._build_subtitle(request)), styles["subtitle"]))
         story.append(Spacer(1, 12))
 
-        filters_text = self._filters_text(request)
-        if filters_text:
-            story.append(Paragraph(self._escape(filters_text), styles["body"]))
-        else:
-            story.append(Spacer(1, 12))
-        story.append(Paragraph(self._escape(self._row_count_text(request)), styles["body"]))
-        story.append(Spacer(1, 12))
-
         if charts:
             for index, chart in enumerate(charts):
                 story.append(Paragraph(self._escape(chart.title), styles["plot_title"]))
@@ -124,15 +128,21 @@ class AnalysisReportExportService:
 
         story.append(Paragraph(self._build_summary_heading(request), styles["section"]))
         story.append(Spacer(1, 8))
-        findings = self._build_summary_lines(request)
-        for line in findings:
-            story.append(Paragraph(f"• {self._escape(line)}", styles["body"]))
-            story.append(Spacer(1, 5))
+        group_sections = self._build_group_summary_sections(request)
+        if group_sections:
+            for section in group_sections[:8]:
+                story.append(Paragraph(self._escape(section.label), styles["chart_title"]))
+                story.append(Paragraph(self._escape(section.summary), styles["body"]))
+                story.append(Spacer(1, 6))
+        else:
+            for line in self._build_summary_lines(request):
+                story.append(Paragraph(f"&#8226; {self._escape(line)}", styles["body"]))
+                story.append(Spacer(1, 5))
 
         representative_sections = self._build_representative_sections(request)
         if representative_sections:
             story.append(Spacer(1, 10))
-            story.append(Paragraph("Representative documents", styles["section"]))
+            story.append(Paragraph(self._build_representative_heading(), styles["section"]))
             story.append(Spacer(1, 8))
             for label, examples in representative_sections:
                 story.append(Paragraph(self._escape(label), styles["chart_title"]))
@@ -160,7 +170,7 @@ class AnalysisReportExportService:
         title_run.font.size = DocxPt(22)
         title_run.font.color.rgb = RGBColor(*_REPORT_TITLE_RGB)
 
-        metadata = document.add_paragraph(self._build_docx_metadata_line(request))
+        metadata = document.add_paragraph(self._build_subtitle(request))
         metadata.style = document.styles["Subtitle"]
         for run in metadata.runs:
             run.font.name = "Aptos"
@@ -190,15 +200,29 @@ class AnalysisReportExportService:
                 image_paragraph.add_run().add_picture(BytesIO(chart.image_bytes), width=DocxInches(6.45))
 
         document.add_heading(self._build_summary_heading(request), level=1)
-        for line in self._build_summary_lines(request):
-            paragraph = document.add_paragraph()
-            run = paragraph.add_run(line)
-            run.font.name = "Aptos"
-            run.font.size = DocxPt(10)
+        group_sections = self._build_group_summary_sections(request)
+        if group_sections:
+            for section in group_sections[:8]:
+                heading = document.add_paragraph()
+                heading_run = heading.add_run(section.label)
+                heading_run.bold = True
+                heading_run.font.name = "Aptos"
+                heading_run.font.size = DocxPt(11)
+
+                paragraph = document.add_paragraph()
+                run = paragraph.add_run(section.summary)
+                run.font.name = "Aptos"
+                run.font.size = DocxPt(10)
+        else:
+            for line in self._build_summary_lines(request):
+                paragraph = document.add_paragraph()
+                run = paragraph.add_run(line)
+                run.font.name = "Aptos"
+                run.font.size = DocxPt(10)
 
         representative_sections = self._build_representative_sections(request)
         if representative_sections:
-            document.add_heading("Representative documents", level=1)
+            document.add_heading(self._build_representative_heading(), level=1)
             for label, examples in representative_sections:
                 group_heading = document.add_paragraph()
                 group_run = group_heading.add_run(label)
@@ -233,19 +257,16 @@ class AnalysisReportExportService:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
         self._set_pptx_slide_background(slide)
 
-        title_top = 3.35
-        subtitle_top = 4.08
-        row_top = 4.42
-        # Keep the title stack on a narrower centered column so short subtitles and
-        # filter metadata do not feel stretched across the full slide width.
-        title_box_width = _PPTX_CONTENT_WIDTH * 0.7
+        title_top = 3.3
+        subtitle_top = 4.02
+        title_box_width = _PPTX_CONTENT_WIDTH * 0.76
         title_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - title_box_width) / 2)
 
         title_box = slide.shapes.add_textbox(
             PptxInches(title_box_left),
             PptxInches(title_top),
             PptxInches(title_box_width),
-            PptxInches(0.65),
+            PptxInches(0.7),
         )
         title_frame = title_box.text_frame
         title_frame.clear()
@@ -260,30 +281,16 @@ class AnalysisReportExportService:
             PptxInches(title_box_left),
             PptxInches(subtitle_top),
             PptxInches(title_box_width),
-            PptxInches(0.42),
+            PptxInches(0.68),
         )
         subtitle_frame = subtitle_box.text_frame
         subtitle_frame.clear()
         subtitle_frame.word_wrap = True
-        subtitle_frame.paragraphs[0].text = self._build_subtitle(request)
-        subtitle_frame.paragraphs[0].font.size = PptxPt(11)
-        subtitle_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-
-        row_box = slide.shapes.add_textbox(
-            PptxInches(title_box_left),
-            PptxInches(row_top),
-            PptxInches(title_box_width),
-            PptxInches(0.32),
-        )
-        row_frame = row_box.text_frame
-        row_frame.clear()
-        row_frame.word_wrap = True
-        row_paragraph = row_frame.paragraphs[0]
-        row_paragraph.text = self._build_pptx_metadata_line(request)
-        row_paragraph.font.size = PptxPt(9)
-        row_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        row_paragraph.alignment = PP_ALIGN.CENTER
+        subtitle_paragraph = subtitle_frame.paragraphs[0]
+        subtitle_paragraph.text = self._build_subtitle(request)
+        subtitle_paragraph.font.size = PptxPt(10)
+        subtitle_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
+        subtitle_paragraph.alignment = PP_ALIGN.CENTER
 
     def _build_pptx_chart_slide(self, presentation: Presentation, chart: DecodedChartImage) -> None:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
@@ -301,7 +308,7 @@ class AnalysisReportExportService:
             caption_frame = caption_box.text_frame
             caption_frame.paragraphs[0].text = chart.caption
             caption_frame.paragraphs[0].font.size = PptxPt(10)
-            caption_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+            caption_frame.paragraphs[0].font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
             caption_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
             content_top = 1.42
 
@@ -315,8 +322,6 @@ class AnalysisReportExportService:
         )
         width_inches *= 0.9
         height_inches *= 0.9
-        # Shift charts slightly left because Plotly exports usually reserve extra
-        # whitespace for their own margins before the slide layout even sees them.
         left = max(0.25, _PPTX_CONTENT_LEFT - 0.12)
         top = max(content_top, (_PPTX_SLIDE_HEIGHT - height_inches) / 2)
         slide.shapes.add_picture(
@@ -328,14 +333,52 @@ class AnalysisReportExportService:
         )
 
     def _build_pptx_summary_slide(self, presentation: Presentation, request: AnalysisExportRequest) -> None:
+        summary_box_width = _PPTX_CONTENT_WIDTH * 0.7
+        summary_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - summary_box_width) / 2)
+        group_sections = self._build_group_summary_sections(request)
+        if group_sections:
+            for chunk_start in range(0, min(len(group_sections), 8), 4):
+                slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+                self._set_pptx_slide_background(slide)
+                title = self._build_summary_heading(request)
+                if chunk_start > 0:
+                    title = f"{title} (continued)"
+                self._add_pptx_slide_title(slide, title)
+
+                top = 1.2
+                for section in group_sections[chunk_start:chunk_start + 4]:
+                    box = slide.shapes.add_textbox(
+                        PptxInches(summary_box_left),
+                        PptxInches(top),
+                        PptxInches(summary_box_width),
+                        PptxInches(1.25),
+                    )
+                    frame = box.text_frame
+                    frame.clear()
+                    frame.word_wrap = True
+
+                    heading = frame.paragraphs[0]
+                    heading.text = section.label
+                    heading.font.size = PptxPt(16)
+                    heading.font.bold = True
+                    heading.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+
+                    paragraph = frame.add_paragraph()
+                    paragraph.text = section.summary
+                    paragraph.font.size = PptxPt(12)
+                    paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
+                    paragraph.space_after = PptxPt(6)
+                    top += 1.35
+            return
+
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
         self._set_pptx_slide_background(slide)
         self._add_pptx_slide_title(slide, self._build_summary_heading(request))
 
         box = slide.shapes.add_textbox(
-            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(summary_box_left),
             PptxInches(1.35),
-            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(summary_box_width),
             PptxInches(5.6),
         )
         frame = box.text_frame
@@ -347,7 +390,7 @@ class AnalysisReportExportService:
             paragraph.level = 0
             paragraph.bullet = True
             paragraph.font.size = PptxPt(14)
-            paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+            paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
             paragraph.space_after = PptxPt(8)
 
     def _build_pptx_representative_slides(self, presentation: Presentation, request: AnalysisExportRequest) -> None:
@@ -358,29 +401,33 @@ class AnalysisReportExportService:
         for chunk_start in range(0, len(sections), 2):
             slide = presentation.slides.add_slide(presentation.slide_layouts[6])
             self._set_pptx_slide_background(slide)
-            self._add_pptx_slide_title(slide, "Representative documents")
+            self._add_pptx_slide_title(slide, self._build_representative_heading())
 
             top = 1.25
-            group_box_width = _PPTX_CONTENT_WIDTH * 0.75
+            group_box_width = _PPTX_CONTENT_WIDTH * 0.7
+            group_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - group_box_width) / 2)
             for label, examples in sections[chunk_start:chunk_start + 2]:
                 group_box = slide.shapes.add_textbox(
-                    PptxInches(_PPTX_CONTENT_LEFT),
+                    PptxInches(group_box_left),
                     PptxInches(top),
                     PptxInches(group_box_width),
-                    PptxInches(2.6),
+                    PptxInches(2.65),
                 )
                 frame = group_box.text_frame
+                frame.clear()
                 frame.word_wrap = True
+
                 heading = frame.paragraphs[0]
                 heading.text = label
                 heading.font.size = PptxPt(16)
                 heading.font.bold = True
                 heading.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+
                 for index, example in enumerate(examples, start=1):
                     paragraph = frame.add_paragraph()
                     paragraph.text = f"{index}. {example}"
                     paragraph.font.size = PptxPt(12)
-                    paragraph.font.color.rgb = PptxRGBColor(0, 0, 0)
+                    paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
                     paragraph.space_after = PptxPt(6)
                 top += 2.8
 
@@ -441,14 +488,6 @@ class AnalysisReportExportService:
                 alignment=TA_LEFT,
                 spaceAfter=0,
             ),
-            "muted": ParagraphStyle(
-                "ReportMuted",
-                parent=base["BodyText"],
-                fontName="Helvetica-Oblique",
-                fontSize=9,
-                leading=12,
-                textColor=colors.HexColor("#6d655b"),
-            ),
             "body": ParagraphStyle(
                 "ReportBody",
                 parent=base["BodyText"],
@@ -491,21 +530,82 @@ class AnalysisReportExportService:
                 findings.append(f"{bucket.label}: {lines}")
             return findings or ["No phrase-level findings were available for export."]
 
-        if result.groups:
-            ordered = sorted(result.groups, key=lambda group: (-group.count, group.label))
-            findings = []
-            for group in ordered[:8]:
-                share_pct = round(group.share * 100)
-                terms = ", ".join(group.terms[:4]) if group.terms else "no top terms available"
-                findings.append(
-                    f"{group.label}: {group.count} responses ({share_pct}%). Top terms: {terms}."
-                )
-            return findings or ["No grouped findings were available for export."]
+        group_sections = self._build_group_summary_sections(request)
+        if group_sections:
+            return [f"{section.label}: {section.summary}" for section in group_sections[:8]]
 
-        return ["The selected analysis completed without exportable grouped findings."]
+        return ["The selected analysis completed without exportable topic findings."]
+
+    def _build_group_summary_sections(self, request: AnalysisExportRequest) -> list[GroupSummarySection]:
+        groups = self._get_export_groups(request)
+        if not groups:
+            return []
+
+        sections: list[GroupSummarySection] = []
+        ordered_groups = sorted(groups, key=lambda group: (-group.count, group.label))
+        for group in ordered_groups:
+            share_pct = round(group.share * 100)
+            terms = ", ".join(group.terms[:4]) if group.terms else "no top terms available"
+            examples = [
+                self._truncate_text(" ".join(example.text.split()), limit=240)
+                for example in group.examples[:3]
+                if example.text.strip()
+            ]
+            sections.append(
+                GroupSummarySection(
+                    label=group.label,
+                    summary=f"{group.count} responses ({share_pct}%). Top terms: {terms}.",
+                    examples=examples,
+                )
+            )
+        return sections
+
+    def _get_export_groups(self, request: AnalysisExportRequest):
+        if self.result_store_service is not None:
+            try:
+                fast_result = self.result_store_service.get_fast_filtered_result(
+                    request.analysis_result.result_id,
+                    model_key=request.analysis_result.model_key,
+                    text_column_name=request.analysis_result.text_column_name,
+                    filters=self._build_active_filter_lookup(request),
+                )
+            except Exception:
+                fast_result = None
+            if fast_result and fast_result.get("groups"):
+                return [
+                    SimpleNamespace(
+                        label=str(group.get("label", "")),
+                        count=int(group.get("count", 0) or 0),
+                        share=float(group.get("share", 0) or 0),
+                        terms=list(group.get("terms", [])),
+                        examples=[
+                            SimpleNamespace(
+                                row_number=int(example.get("row_number", 0) or 0),
+                                text=str(example.get("text", "")),
+                            )
+                            for example in group.get("examples", [])
+                            if isinstance(example, dict)
+                        ],
+                    )
+                    for group in fast_result.get("groups", [])
+                    if isinstance(group, dict)
+                ]
+        return request.analysis_result.groups
+
+    def _build_active_filter_lookup(self, request: AnalysisExportRequest) -> dict[str, list[str]]:
+        return {
+            item.column_name: list(item.values)
+            for item in request.active_filters
+            if item.values
+        }
 
     def _build_subtitle(self, request: AnalysisExportRequest) -> str:
-        return self._display_column_label(request.analysis_result.text_column_name)
+        parts = [self._display_column_label(request.analysis_result.text_column_name)]
+        filters_text = self._filters_text(request)
+        if filters_text:
+            parts.append(filters_text)
+        parts.append(self._row_count_text(request))
+        return " | ".join(part for part in parts if part)
 
     def _build_report_title(self) -> str:
         return "Verbatim Analysis Report"
@@ -513,23 +613,59 @@ class AnalysisReportExportService:
     def _build_summary_heading(self, request: AnalysisExportRequest) -> str:
         if request.analysis_result.ngram_buckets:
             return "Phrase summaries"
-        return "Group summaries"
+        return "Topic summaries"
+
+    def _build_representative_heading(self) -> str:
+        return "Representative documents (topics and top 3 responses)"
 
     def _build_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
-        if not request.analysis_result.groups:
+        if request.analysis_result.ngram_buckets:
+            return self._build_ngram_representative_sections(request)
+        return [
+            (section.label, section.examples)
+            for section in self._build_group_summary_sections(request)
+            if section.examples
+        ]
+
+    def _build_ngram_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
+        if self.result_store_service is None:
             return []
 
         sections: list[tuple[str, list[str]]] = []
-        ordered_groups = sorted(request.analysis_result.groups, key=lambda group: (-group.count, group.label))
-        for group in ordered_groups:
-            examples = [
-                " ".join(example.text.split())
-                for example in group.examples[:3]
-                if example.text.strip()
-            ]
-            if not examples:
+        for bucket in request.analysis_result.ngram_buckets[:3]:
+            items = list(bucket.items[:5]) if bucket.items else []
+            if not items:
                 continue
-            sections.append((group.label, examples))
+
+            selected_item = None
+            examples: list[str] = []
+            for item in items:
+                lookup_term = (item.source_term or item.term or "").strip()
+                if not lookup_term:
+                    continue
+                try:
+                    page = self.result_store_service.get_analysis_ngram_page(
+                        request.analysis_result.result_id,
+                        ngram_size=int(bucket.ngram_size),
+                        term=lookup_term,
+                        offset=0,
+                        limit=3,
+                    )
+                except Exception:
+                    continue
+
+                documents = getattr(page, "documents", []) or []
+                examples = [
+                    self._truncate_text(" ".join(str(document.get("text", "")).split()), limit=240)
+                    for document in documents
+                    if str(document.get("text", "")).strip()
+                ]
+                if examples:
+                    selected_item = item
+                    break
+
+            if selected_item and examples:
+                sections.append((f"{bucket.label}: {selected_item.term}", examples))
         return sections
 
     def _build_filename_stem(self, request: AnalysisExportRequest) -> str:
@@ -548,24 +684,6 @@ class AnalysisReportExportService:
 
     def _row_count_text(self, request: AnalysisExportRequest) -> str:
         return f"{int(request.analysis_result.filtered_row_count)} rows"
-
-    def _build_pptx_metadata_line(self, request: AnalysisExportRequest) -> str:
-        parts = []
-        filters_text = self._filters_text(request)
-        if filters_text:
-            parts.append(filters_text)
-        # The question already appears on the subtitle line, so the metadata line
-        # stays short by carrying only active filters plus the filtered row count.
-        parts.append(self._row_count_text(request))
-        return " Â· ".join(part for part in parts if part)
-
-    def _build_docx_metadata_line(self, request: AnalysisExportRequest) -> str:
-        parts = [self._build_subtitle(request)]
-        filters_text = self._filters_text(request)
-        if filters_text:
-            parts.append(filters_text)
-        parts.append(self._row_count_text(request))
-        return " · ".join(part for part in parts if part)
 
     def _decode_chart(self, chart: AnalysisExportChartModel) -> DecodedChartImage:
         match = _DATA_URL_PATTERN.match(chart.image_data_url.strip())
@@ -652,12 +770,6 @@ class AnalysisReportExportService:
         bottom = min(image.height, bbox[3] + padding)
         cropped = image.crop((left, top, right, bottom))
 
-        # Remove the duplicate Plotly title/corner header from the exported chart image.
-        top_trim = min(max(18, int(cropped.height * 0.06)), max(0, cropped.height // 5))
-        if top_trim > 0:
-            cropped = cropped.crop((0, top_trim, cropped.width, cropped.height))
-
-        # Normalize any near-background pixels to pure white so the slide reads as one white canvas.
         white = Image.new("RGB", cropped.size, _PPTX_SLIDE_BACKGROUND_RGB)
         recolored = cropped.copy()
         pixels = recolored.load()

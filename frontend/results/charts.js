@@ -125,7 +125,16 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
         .map((group, index) => ({ group, index }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
     const subjectLabel = yAxisLabel === "Topic name" ? "topic" : "group";
-    const figureHeight = Math.max(180, sortedGroups.length * 30);
+    const wrappedLabels = sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group", 20));
+    const longestLabelLineLength = wrappedLabels.reduce(
+        (maximum, label) => Math.max(
+            maximum,
+            ...`${label}`.split("<br>").map((line) => line.length),
+        ),
+        0,
+    );
+    const leftMargin = Math.min(216, Math.max(156, longestLabelLineLength * 6 + 36));
+    const figureHeight = Math.max(216, sortedGroups.length * 36);
 
     // Plotly config: hide branding, allow responsive resize, remove unused selection tools.
     const plotPromise = plotly.newPlot(
@@ -134,7 +143,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
             {
                 type: "bar",
                 orientation: "h",
-                y: sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group")),
+                y: wrappedLabels,
                 x: sortedGroups.map(({ group }) => Number(group.count || 0)),
                 marker: {
                     color: sortedGroups.map(({ group }) => group.is_noise ? "#b8ac9f" : "#4f7a63"),
@@ -168,7 +177,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
                 t: 28,
                 r: 12,
                 b: 36,
-                l: 132,
+                l: leftMargin,
             },
             paper_bgcolor: "rgba(0, 0, 0, 0)",
             plot_bgcolor: "rgba(255, 250, 242, 0.72)",
@@ -191,6 +200,10 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
                 },
                 automargin: true,
                 autorange: "reversed",
+                tickangle: 0,
+                tickfont: {
+                    size: 7.2,
+                },
             },
         },
         {
