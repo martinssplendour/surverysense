@@ -424,12 +424,15 @@ export function persistCurrentPayload() {
     try {
         sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(state.response));
     } catch (error) {
-        console.warn("[Verbatim App] Unable to update cached processed result.", error);
+        console.warn(
+            "[Verbatim App] Failed to update the cached processed result; the current screen still works, but a later restore may be out of date.",
+            error,
+        );
     }
 }
 
 export function handleMissingResultState(message = "The processed result is no longer available. Upload the file again.") {
-    console.warn(`[Verbatim App] ${message}`);
+    console.warn(`[Verbatim App] Result state reset required. ${message}`);
     resetToUploadState();
 }
 

@@ -238,7 +238,10 @@ def create_app() -> FastAPI:
                 await asyncio.to_thread(topic_analysis_service.warm_up)
                 logger.info("Topic embedding model warmed and cached for the current process.")
             except Exception as exc:  # pragma: no cover - startup guard
-                logger.warning("Topic model warmup failed: %s", exc)
+                logger.warning(
+                    "Topic model warmup failed during startup (%s). The server will stay up and warm models on the first analysis request instead.",
+                    type(exc).__name__,
+                )
 
         app.state.topic_model_warmup_task = asyncio.create_task(_warm_models_after_startup())
 

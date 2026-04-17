@@ -165,7 +165,10 @@ async function captureRenderedAnalysisCharts() {
                     image_data_url: imageDataUrl,
                 };
             } catch (error) {
-                console.warn("[Verbatim App] Unable to capture chart image for export.", error);
+                console.warn(
+                    `[Verbatim App] Failed to capture export image for chart ${index + 1}; the report will skip that chart.`,
+                    error,
+                );
                 return null;
             }
         }),

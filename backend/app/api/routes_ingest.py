@@ -55,7 +55,7 @@ def build_ingest_router(
     router = APIRouter(tags=["ingestion"])
 
     def raise_unexpected_api_error(action: str, exc: Exception) -> None:
-        logger.exception("Unexpected error in %s", action)
+        logger.exception("API action '%s' failed unexpectedly.", action)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred.",
@@ -150,9 +150,11 @@ def build_ingest_router(
         try:
             ingested = ingestion_service.ingest(payload)
             logger.info(
-                "Upload ingest started for file=%s with diagnostic_mode=%s.",
+                "Upload ingest started for file=%s diagnostic_mode=%s sample_rows=%s source_columns=%s.",
                 file.filename or "upload.csv",
                 diagnostic_mode.value,
+                len(ingested.architect_df),
+                len(ingested.column_index_map),
             )
             manifest = architect_service.get_transformation_manifest(
                 ingested.architect_df,
@@ -160,7 +162,7 @@ def build_ingest_router(
                 diagnostic_mode=diagnostic_mode,
             )
             logger.info(
-                "Manifest built for file=%s using source=%s and layout=%s.",
+                "Transformation manifest built for file=%s source=%s layout=%s.",
                 file.filename or "upload.csv",
                 manifest.diagnostic_source,
                 manifest.layout_state,
@@ -175,12 +177,25 @@ def build_ingest_router(
                 metadata_columns=analysis_metadata_columns,
                 verbatim_columns=analysis_verbatim_columns,
             )
+            logger.info(
+                "Upload ingest completed for file=%s result_id=%s transformed_rows=%s analysis_rows=%s metadata_columns=%s verbatim_columns=%s.",
+                file.filename or "upload.csv",
+                result_id,
+                len(transformed_df),
+                len(analysis_df),
+                len(analysis_metadata_columns),
+                len(analysis_verbatim_columns),
+            )
             # Tie the in-memory result to this browser session so logout can clean it up.
             register_session_result_id(request, result_id)
         except (CsvDecodeError, RowLimitExceededError, IngestionError) as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
         except Exception as exc:
-            logger.exception("Unexpected error in upload_ingest")
+            logger.exception(
+                "Upload ingest failed unexpectedly for file=%s with diagnostic_mode=%s.",
+                file.filename or "upload.csv",
+                diagnostic_mode.value,
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An unexpected error occurred.",

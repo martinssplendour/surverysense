@@ -137,7 +137,10 @@ async function handleSubmit(event) {
             // Store the API payload in sessionStorage so the results page can read it after navigation.
             sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(payload));
         } catch (error) {
-            console.warn("[Verbatim App] Unable to cache processed result in session storage.", error);
+            console.warn(
+                "[Verbatim App] Failed to cache the processed result in session storage; upload succeeded but the dashboard handoff cannot continue.",
+                error,
+            );
             showStatus("error", "Unable to save results — browser storage may be full.");
             setBusyState(false);
             return;

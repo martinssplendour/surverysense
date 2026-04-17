@@ -44,7 +44,7 @@ class ManifestArchitectService:
         """Return a manifest for the given sample, falling back from AI to heuristics on any failure."""
         mode = diagnostic_mode or self.default_diagnostic_mode()
         logger.info(
-            "Building transformation manifest with %s on %s sampled rows and %s columns.",
+            "Transformation manifest build started with mode=%s sampled_rows=%s sampled_columns=%s.",
             "AI diagnosis" if mode == DiagnosticMode.AI else "rule-based diagnosis",
             len(df_sample),
             len(column_index_map),
@@ -58,7 +58,8 @@ class ManifestArchitectService:
                 return self._build_manifest_with_gemini(df_sample, column_index_map)
             except Exception as exc:
                 logger.warning(
-                    "AI diagnosis failed (%s); falling back to rule-based diagnosis.", exc
+                    "AI diagnosis failed during manifest build (%s). Falling back to rule-based diagnosis.",
+                    type(exc).__name__,
                 )
                 manifest = self._build_manifest_heuristically(df_sample, column_index_map)
                 manifest.notes.append(
@@ -112,9 +113,11 @@ class ManifestArchitectService:
         raw_manifest["row_limit"] = self.config.row_limit
         manifest = TransformationManifest.model_validate(raw_manifest)
         logger.info(
-            "AI diagnosis completed with layout=%s and source=%s.",
+            "AI diagnosis completed with layout=%s source=%s metadata_columns=%s verbatim_columns=%s.",
             manifest.layout_state,
             manifest.diagnostic_source,
+            len(manifest.metadata_indices),
+            len(manifest.verbatim_indices),
         )
         return manifest
 
@@ -148,9 +151,11 @@ class ManifestArchitectService:
                 ],
             )
             logger.info(
-                "Rule-based diagnosis completed with layout=%s and source=%s.",
+                "Rule-based diagnosis completed with layout=%s source=%s metadata_columns=%s question_headers=%s.",
                 manifest.layout_state,
                 manifest.diagnostic_source,
+                len(manifest.metadata_indices),
+                len(manifest.vertical_assembly.get("question_header_indices", [])),
             )
             return manifest
 
@@ -173,9 +178,11 @@ class ManifestArchitectService:
             ],
         )
         logger.info(
-            "Rule-based diagnosis completed with layout=%s and source=%s.",
+            "Rule-based diagnosis completed with layout=%s source=%s metadata_columns=%s verbatim_columns=%s.",
             manifest.layout_state,
             manifest.diagnostic_source,
+            len(manifest.metadata_indices),
+            len(manifest.verbatim_indices),
         )
         return manifest
 

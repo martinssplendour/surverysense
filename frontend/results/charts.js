@@ -152,10 +152,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
                 ])),
                 hovertemplate: [
                     "<b>%{customdata[1]}</b>",
-                    "Number of responses: %{x}",
-                    "Share of usable responses: %{customdata[2]}",
-                    "Representative rows: %{customdata[3]}",
-                    "%{customdata[4]}",
+                    "Responses: %{x}",
                     "<extra></extra>",
                 ].join("<br>"),
             },

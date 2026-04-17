@@ -448,7 +448,13 @@ class TopicAnalysisService:
                 text_column_name=text_column_name,
             )
         except Exception as exc:  # pragma: no cover - defensive guard
-            logger.info("AI topic labeling failed unexpectedly: %s", exc)
+            logger.warning(
+                "AI topic labeling failed unexpectedly for model=%s column=%s (%s: %s).",
+                model_key,
+                text_column_name,
+                type(exc).__name__,
+                exc,
+            )
             return 0, ["AI topic labeling was skipped and heuristic labels were kept."]
 
         relabeled_count = 0

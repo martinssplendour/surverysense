@@ -71,7 +71,7 @@ export async function refreshFilteredDatasets({ suppressAnalysisRender = false }
         applyRowsPayload("transformed", transformedPayload);
         applyRowsPayload("analysis", analysisPayload);
     } catch (error) {
-        console.error(error);
+        console.error("[Verbatim App] Failed to refresh preview rows after the filter change.", error);
     }
 
     callbacks.renderFilterBar();
@@ -282,7 +282,10 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
         } else {
             state.analysisHasMore = false;
         }
-        console.error(error);
+        console.error(
+            `[Verbatim App] Failed to load ${dataset === "analysis" ? "verbatim" : "processed"} preview rows.`,
+            error,
+        );
     } finally {
         if (dataset === "transformed") {
             state.transformedLoading = false;

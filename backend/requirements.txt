@@ -34,6 +34,7 @@ requests==2.31.0
 
 # Translation
 deep-translator==1.11.4
+langdetect==1.0.9
 
 # Config
 python-dotenv==1.0.0

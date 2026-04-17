@@ -79,7 +79,7 @@ export async function removeActiveFilter(columnName) {
         await applyActiveFilters(nextFilters);
         callbacks.closeFilterModal();
     } catch (error) {
-        console.error(error);
+        console.error(`[Verbatim App] Failed to remove the filter for "${columnName}".`, error);
     }
 }
 

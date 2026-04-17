@@ -68,7 +68,13 @@ class TopicAiLabelService:
             payload = json.loads(response_text)
             labels_by_group_id = self._parse_labels(payload, allowed_group_ids={item["group_id"] for item in evidence_groups})
         except Exception as exc:
-            logger.warning("AI topic labeling skipped: %s", exc)
+            logger.warning(
+                "AI topic labeling was skipped for model=%s column=%s (%s: %s).",
+                model_key,
+                text_column_name,
+                type(exc).__name__,
+                exc,
+            )
             return TopicAiLabelingBatchResult(
                 labels_by_group_id={},
                 warnings=["AI topic labeling was skipped and heuristic labels were kept."],
