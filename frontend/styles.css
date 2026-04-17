@@ -531,6 +531,10 @@ body.upload-workspace-active .upload-view {
 
 .topbar-link-secondary {
     background: rgba(255, 255, 255, 0.98);
+    min-height: 23px;
+    min-width: 56px;
+    padding: 6px 11px;
+    font-size: 0.74rem;
 }
 
 .status-message {
@@ -539,6 +543,23 @@ body.upload-workspace-active .upload-view {
     min-height: 12px;
     font-size: 0.7rem;
     color: var(--muted);
+}
+
+.upload-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.upload-button-spinner {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 2px solid rgba(248, 242, 232, 0.28);
+    border-top-color: #f8f2e8;
+    animation: analysis-spin 0.8s linear infinite;
+    flex: 0 0 auto;
 }
 
 .status-success {
@@ -861,10 +882,22 @@ body.dashboard-workspace-active .dashboard-actions {
     font-size: 1.25rem;
 }
 
+.dashboard-action-note {
+    margin: -18px 30px 28px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.94rem;
+}
+
 body.dashboard-workspace-active .dashboard-primary-action {
     min-width: 262px;
     padding: 11px 18px;
     font-size: 0.72rem;
+}
+
+body.dashboard-workspace-active .dashboard-action-note {
+    margin: -9px 15px 14px;
+    font-size: 0.58rem;
 }
 
 .dashboard-summary-section {
@@ -2339,6 +2372,15 @@ tbody tr:last-child td {
     color: #6a5424;
 }
 
+.analysis-warning-list {
+    margin: 10px 0 0;
+    padding-left: 18px;
+}
+
+.analysis-warning-list li + li {
+    margin-top: 6px;
+}
+
 .analysis-message-error {
     border-color: rgba(154, 74, 63, 0.2);
     background: rgba(246, 223, 217, 0.6);
@@ -2575,6 +2617,7 @@ tbody tr:last-child td {
 .analysis-example-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 12px;
@@ -2623,6 +2666,35 @@ tbody tr:last-child td {
     color: #3d352d;
     font-size: 1rem;
     line-height: 1.58;
+}
+
+.analysis-translate-button {
+    min-height: 24px;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 0.66rem;
+    line-height: 1;
+    border-radius: 999px;
+    margin-left: auto;
+}
+
+.analysis-example-translation {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(89, 68, 42, 0.08);
+}
+
+.analysis-example-translation strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--green);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.analysis-example-translation p {
+    margin: 0;
 }
 
 .analysis-example-source {
@@ -2919,6 +2991,12 @@ tbody tr:last-child td {
     padding: 0 10px;
     font-size: 0.68rem;
     letter-spacing: 0.06em;
+}
+
+.analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-translate-button {
+    min-height: 20px;
+    padding: 3px 7px;
+    font-size: 0.56rem;
 }
 
 .analysis-ngram-grid {

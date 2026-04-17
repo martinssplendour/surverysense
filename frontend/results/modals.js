@@ -24,6 +24,8 @@ export function openAnalysisGroupModalByIndex(groupIndex) {
     state.analysisGroupModalTotalCount = Number(group.count || 0);
     state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalTranslations = {};
+    state.analysisGroupModalTranslationLoading = {};
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
     state.analysisGroupModalLoading = false;
@@ -51,6 +53,8 @@ export function openAnalysisNgramModal(bucketIndex, itemIndex) {
     state.analysisGroupModalTotalCount = Number(item.document_count || 0);
     state.analysisGroupModalBucketLabel = String(bucket.label || `${bucket.ngram_size}-grams`);
     state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalTranslations = {};
+    state.analysisGroupModalTranslationLoading = {};
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
     state.analysisGroupModalLoading = false;
@@ -74,10 +78,63 @@ export function closeAnalysisGroupModal() {
     state.analysisGroupModalTotalCount = 0;
     state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalTranslations = {};
+    state.analysisGroupModalTranslationLoading = {};
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
     state.analysisGroupModalLoading = false;
     hideAnalysisGroupModalMessage();
+}
+
+export async function translateAnalysisDocument(documentKey) {
+    const document = state.analysisGroupModalDocuments.find((item) => buildDocumentKey(item) === documentKey) || null;
+    if (!document || !state.resultId || state.analysisGroupModalTranslationLoading[documentKey]) {
+        return;
+    }
+
+    state.analysisGroupModalTranslationLoading = {
+        ...state.analysisGroupModalTranslationLoading,
+        [documentKey]: true,
+    };
+    renderAnalysisGroupModal();
+
+    try {
+        const response = await fetch("/translate-to-english", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                text: String(document.text || ""),
+            }),
+        });
+        if (response.status === 401) {
+            sessionStorage.removeItem(RESULT_STORAGE_KEY);
+            window.location.assign("/login");
+            return;
+        }
+        const payload = await parseJson(response);
+        if (!response.ok) {
+            throw new Error(payload.detail || "Unable to translate this response.");
+        }
+
+        state.analysisGroupModalTranslations = {
+            ...state.analysisGroupModalTranslations,
+            [documentKey]: {
+                text: String(payload.translated_text || document.text || ""),
+                translated: Boolean(payload.translated),
+                warning: payload.warning ? String(payload.warning) : "",
+            },
+        };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to translate this response.";
+        showAnalysisGroupModalMessage("error", message);
+    } finally {
+        const nextLoading = { ...state.analysisGroupModalTranslationLoading };
+        delete nextLoading[documentKey];
+        state.analysisGroupModalTranslationLoading = nextLoading;
+        renderAnalysisGroupModal();
+    }
 }
 
 export async function loadAnalysisGroupDocuments({ reset = false } = {}) {
@@ -369,12 +426,34 @@ function renderAnalysisNgramModal() {
 }
 
 function renderAnalysisDocumentCard(document) {
+    const documentKey = buildDocumentKey(document);
+    const translation = state.analysisGroupModalTranslations[documentKey] || null;
+    const isLoading = Boolean(state.analysisGroupModalTranslationLoading[documentKey]);
     return `
         <blockquote class="analysis-example analysis-example-full">
             <div class="analysis-example-header">
                 <span class="analysis-example-pill">Row ${Number(document.row_number || 0)}</span>
+                <button
+                    type="button"
+                    class="button button-ghost analysis-translate-button"
+                    data-translate-document="${escapeHtml(documentKey)}"
+                    ${isLoading ? "disabled" : ""}
+                >
+                    ${isLoading ? "..." : "Translate"}
+                </button>
             </div>
             <p>${escapeHtml(document.text || "")}</p>
+            ${translation ? `
+                <div class="analysis-example-translation">
+                    <strong>English</strong>
+                    <p>${escapeHtml(translation.text || "")}</p>
+                    ${translation.warning ? `<span class="analysis-source-note">${escapeHtml(translation.warning)}</span>` : ""}
+                </div>
+            ` : ""}
         </blockquote>
     `;
+}
+
+function buildDocumentKey(document) {
+    return `${Number(document?.row_number || 0)}:${String(document?.text || "")}`;
 }

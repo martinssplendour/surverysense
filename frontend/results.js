@@ -37,6 +37,7 @@ import {
     configureResultsCharts,
     downloadAnalysisReport,
     normalizeAnalysisExportFormat,
+    resizeAnalysisPlots,
 } from "./results/charts.js";
 import {
     buildPreviewEmptyMessage,
@@ -71,6 +72,7 @@ import {
     loadAnalysisNgramDocuments,
     openAnalysisGroupModalByIndex,
     openAnalysisNgramModal,
+    translateAnalysisDocument,
 } from "./results/modals.js";
 import {
     applyColumnRoleChange,
@@ -202,6 +204,7 @@ function bindEvents() {
         state.analysisExportMenuOpen = false;
         renderAnalysisExportControls();
     });
+    document.addEventListener("keydown", handleDocumentKeydown);
     elements.analysisEmptyActionButton?.addEventListener("click", () => {
         openWorkspace("analysis");
     });
@@ -232,6 +235,21 @@ function bindEvents() {
             return;
         }
         void loadAnalysisGroupDocuments();
+    });
+    elements.analysisGroupDocuments?.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const translateButton = target.closest("[data-translate-document]");
+        if (!(translateButton instanceof HTMLElement)) {
+            return;
+        }
+        const documentKey = translateButton.dataset.translateDocument;
+        if (!documentKey) {
+            return;
+        }
+        void translateAnalysisDocument(documentKey);
     });
     elements.filterColumnSelect?.addEventListener("change", handleFilterColumnChange);
     elements.filterValueSelect?.addEventListener("change", handleFilterValueChange);
@@ -289,6 +307,12 @@ function bindEvents() {
 }
 
 async function loadResultsPage() {
+    if (isPageReload()) {
+        sessionStorage.removeItem(RESULT_STORAGE_KEY);
+        showEmptyState();
+        return;
+    }
+
     const payload = readStoredPayload();
     if (!payload) {
         showEmptyState();
@@ -349,6 +373,8 @@ function applyPayload(payload) {
     state.analysisGroupModalTotalCount = 0;
     state.analysisGroupModalBucketLabel = "";
     state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalTranslations = {};
+    state.analysisGroupModalTranslationLoading = {};
     state.analysisGroupModalHasMore = false;
     state.analysisGroupModalOffset = 0;
     state.analysisGroupModalLoading = false;
@@ -379,6 +405,23 @@ function readStoredPayload() {
 
 function isValidStoredPayload(payload) {
     return Boolean(payload) && Array.isArray(payload.transformed_column_names);
+}
+
+function isPageReload() {
+    if (typeof window === "undefined" || typeof performance === "undefined") {
+        return false;
+    }
+
+    const navigationEntries = typeof performance.getEntriesByType === "function"
+        ? performance.getEntriesByType("navigation")
+        : [];
+    const firstEntry = Array.isArray(navigationEntries) ? navigationEntries[0] : null;
+    if (firstEntry && typeof firstEntry === "object" && "type" in firstEntry) {
+        return firstEntry.type === "reload";
+    }
+
+    const legacyNavigation = performance.navigation;
+    return Boolean(legacyNavigation && legacyNavigation.type === 1);
 }
 
 function showEmptyState() {
@@ -489,6 +532,12 @@ function renderDashboard(payload) {
     elements.dashboardMetrics.innerHTML = metrics.join("");
     elements.openAnalysisButton.disabled = !verbatimCount;
     elements.openDataButton.disabled = !verbatimCount;
+    if (elements.dashboardActionNote) {
+        elements.dashboardActionNote.hidden = Boolean(verbatimCount);
+        elements.dashboardActionNote.textContent = verbatimCount
+            ? ""
+            : "No verbatim columns detected — use Edit Columns to assign them.";
+    }
 }
 
 async function openWorkspace(nextWorkspace) {
@@ -641,6 +690,80 @@ function closeFilterModal() {
     hideFilterModalMessage();
 }
 
+function handleDocumentKeydown(event) {
+    if (!(event instanceof KeyboardEvent)) {
+        return;
+    }
+
+    if (event.key === "Escape") {
+        if (!elements.analysisGroupModal?.hidden) {
+            closeAnalysisGroupModal();
+            return;
+        }
+        if (!elements.columnRoleModal?.hidden) {
+            closeColumnRoleModal();
+            return;
+        }
+        if (!elements.filterModal?.hidden) {
+            closeFilterModal();
+        }
+        return;
+    }
+
+    if (event.key !== "Tab") {
+        return;
+    }
+
+    const activeModal = getActiveModalCard();
+    if (!(activeModal instanceof HTMLElement)) {
+        return;
+    }
+
+    trapFocusWithinModal(event, activeModal);
+}
+
+function getActiveModalCard() {
+    if (!elements.analysisGroupModal?.hidden) {
+        return elements.analysisGroupModalCard;
+    }
+    if (!elements.columnRoleModal?.hidden) {
+        return elements.columnRoleModal?.querySelector(".modal-card");
+    }
+    if (!elements.filterModal?.hidden) {
+        return elements.filterModal?.querySelector(".modal-card");
+    }
+    return null;
+}
+
+function trapFocusWithinModal(event, modalCard) {
+    const focusable = Array.from(
+        modalCard.querySelectorAll(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+    ).filter((element) => element instanceof HTMLElement && !element.hidden && element.offsetParent !== null);
+
+    if (!focusable.length) {
+        event.preventDefault();
+        modalCard.focus();
+        return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+    }
+
+    if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
 function renderPreviewTable(preserveScroll) {
     renderFilterBar();
 
@@ -710,31 +833,6 @@ function renderPreviewTable(preserveScroll) {
         }
         syncSliderRange();
     });
-}
-
-function renderAnalysisResultsHeader() {
-    if (!elements.analysisResultsSubtitle) {
-        return;
-    }
-
-    if (!state.analysisResult) {
-        elements.analysisResultsSubtitle.textContent = "Run an analysis to see charts, distributions, and representative responses here.";
-        return;
-    }
-
-    if (!state.analysisResult.ok) {
-        elements.analysisResultsSubtitle.textContent = "The last analysis did not complete. Review the message below or return to the setup screen to try another method.";
-        return;
-    }
-
-    const result = state.analysisResult;
-    const details = [
-        displayAnalysisMode(result.model_key),
-        displayColumnLabel(result.text_column_name || ""),
-        `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
-        `${formatNumber(result.valid_document_count || 0)} usable responses`,
-    ];
-    elements.analysisResultsSubtitle.textContent = details.join(" · ");
 }
 
 function focusAnalysisTarget(targetId) {
@@ -847,3 +945,4 @@ function handleMissingResultState(message = "The processed result is no longer a
 }
 
 })();
+

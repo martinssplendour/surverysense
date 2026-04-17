@@ -69,6 +69,7 @@ class Settings:
     topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
     session_secret: str = os.getenv("SESSION_SECRET", DEFAULT_SESSION_SECRET).strip()
     session_https_only: bool = os.getenv("SESSION_HTTPS_ONLY", "false").strip().casefold() in {"1", "true", "yes", "on"}
+    session_idle_timeout_seconds: int = int(os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "1800"))
     google_oauth_client_id: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
     google_oauth_client_secret: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
     google_oauth_redirect_uris: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_REDIRECT_URIS")

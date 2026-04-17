@@ -7,9 +7,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -196,13 +193,11 @@ def create_app() -> FastAPI:
     )
 
     app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
-    limiter = Limiter(key_func=get_remote_address)
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(AuthRedirectMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.session_secret,
+        max_age=settings.session_idle_timeout_seconds,
         same_site="lax",
         https_only=settings.session_https_only,
     )
@@ -222,9 +217,9 @@ def create_app() -> FastAPI:
             topic_analysis_service=topic_analysis_service,
             report_export_service=report_export_service,
             result_store_service=result_store_service,
+            translation_service=translation_service,
             preview_size=settings.transformed_preview_size,
             architect_sample_size=settings.architect_sample_size,
-            limiter=limiter,
         )
     )
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")

@@ -620,6 +620,8 @@ function resizeAnalysisPlots() {
     });
 }
 
+export { resizeAnalysisPlots };
+
 function queueAnalysisPlotResize() {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {

@@ -174,6 +174,17 @@ class AnalysisNgramDocumentsResponse(BaseModel):
     documents: list[AnalysisGroupDocumentModel] = Field(default_factory=list)
 
 
+class TranslateTextRequest(BaseModel):
+    text: str
+
+
+class TranslateTextResponse(BaseModel):
+    original_text: str
+    translated_text: str
+    translated: bool = False
+    warning: str | None = None
+
+
 class AnalysisExportFilterModel(BaseModel):
     column_name: str
     display_name: str | None = None

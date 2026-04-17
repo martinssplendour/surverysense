@@ -2,6 +2,8 @@
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
 const RESULT_HANDOFF_MAX_ATTEMPTS = 20;
 const RESULT_HANDOFF_RETRY_MS = 100;
+let uploadElapsedTimer = null;
+let uploadStartedAt = 0;
 
 const state = {
     file: null,
@@ -87,6 +89,7 @@ function setFile(file) {
         elements.fileLabel.textContent = "Select a CSV file or drag it here";
         elements.fileMeta.textContent = "Accepted format: .csv";
         elements.processButton.disabled = true;
+        elements.processButton.innerHTML = "Process File";
         showStatus("neutral", "Waiting for a CSV upload.");
         return;
     }
@@ -159,11 +162,39 @@ async function handleSubmit(event) {
 function setBusyState(isBusy) {
     elements.processButton.disabled = isBusy || !state.file;
     elements.fileInput.disabled = isBusy;
+    if (isBusy) {
+        uploadStartedAt = Date.now();
+        elements.processButton.innerHTML = '<span class="upload-button-content"><span class="upload-button-spinner" aria-hidden="true"></span><span>Processing...</span></span>';
+        updateElapsedStatus();
+        if (uploadElapsedTimer) {
+            window.clearInterval(uploadElapsedTimer);
+        }
+        uploadElapsedTimer = window.setInterval(updateElapsedStatus, 1000);
+        return;
+    }
+
+    elements.processButton.textContent = "Process File";
+    if (uploadElapsedTimer) {
+        window.clearInterval(uploadElapsedTimer);
+        uploadElapsedTimer = null;
+    }
+    uploadStartedAt = 0;
 }
 
 function showStatus(kind, message) {
     elements.statusMessage.textContent = message;
     elements.statusMessage.className = `status-message status-${kind}`;
+}
+
+function updateElapsedStatus() {
+    if (!uploadStartedAt) {
+        return;
+    }
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - uploadStartedAt) / 1000));
+    const minutes = Math.floor(elapsedSeconds / 60);
+    const seconds = elapsedSeconds % 60;
+    const elapsedLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} elapsed`;
+    showStatus("neutral", `Processing CSV with ${formatDiagnosticModeLabel(state.diagnosticMode)}... ${elapsedLabel}`);
 }
 
 function handoffProcessedResult(payload, attempt = 0) {

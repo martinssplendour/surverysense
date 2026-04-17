@@ -29,6 +29,9 @@ export function handleFilterValueChange(event) {
         return;
     }
     state.selectedFilterValue = target.value;
+    if (state.selectedFilterColumn && state.selectedFilterValue) {
+        void handleAddFilter();
+    }
 }
 
 export async function handleAddFilter() {

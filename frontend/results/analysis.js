@@ -102,8 +102,7 @@ export function renderAnalysisOutput() {
     }
 
     setAnalysisEmptyState(false);
-    elements.analysisSummary.innerHTML = "";
-    elements.analysisSummary.hidden = true;
+    renderAnalysisWarnings(result.warnings);
     clearAnalysisMessage();
 
     if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
@@ -138,7 +137,7 @@ export function renderAnalysisExportControls() {
         elements.downloadAnalysisReportButton.disabled = !hasReadyAnalysis || state.analysisExportRunning;
         elements.downloadAnalysisReportButton.textContent = state.analysisExportRunning
             ? "Preparing Report..."
-            : "Download Report";
+            : `Download ${selectedFormatLabel}`;
         elements.downloadAnalysisReportButton.title = hasReadyAnalysis
             ? `Download report as ${selectedFormatLabel}`
             : "Run an analysis to enable report download";
@@ -189,6 +188,32 @@ export function renderAnalysisResultsHeader() {
         `${formatNumber(result.valid_document_count || 0)} usable responses`,
     ];
     elements.analysisResultsSubtitle.textContent = details.join(" · ");
+}
+
+function renderAnalysisWarnings(warnings) {
+    if (!elements.analysisSummary) {
+        return;
+    }
+
+    const items = Array.isArray(warnings)
+        ? warnings.map((warning) => String(warning || "").trim()).filter(Boolean)
+        : [];
+
+    if (!items.length) {
+        elements.analysisSummary.innerHTML = "";
+        elements.analysisSummary.hidden = true;
+        return;
+    }
+
+    elements.analysisSummary.hidden = false;
+    elements.analysisSummary.innerHTML = `
+        <div class="analysis-message analysis-message-warning">
+            <strong>Analysis notes</strong>
+            <ul class="analysis-warning-list">
+                ${items.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}
+            </ul>
+        </div>
+    `;
 }
 
 export function renderAnalysisMessage(kind, message) {

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import secrets
+import time
 
 from fastapi import HTTPException, Request, status
+
+from app.core.settings import get_settings
 
 
 SESSION_USER_KEY = "authenticated_user"
 SESSION_RESULT_IDS_KEY = "uploaded_result_ids"
+SESSION_LAST_ACTIVITY_KEY = "last_activity_at"
+SESSION_ROTATION_NONCE_KEY = "session_rotation_nonce"
 
 
 @dataclass(slots=True)
@@ -19,6 +25,10 @@ class AuthenticatedUser:
 def get_authenticated_user(request: Request) -> AuthenticatedUser | None:
     session_payload = request.scope.get("session")
     if not isinstance(session_payload, dict):
+        return None
+
+    if _is_session_idle_expired(session_payload):
+        request.session.clear()
         return None
 
     payload = session_payload.get(SESSION_USER_KEY)
@@ -39,11 +49,15 @@ def get_authenticated_user(request: Request) -> AuthenticatedUser | None:
 
 
 def set_authenticated_user(request: Request, user: AuthenticatedUser) -> None:
+    _rotate_authenticated_session(request)
     request.session[SESSION_USER_KEY] = asdict(user)
+    _touch_session_activity(request)
 
 
 def clear_authenticated_user(request: Request) -> None:
     request.session.pop(SESSION_USER_KEY, None)
+    request.session.pop(SESSION_LAST_ACTIVITY_KEY, None)
+    request.session.pop(SESSION_ROTATION_NONCE_KEY, None)
 
 
 def register_session_result_id(request: Request, result_id: str) -> None:
@@ -84,4 +98,28 @@ def require_authenticated_user(request: Request) -> AuthenticatedUser:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required.",
         )
+    _touch_session_activity(request)
     return user
+
+
+def _rotate_authenticated_session(request: Request) -> None:
+    request.session.clear()
+    request.session[SESSION_ROTATION_NONCE_KEY] = secrets.token_urlsafe(16)
+
+
+def _touch_session_activity(request: Request) -> None:
+    request.session[SESSION_LAST_ACTIVITY_KEY] = int(time.time())
+
+
+def _is_session_idle_expired(session_payload: dict) -> bool:
+    last_activity_raw = session_payload.get(SESSION_LAST_ACTIVITY_KEY)
+    if last_activity_raw is None:
+        return False
+
+    try:
+        last_activity = int(last_activity_raw)
+    except (TypeError, ValueError):
+        return True
+
+    timeout_seconds = max(60, get_settings().session_idle_timeout_seconds)
+    return int(time.time()) - last_activity > timeout_seconds
