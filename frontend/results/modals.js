@@ -1,3 +1,4 @@
+// Controls the drilldown modal that shows individual responses for a topic group or n-gram phrase match.
 import {
     FULL_DATA_ROW_PAGE_SIZE,
     RESULT_STORAGE_KEY,
@@ -15,6 +16,8 @@ export function openAnalysisGroupModalByIndex(groupIndex) {
         return;
     }
 
+    // Reset modal-local state every time so switching between groups never leaks
+    // pagination, cached translations, or stale counts from the previous drilldown.
     state.analysisGroupModalMode = "group";
     state.analysisGroupModalGroupId = String(group.group_id || "");
     state.analysisGroupModalNgramSize = 0;
@@ -99,6 +102,8 @@ export async function translateAnalysisDocument(documentKey) {
     renderAnalysisGroupModal();
 
     try {
+        // Translation happens on demand per response so the main analysis path stays
+        // fast and the modal only pays this cost when the user explicitly asks for it.
         const response = await fetch("/translate-to-english", {
             method: "POST",
             headers: {
@@ -143,6 +148,8 @@ export async function loadAnalysisGroupDocuments({ reset = false } = {}) {
         return;
     }
 
+    // Group documents page independently from the main analysis payload so the
+    // analysis result stays lightweight even when a group has many responses.
     const offset = reset ? 0 : state.analysisGroupModalOffset;
     state.analysisGroupModalLoading = true;
     hideAnalysisGroupModalMessage();
@@ -193,6 +200,7 @@ export async function loadAnalysisNgramDocuments({ reset = false } = {}) {
     }
 
     const offset = reset ? 0 : state.analysisGroupModalOffset;
+    // Use the pre-normalised source term for the API query when available; the display term may be cleaned.
     const lookupTerm = state.analysisGroupModalSourceTerm || state.analysisGroupModalTerm;
     state.analysisGroupModalLoading = true;
     hideAnalysisGroupModalMessage();
@@ -287,7 +295,7 @@ function renderAnalysisGroupModal() {
     const loadedCount = state.analysisGroupModalDocuments.length;
     const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
     const modelKey = state.analysisResult?.model_key || state.selectedAnalysisModel;
-    const subjectLabel = modelKey === "bertopic" ? "Theme" : "Group";
+    const subjectLabel = modelKey === "bertopic" ? "Topic" : "Group";
     const contextItems = [
         group.translated && !group.ai_generated ? "Translated label" : "",
         Array.isArray(group.terms) && group.terms.length
@@ -295,6 +303,8 @@ function renderAnalysisGroupModal() {
             : "",
         group.is_noise ? "Outlier bucket" : "",
     ];
+    // The same modal shell renders both group drilldowns and n-gram matches; the
+    // header/context block is rebuilt from whichever analysis mode is active.
     const detailsMarkup = renderAnalysisModalContext(contextItems);
 
     if (elements.analysisGroupTitle) {
@@ -454,6 +464,7 @@ function renderAnalysisDocumentCard(document) {
     `;
 }
 
+// Composite key used to match a document in the translations and loading maps (row number + text content).
 function buildDocumentKey(document) {
     return `${Number(document?.row_number || 0)}:${String(document?.text || "")}`;
 }

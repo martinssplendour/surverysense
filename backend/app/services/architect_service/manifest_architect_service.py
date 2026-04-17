@@ -1,3 +1,4 @@
+"""Builds a TransformationManifest from a CSV sample, using Gemini AI or rule-based heuristics."""
 from __future__ import annotations
 
 import itertools
@@ -22,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 class ManifestArchitectService:
+    """Diagnoses a survey CSV sample and produces a TransformationManifest describing its layout and columns."""
+
     def __init__(self, config: ManifestArchitectConfig) -> None:
         self.config = config
 
@@ -38,6 +41,7 @@ class ManifestArchitectService:
         *,
         diagnostic_mode: DiagnosticMode | None = None,
     ) -> TransformationManifest:
+        """Return a manifest for the given sample, falling back from AI to heuristics on any failure."""
         mode = diagnostic_mode or self.default_diagnostic_mode()
         logger.info(
             "Building transformation manifest with %s on %s sampled rows and %s columns.",
@@ -119,6 +123,7 @@ class ManifestArchitectService:
         df_sample: pd.DataFrame,
         column_index_map: dict[int, str],
     ) -> TransformationManifest:
+        """Detect layout type via scoring heuristics and produce a rule-based manifest without Gemini."""
         vertical_candidate = self._detect_vertical_layout(df_sample)
         if vertical_candidate is not None:
             manifest = TransformationManifest(
@@ -370,6 +375,7 @@ class ManifestArchitectService:
     # ------------------------------------------------------------------
 
     def _detect_vertical_layout(self, df_sample: pd.DataFrame) -> dict[str, Any] | None:
+        """Return vertical layout column assignments if heuristic scoring reaches the confidence threshold (≥ 6.5), else None."""
         n_cols = df_sample.shape[1]
         if n_cols < 3 or df_sample.empty:
             return None
@@ -380,6 +386,8 @@ class ManifestArchitectService:
 
         # For small column counts try every combination; for wider datasets
         # pre-filter to the top-k candidates per role before permuting.
+        # For wide CSVs (>12 cols), pre-filter to the top-7 candidates per vertical role
+        # before the O(k³) permutation search to keep the total iterations under ~1000.
         _FULL_SEARCH_LIMIT = 12
         if n_cols <= _FULL_SEARCH_LIMIT:
             candidate_cols = list(range(n_cols))
@@ -434,6 +442,10 @@ class ManifestArchitectService:
         answer_idx: int,
         col_stats: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        """Score one (record_key, question, answer) column triple for vertical layout fitness.
+
+        When col_stats is provided, uses precomputed numpy arrays to avoid per-permutation DataFrame overhead.
+        """
         if col_stats is not None:
             # Fast path: use precomputed per-column statistics so we never slice
             # the DataFrame or call header-scoring functions inside the loop.
@@ -475,8 +487,10 @@ class ManifestArchitectService:
             question_identifier_ratio = stats_q["identifier_ratio"]
 
             score = 0.0
+            # Key signal: the same respondent ID must repeat across multiple rows (ratio ≥ 1.5 rows/ID).
             if record_key_unique and row_count / record_key_unique >= 1.5:
                 score += 2.0
+            # Most (key, question) pairs should be unique — repeated pairs suggest a non-vertical layout.
             if pair_unique / row_count >= 0.7:
                 score += 1.0
             if question_unique and row_count / question_unique >= 1.2:
@@ -491,8 +505,10 @@ class ManifestArchitectService:
                 score += 0.5
             if record_key_identifier_ratio >= 0.6:
                 score += 1.0
+            # If the "answer" column looks like identifiers, it is likely a code/ID column, not free text.
             if answer_identifier_ratio >= 0.6:
                 score -= 3.0
+            # Questions should be human-readable strings, not identifier-like tokens.
             if question_identifier_ratio >= 0.2:
                 score -= 2.0
 
@@ -615,6 +631,7 @@ class ManifestArchitectService:
         return sorted(set(helper_indices))
 
     def _detect_wide_verbatim_indices(self, df_sample: pd.DataFrame) -> list[int]:
+        """Score all columns for wide verbatim content and return those above the 2.5 threshold; falls back to the best column."""
         scored_columns: list[tuple[int, float]] = []
         for idx in range(df_sample.shape[1]):
             score = self._score_wide_verbatim_column(df_sample.iloc[:, idx], str(df_sample.columns[idx]))
@@ -734,12 +751,14 @@ class ManifestArchitectService:
 
     @staticmethod
     def _identifier_like_ratio(series: pd.Series) -> float:
+        """Return the fraction of non-blank values that match UUID/hash-like identifier patterns."""
         if series.empty:
             return 0.0
         text = series.astype(str).str.strip()
         nonempty = text != ""
         no_space = ~text.str.contains(" ", regex=False, na=False)
-        # Vectorised equivalents of the two branches in the original per-element loop.
+        # Primary check: UUID-style hex segments (e.g. "a1b2c3-4d-5e").
+        # Fallback: long alphanumeric-with-dash strings that look like opaque IDs.
         pattern_hit = text.str.fullmatch(
             r"[0-9a-f]{6,}(?:-[0-9a-f]{2,}){2,}", case=False, na=False
         )

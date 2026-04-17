@@ -1,3 +1,4 @@
+"""Domain-specific survey preparation services for Twinkl-format vertical survey exports."""
 from __future__ import annotations
 
 from typing import Any
@@ -33,6 +34,8 @@ DEFAULT_TARGET_MAIN_TITLES = [
 
 
 class UserIdCastingService:
+    """Coerces the user_id column to a nullable integer type for consistent join behaviour."""
+
     def cast(self, df: pd.DataFrame) -> pd.DataFrame:
         casted = df.copy()
         if "user_id" in casted.columns:
@@ -41,6 +44,8 @@ class UserIdCastingService:
 
 
 class FullTitleFallbackService:
+    """Populates full_title_fixed by falling back to main_title when full_title is blank."""
+
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
         prepared = df.copy()
         if "full_title" in prepared.columns and "main_title" in prepared.columns:
@@ -83,6 +88,8 @@ class TitleNormalizationColumnsService:
 
 
 class WideSurveyPivotService:
+    """Pivots a vertical question/answer DataFrame to one wide row per respondent using a multi-level pivot_table."""
+
     def build(self, df: pd.DataFrame) -> pd.DataFrame:
         required = {"main_title_norm", "full_title_norm", "answer_value"}
         missing = sorted(required.difference(df.columns))
@@ -111,10 +118,13 @@ class WideSurveyPivotService:
 
 
 class QuestionRecordExtractionService:
+    """Extracts per-respondent text records for one question title from a pivoted wide DataFrame."""
+
     def __init__(self, title_normalizer: TitleNormalizationColumnsService) -> None:
         self.title_normalizer = title_normalizer
 
     def extract(self, wide_df: pd.DataFrame, question_title: str) -> pd.DataFrame:
+        """Return a flat records DataFrame (metadata + full_title + text) for the given question_title."""
         if wide_df.empty:
             return self._empty_question_records()
 
@@ -278,6 +288,8 @@ class CountryFilterService:
 
 
 class CareerMetadataBackfillService:
+    """Fills missing career_group / career_category from a separate question record source when the primary records lack them."""
+
     def __init__(self, question_record_extractor: QuestionRecordExtractionService) -> None:
         self.question_record_extractor = question_record_extractor
 

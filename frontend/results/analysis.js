@@ -1,3 +1,4 @@
+// Renders the analysis setup panel, runs NLP analysis via the API, and displays results or error states.
 import { ANALYSIS_MODE_OPTIONS, RESULT_STORAGE_KEY, elements, state } from "./shared.js";
 import { displayAnalysisMode, displayColumnLabel, escapeHtml, formatNumber } from "./utils.js";
 import {
@@ -8,6 +9,7 @@ import {
 import { displayAnalysisExportFormat, normalizeAnalysisExportFormat } from "./chartExport.js";
 import { parseJson } from "./rows.js";
 
+// Tracks the in-flight analysis request so it can be aborted when a new one starts.
 let activeAnalysisAbortController = null;
 
 const callbacks = {
@@ -119,7 +121,7 @@ export function renderAnalysisOutput() {
         : `
             <div class="analysis-item">
                 <h4>No groups were returned</h4>
-                <p class="analysis-sample">The analysis completed, but it did not produce any usable themes or groups for the current filtered sample.</p>
+                <p class="analysis-sample">The analysis completed, but it did not produce any usable topics or groups for the current filtered sample.</p>
             </div>
         `;
     renderAnalysisChart(groups, Array.isArray(result.scatter_points) ? result.scatter_points : []);
@@ -270,6 +272,7 @@ export async function runAnalysis({
         renderAnalysisOutput();
     }
 
+    // Cancel any in-flight request before starting a new one to avoid stale results overwriting fresh ones.
     if (activeAnalysisAbortController) {
         activeAnalysisAbortController.abort();
     }
@@ -327,8 +330,6 @@ export async function runAnalysis({
             filtered_row_count: 0,
             valid_document_count: 0,
             skipped_document_count: 0,
-            translated_document_count: 0,
-            warnings: [],
             error: message,
             groups: [],
             ngram_buckets: [],

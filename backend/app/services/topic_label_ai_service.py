@@ -1,3 +1,4 @@
+"""Uses Gemini to generate concise English labels for topic-analysis groups via a structured JSON prompt."""
 from __future__ import annotations
 
 import json
@@ -32,6 +33,8 @@ class TopicAiLabelingBatchResult:
 
 
 class TopicAiLabelService:
+    """Calls Gemini to produce human-readable labels for clustered topic groups, falling back gracefully on any error."""
+
     def __init__(self, *, config: TopicAiLabelingConfig) -> None:
         self.config = config
 
@@ -45,6 +48,7 @@ class TopicAiLabelService:
         model_key: str,
         text_column_name: str,
     ) -> TopicAiLabelingBatchResult:
+        """Request AI-generated labels for up to max_groups non-noise groups; returns empty result on any failure."""
         if not self.is_available() or not groups:
             return TopicAiLabelingBatchResult(labels_by_group_id={}, warnings=[], labeled_group_count=0)
 
@@ -78,6 +82,7 @@ class TopicAiLabelService:
         )
 
     def _build_group_evidence(self, groups: list[dict[str, object]]) -> list[dict[str, object]]:
+        """Assemble a trimmed evidence dict for each non-noise group to send to Gemini."""
         evidence_groups: list[dict[str, object]] = []
         for group in groups:
             if len(evidence_groups) >= max(1, self.config.max_groups):
@@ -104,6 +109,7 @@ class TopicAiLabelService:
         return evidence_groups
 
     def _collect_examples(self, group: dict[str, object]) -> list[str]:
+        """Extract up to max_examples representative texts from a group, truncating each to max_chars."""
         examples: list[str] = []
         max_examples = max(1, self.config.max_examples_per_group)
         max_chars = max(80, self.config.max_chars_per_example)
@@ -250,6 +256,7 @@ class TopicAiLabelService:
 
     @staticmethod
     def _normalize_label(label: str) -> str:
+        """Strip surrounding punctuation/whitespace from a Gemini label and cap it at 80 characters."""
         normalized = re.sub(r"\s+", " ", label).strip(" \t\r\n\"'`.,:;!?-")
         if not normalized:
             return ""

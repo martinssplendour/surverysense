@@ -1,9 +1,11 @@
+// Initialises the Google Identity Services sign-in button and exchanges the returned credential for a session cookie.
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
 const elements = {
     googleSigninButton: document.getElementById("google-signin-button"),
     loginStatus: document.getElementById("login-status"),
 };
 
+// Clear any stale upload result so that signing in always starts with a clean slate.
 sessionStorage.removeItem(RESULT_STORAGE_KEY);
 initLoginPage();
 
@@ -72,6 +74,10 @@ async function handleCredentialResponse(response) {
     }
 }
 
+/**
+ * Polls for the Google Identity Services library to finish loading (loaded via a <script> tag).
+ * Times out after 60 attempts × 200 ms = 12 seconds.
+ */
 function waitForGoogleIdentity() {
     return new Promise((resolve, reject) => {
         let attempts = 0;

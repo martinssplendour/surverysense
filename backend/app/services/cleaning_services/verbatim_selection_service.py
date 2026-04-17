@@ -1,3 +1,4 @@
+"""Scores and selects open-text verbatim columns from a transformed DataFrame using heuristic signals."""
 from __future__ import annotations
 
 import re
@@ -11,18 +12,22 @@ from app.services.cleaning_services.metadata_selection_service import MetadataCo
 
 @dataclass(slots=True)
 class VerbatimQuestionCandidate:
+    """Scored assessment of a single DataFrame column as a candidate open-text verbatim question."""
+
     column_name: str
-    score: float
+    score: float         # Heuristic score; -999 means definitively rejected
     is_selected: bool
-    reasons: list[str]
+    reasons: list[str]   # Human-readable explanation of the selection decision
     non_blank_count: int
-    unique_ratio: float
-    avg_length: float
-    long_text_ratio: float
-    numeric_ratio: float
+    unique_ratio: float  # Fraction of non-blank values that are unique
+    avg_length: float    # Mean character length of non-blank answers
+    long_text_ratio: float  # Fraction of answers with >= 25 characters
+    numeric_ratio: float    # Fraction of values parseable as a number
 
 
 class VerbatimQuestionSelectionService:
+    """Identifies open-text verbatim columns via a cascade of heuristic filters on content and header signals."""
+
     HIGH_VARIATION_UNIQUE_RATIO_MIN = 0.35
     HIGH_VARIATION_TOP10_COVERAGE_MAX = 0.55
     HIGH_VARIATION_UNIQUE_COUNT_MIN = 10
@@ -81,6 +86,7 @@ class VerbatimQuestionSelectionService:
         metadata_columns: list[str],
         min_score: float = 3.5,
     ) -> list[VerbatimQuestionCandidate]:
+        """Return one scored candidate per non-metadata column, detailing whether it was selected and why."""
         candidates: list[VerbatimQuestionCandidate] = []
         for column in df.columns:
             if column in metadata_columns:
@@ -140,8 +146,10 @@ class VerbatimQuestionSelectionService:
         unique_count = int(non_blank.nunique(dropna=True))
         unique_ratio = unique_count / max(len(non_blank), 1)
         avg_length = float(non_blank.str.len().mean())
+        # "long text" threshold of 25 chars distinguishes short label answers from genuine prose.
         long_text_ratio = float((non_blank.str.len() >= 25).mean())
         numeric_ratio = float(pd.to_numeric(non_blank, errors="coerce").notna().mean())
+        # Regex matches any Unicode letter — values with no letters at all are not text.
         text_value_ratio = float(non_blank.str.contains(r"[^\W\d_]", regex=True).mean())
         value_distribution = non_blank.value_counts(normalize=True, dropna=True)
         top5_coverage = float(value_distribution.head(5).sum())

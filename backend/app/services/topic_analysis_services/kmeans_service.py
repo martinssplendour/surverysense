@@ -1,3 +1,4 @@
+"""K-means clustering service that automatically selects MiniBatchKMeans for large datasets."""
 from __future__ import annotations
 
 from app.core.exceptions import TopicAnalysisDependencyError

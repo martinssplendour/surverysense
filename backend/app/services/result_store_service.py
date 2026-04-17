@@ -1,3 +1,4 @@
+"""In-memory store for transformed datasets, analysis snapshots, and paged document retrieval."""
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -21,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class StoredResultDatasets:
+    """Both DataFrames for one uploaded result, together with the resolved column role lists and filter definitions."""
+
     transformed_df: pd.DataFrame
     analysis_df: pd.DataFrame
     metadata_columns: list[str]
@@ -71,6 +74,8 @@ class StoredAnalysisNgramSnapshot:
 
 @dataclass(slots=True)
 class StoredAnalysisSnapshot:
+    """Cached output of one analysis run, keyed per result_id, used to serve filter changes without re-running ML."""
+
     text_column_name: str
     model_key: str
     groups: dict[str, StoredAnalysisGroupSnapshot]
@@ -135,6 +140,10 @@ class ResultStoreService:
         metadata_columns: list[str],
         verbatim_columns: list[str],
     ) -> str:
+        """Persist a transformed+analysis dataset pair and return the new result_id.
+
+        Evicts the oldest entry (LRU) when the in-memory store exceeds max_results.
+        """
         result_id = uuid4().hex
         stored = StoredResultDatasets(
             transformed_df=transformed_df.copy(),
@@ -150,6 +159,7 @@ class ResultStoreService:
         with self._lock:
             self._results[result_id] = stored
             self._results.move_to_end(result_id)
+            # OrderedDict with last=False pops the oldest (first-inserted) entry.
             while len(self._results) > self.max_results:
                 evicted_result_id, _evicted = self._results.popitem(last=False)
                 self._analysis_snapshots.pop(evicted_result_id, None)
@@ -178,6 +188,7 @@ class ResultStoreService:
         column_name: str,
         role: ColumnRole,
     ) -> StoredResultDatasets:
+        """Reassign a column between metadata and verbatim roles, rebuild the analysis dataset, and invalidate any cached analysis snapshot."""
         with self._lock:
             stored = self._results.get(result_id)
             if stored is None:
@@ -193,6 +204,8 @@ class ResultStoreService:
             else:
                 verbatim_columns.append(column_name)
 
+            # Rebuild the analysis-ready frame from the transformed source of truth
+            # so column-role edits never mutate the raw transformed dataset itself.
             analysis_df, resolved_metadata, resolved_verbatim = self.analysis_ready_service.build_from_assignments(
                 stored.transformed_df,
                 metadata_columns=metadata_columns,
@@ -230,6 +243,8 @@ class ResultStoreService:
         if stored is None:
             raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
 
+        # Always filter a copy so callers can page/slice safely without sharing a
+        # mutable DataFrame object across requests.
         unfiltered_df = (stored.transformed_df if dataset == "transformed" else stored.analysis_df).copy()
         filtered_df = self.metadata_filter_service.apply_filters(
             unfiltered_df,
@@ -257,6 +272,8 @@ class ResultStoreService:
             if result_id not in self._results:
                 raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
 
+            # Cache only the lightweight pieces needed to rebuild filtered views and
+            # drilldown modals; the expensive ML step should not rerun on every filter.
             groups_payload = analysis_result.get("groups", [])
             if not isinstance(groups_payload, list):
                 self._analysis_snapshots.pop(result_id, None)
@@ -395,11 +412,14 @@ class ResultStoreService:
         if snapshot.model_key != model_key or snapshot.text_column_name != text_column_name:
             return None
 
+        # Snapshot documents store 1-based row numbers, so convert the filtered
+        # DataFrame index back into that same numbering before intersecting.
         filtered_df = self.metadata_filter_service.apply_filters(
             stored.analysis_df,
             filters=filters or {},
             allowed_columns={d.column_name for d in stored.available_filters},
         )
+        # DataFrame index is 0-based; row_number in documents uses 1-based numbering.
         filtered_row_numbers: frozenset[int] = frozenset(int(idx) + 1 for idx in filtered_df.index)
 
         surviving: dict[str, list[dict[str, object]]] = {}
@@ -417,6 +437,8 @@ class ResultStoreService:
             count = len(docs)
             if count == 0:
                 continue
+            # Shares are recomputed against the filtered surviving set, not the
+            # original analysis total, so the UI percentages stay truthful.
             share = round(count / total_denom, 4)
             share_pct = round(share * 100)
             comment = (
@@ -444,6 +466,8 @@ class ResultStoreService:
         from collections import defaultdict as _defaultdict
         buckets_by_size: dict[int, list[dict[str, object]]] = _defaultdict(list)
         for item in snapshot.ngram_items.values():
+            # Fast-path n-gram rebuild is intentionally approximate: it counts
+            # matching documents, not repeated occurrences within one document.
             filtered_docs = [d for d in item.documents if d["row_number"] in filtered_row_numbers]
             filtered_count = len(filtered_docs)
             if filtered_count == 0:
@@ -589,6 +613,8 @@ class ResultStoreService:
         total_row_count = int(len(dataframe))
         unfiltered_row_count = int(len(unfiltered_df))
         normalized_offset = max(0, offset)
+        # Replace NaN with None before JSON serialisation so the frontend does not
+        # have to special-case pandas missing-value markers.
         page_df = dataframe.iloc[normalized_offset: normalized_offset + limit].copy()
         page_df = page_df.where(pd.notna(page_df), None)
         rows = page_df.to_dict(orient="records")
@@ -607,4 +633,5 @@ class ResultStoreService:
 
     @staticmethod
     def _build_ngram_lookup_key(ngram_size: int, term: str) -> str:
+        """Build a stable, case-insensitive lookup key combining n-gram size and term text."""
         return f"{int(ngram_size)}::{str(term).strip().casefold()}"

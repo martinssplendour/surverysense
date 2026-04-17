@@ -170,7 +170,6 @@ describe("upload handoff", () => {
 
         expect(harness.storage.get("verbatim-app:last-upload-result")).toBe(JSON.stringify(harness.uploadPayload));
         expect(harness.locationAssign).toHaveBeenCalledWith("/?handoff=1");
-        expect(harness.elements["status-message"].textContent).toBe("File processed.");
     });
 
     it("uses the same navigation handoff path every time", async () => {

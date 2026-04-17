@@ -1,3 +1,4 @@
+// Fetches and incrementally loads paginated row data from the server, supporting both the full-data and verbatim datasets.
 import {
     FULL_DATA_INITIAL_VISIBLE_ROW_TARGET,
     FULL_DATA_ROW_PAGE_SIZE,
@@ -36,6 +37,8 @@ export async function maybeLoadMorePreviewRows() {
 }
 
 export async function ensureDatasetRowCount(dataset, targetCount) {
+    // Pull enough pages to satisfy the current viewport target, but stop once the
+    // requested visible slice is covered instead of eagerly loading the full dataset.
     if (getDatasetLoadedCount(dataset) === 0 && getDatasetHasMore(dataset)) {
         await loadMoreRows(dataset, Math.min(ROW_PAGE_SIZE, targetCount));
     }
@@ -55,6 +58,8 @@ export async function refreshFilteredDatasets({ suppressAnalysisRender = false }
         return;
     }
 
+    // Filters affect both the full transformed view and the verbatim-only view, so
+    // refresh both datasets together to keep counts and row tables in sync.
     resetDatasetRows("transformed");
     resetDatasetRows("analysis");
 
@@ -113,6 +118,7 @@ export function hasActiveFilters() {
     return Object.keys(state.activeFilters).length > 0;
 }
 
+// Returns "analysis" (verbatim-only columns) or "transformed" (all columns) based on the toggle state.
 export function currentPreviewDataset() {
     return state.showOnlyVerbatim ? "analysis" : "transformed";
 }
@@ -130,6 +136,8 @@ export function getVisiblePreviewColumns(columns, dataset) {
         return columns;
     }
 
+    // The full transformed dataset can have many columns, so horizontal paging is
+    // only applied there; the verbatim-only table always shows all available columns.
     const maxOffset = Math.max(0, columns.length - FULL_DATA_VISIBLE_COLUMN_COUNT);
     const start = Math.min(state.previewColumnOffset, maxOffset);
     state.previewColumnOffset = start;
@@ -249,6 +257,8 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
         const payload = await fetchRowsPage(dataset, offset, limit);
 
         if (dataset === "transformed") {
+            // Append pages rather than replacing so infinite scroll keeps its already
+            // rendered rows while the backend serves the next slice.
             state.transformedRows = state.transformedRows.concat(payload.rows || []);
             state.transformedHasMore = Boolean(payload.has_more);
             state.transformedTotalRows = Number(payload.total_row_count || 0);
@@ -310,6 +320,7 @@ function buildRowStatusText(dataset) {
     return text;
 }
 
+// Triggers infinite-scroll loading when the user is within 120 px of the bottom of the scrollable container.
 function isNearBottom(element) {
     return (element.scrollTop + element.clientHeight) >= (element.scrollHeight - 120);
 }

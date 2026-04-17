@@ -1,3 +1,4 @@
+// Manages metadata filter state, applies filters to both the data table and analysis, and exposes modal message helpers.
 import { elements, state } from "./shared.js";
 import { refreshFilteredDatasets } from "./rows.js";
 
@@ -82,9 +83,14 @@ export async function removeActiveFilter(columnName) {
     }
 }
 
+/**
+ * Applies a new filter set, refreshes both row datasets, and re-runs the current analysis when the
+ * analysis-results workspace is active so the charts immediately reflect the filter change.
+ */
 export async function applyActiveFilters(nextFilters) {
     state.activeFilters = nextFilters;
     const activeAnalysisRequest = callbacks.getActiveAnalysisRequest();
+    // Only re-run analysis when results are already visible; otherwise the next explicit run will pick up filters.
     const shouldRerunAnalysis = state.currentWorkspace === "analysis-results"
         && Boolean(activeAnalysisRequest.textColumnName)
         && Boolean(activeAnalysisRequest.modelKey);

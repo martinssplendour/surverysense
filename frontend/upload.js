@@ -1,7 +1,6 @@
+// Handles CSV file selection, drag-and-drop, and upload submission on the upload page.
 (function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
-let uploadElapsedTimer = null;
-let uploadStartedAt = 0;
 
 const state = {
     file: null,
@@ -35,6 +34,7 @@ function bindEvents() {
 
     elements.uploadForm.addEventListener("submit", handleSubmit);
 
+    // Add the "is-dragover" highlight class while a file is dragged over the dropzone.
     ["dragenter", "dragover"].forEach((eventName) => {
         elements.dropzone.addEventListener(eventName, (event) => {
             event.preventDefault();
@@ -42,6 +42,7 @@ function bindEvents() {
         });
     });
 
+    // Remove the highlight and handle the dropped file when the drag ends.
     ["dragleave", "dragend", "drop"].forEach((eventName) => {
         elements.dropzone.addEventListener(eventName, (event) => {
             event.preventDefault();
@@ -115,7 +116,7 @@ async function handleSubmit(event) {
     formData.append("diagnostic_mode", state.diagnosticMode);
 
     setBusyState(true);
-    showStatus("neutral", `Processing CSV with ${formatDiagnosticModeLabel(state.diagnosticMode)}...`);
+    showStatus("neutral", "Processing CSV...");
     try {
         const response = await fetch("/upload-ingest", {
             method: "POST",
@@ -133,13 +134,17 @@ async function handleSubmit(event) {
         }
 
         try {
+            // Store the API payload in sessionStorage so the results page can read it after navigation.
             sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(payload));
         } catch (error) {
             console.warn("[Verbatim App] Unable to cache processed result in session storage.", error);
+            showStatus("error", "Unable to save results — browser storage may be full.");
+            setBusyState(false);
+            return;
         }
-        setBusyState(false);
-        showStatus("neutral", "File processed.");
-        handoffProcessedResult();
+        // Navigate to the root with ?handoff=1 so the results page knows this is a fresh upload,
+        // not a browser reload that should clear the stored result.
+        window.location.assign("/?handoff=1");
     } catch (error) {
         const message = error instanceof Error ? error.message : "Processing failed.";
         showStatus("error", message);
@@ -151,42 +156,15 @@ function setBusyState(isBusy) {
     elements.processButton.disabled = isBusy || !state.file;
     elements.fileInput.disabled = isBusy;
     if (isBusy) {
-        uploadStartedAt = Date.now();
         elements.processButton.innerHTML = '<span class="upload-button-content"><span class="upload-button-spinner" aria-hidden="true"></span><span>Processing...</span></span>';
-        updateElapsedStatus();
-        if (uploadElapsedTimer) {
-            window.clearInterval(uploadElapsedTimer);
-        }
-        uploadElapsedTimer = window.setInterval(updateElapsedStatus, 1000);
         return;
     }
-
     elements.processButton.textContent = "Process File";
-    if (uploadElapsedTimer) {
-        window.clearInterval(uploadElapsedTimer);
-        uploadElapsedTimer = null;
-    }
-    uploadStartedAt = 0;
 }
 
 function showStatus(kind, message) {
     elements.statusMessage.textContent = message;
     elements.statusMessage.className = `status-message status-${kind}`;
-}
-
-function updateElapsedStatus() {
-    if (!uploadStartedAt) {
-        return;
-    }
-    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - uploadStartedAt) / 1000));
-    const minutes = Math.floor(elapsedSeconds / 60);
-    const seconds = elapsedSeconds % 60;
-    const elapsedLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} elapsed`;
-    showStatus("neutral", `Processing CSV with ${formatDiagnosticModeLabel(state.diagnosticMode)}... ${elapsedLabel}`);
-}
-
-function handoffProcessedResult() {
-    window.location.assign("/?handoff=1");
 }
 
 async function parseJson(response) {
@@ -208,7 +186,4 @@ function formatBytes(bytes) {
     return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${sizes[exponent]}`;
 }
 
-function formatDiagnosticModeLabel(mode) {
-    return mode === "rule_based" ? "rule-based diagnosis" : "AI diagnosis";
-}
 })();

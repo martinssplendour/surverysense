@@ -1,3 +1,4 @@
+// Exports analysis results as PDF, DOCX, or PPTX by capturing Plotly chart images and posting them to the backend.
 import { RESULT_STORAGE_KEY, elements, state } from "./shared.js";
 import {
     displayAnalysisMode,
@@ -81,6 +82,7 @@ export async function downloadAnalysisReport() {
         }
 
         const blob = await response.blob();
+        // Trigger a browser download by creating a temporary <a> element pointing at an object URL.
         const objectUrl = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = objectUrl;
@@ -239,9 +241,10 @@ async function captureAnalysisChartImage(plotly, plotSurface, { width, height, d
         definition,
         fallbackHeight: height,
     });
+    // Render an off-screen Plotly instance with export-tuned layout so the captured image is high-quality.
     const exportContainer = document.createElement("div");
     exportContainer.style.position = "fixed";
-    exportContainer.style.left = "-10000px";
+    exportContainer.style.left = "-10000px";  // Position off-screen; invisible but still measurable by Plotly.
     exportContainer.style.top = "0";
     exportContainer.style.pointerEvents = "none";
     exportContainer.style.width = `${width}px`;
@@ -288,6 +291,8 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
         paper_bgcolor: "#fffaf2",
     };
 
+    // Report exports need a denser, print-friendly layout than the live dashboard:
+    // wider label margins, larger axis text, and capped label height.
     if (kind === "ngram") {
         const exportLeftMargin = ngramSize === 3 ? 180 : 160;
         overrides.margin = {
@@ -385,6 +390,8 @@ function limitAnalysisExportData(data, definition) {
         return data;
     }
 
+    // Reports only keep the first N horizontal bars; the live chart can stay more
+    // interactive, but the exported page/slide needs a readable fixed height.
     return data.map((trace) => {
         if (!trace || trace.type !== "bar" || trace.orientation !== "h") {
             return trace;
@@ -436,6 +443,8 @@ function resolveAnalysisExportHeight({ data, definition, fallbackHeight }) {
         return fallbackHeight;
     }
 
+    // Height follows the trimmed bar count so export images do not keep the huge
+    // whitespace from the on-screen canvas after bars are removed.
     const barHeight = kind === "ngram" ? 42 : 46;
     return Math.max(560, Math.min(fallbackHeight, barCount * barHeight + 180));
 }

@@ -233,34 +233,18 @@ class AnalysisReportExportService:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
         self._set_pptx_slide_background(slide)
 
-        filters_text = self._filters_text(request)
         title_top = 3.35
         subtitle_top = 4.08
         row_top = 4.42
-
-        if filters_text:
-            filters_box = slide.shapes.add_textbox(
-                PptxInches(_PPTX_CONTENT_LEFT),
-                PptxInches(2.72),
-                PptxInches(_PPTX_CONTENT_WIDTH),
-                PptxInches(0.35),
-            )
-            filters_frame = filters_box.text_frame
-            filters_frame.clear()
-            filters_frame.word_wrap = True
-            filters_paragraph = filters_frame.paragraphs[0]
-            filters_paragraph.text = filters_text
-            filters_paragraph.font.size = PptxPt(9)
-            filters_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-            filters_paragraph.alignment = PP_ALIGN.CENTER
-            title_top = 3.18
-            subtitle_top = 3.93
-            row_top = 4.27
+        # Keep the title stack on a narrower centered column so short subtitles and
+        # filter metadata do not feel stretched across the full slide width.
+        title_box_width = _PPTX_CONTENT_WIDTH * 0.7
+        title_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - title_box_width) / 2)
 
         title_box = slide.shapes.add_textbox(
-            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(title_box_left),
             PptxInches(title_top),
-            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(title_box_width),
             PptxInches(0.65),
         )
         title_frame = title_box.text_frame
@@ -273,9 +257,9 @@ class AnalysisReportExportService:
         title_paragraph.alignment = PP_ALIGN.CENTER
 
         subtitle_box = slide.shapes.add_textbox(
-            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(title_box_left),
             PptxInches(subtitle_top),
-            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(title_box_width),
             PptxInches(0.42),
         )
         subtitle_frame = subtitle_box.text_frame
@@ -287,16 +271,16 @@ class AnalysisReportExportService:
         subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
 
         row_box = slide.shapes.add_textbox(
-            PptxInches(_PPTX_CONTENT_LEFT),
+            PptxInches(title_box_left),
             PptxInches(row_top),
-            PptxInches(_PPTX_CONTENT_WIDTH),
+            PptxInches(title_box_width),
             PptxInches(0.32),
         )
         row_frame = row_box.text_frame
         row_frame.clear()
         row_frame.word_wrap = True
         row_paragraph = row_frame.paragraphs[0]
-        row_paragraph.text = self._row_count_text(request)
+        row_paragraph.text = self._build_pptx_metadata_line(request)
         row_paragraph.font.size = PptxPt(9)
         row_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
         row_paragraph.alignment = PP_ALIGN.CENTER
@@ -331,6 +315,8 @@ class AnalysisReportExportService:
         )
         width_inches *= 0.9
         height_inches *= 0.9
+        # Shift charts slightly left because Plotly exports usually reserve extra
+        # whitespace for their own margins before the slide layout even sees them.
         left = max(0.25, _PPTX_CONTENT_LEFT - 0.12)
         top = max(content_top, (_PPTX_SLIDE_HEIGHT - height_inches) / 2)
         slide.shapes.add_picture(
@@ -563,6 +549,16 @@ class AnalysisReportExportService:
     def _row_count_text(self, request: AnalysisExportRequest) -> str:
         return f"{int(request.analysis_result.filtered_row_count)} rows"
 
+    def _build_pptx_metadata_line(self, request: AnalysisExportRequest) -> str:
+        parts = []
+        filters_text = self._filters_text(request)
+        if filters_text:
+            parts.append(filters_text)
+        # The question already appears on the subtitle line, so the metadata line
+        # stays short by carrying only active filters plus the filtered row count.
+        parts.append(self._row_count_text(request))
+        return " Â· ".join(part for part in parts if part)
+
     def _build_docx_metadata_line(self, request: AnalysisExportRequest) -> str:
         parts = [self._build_subtitle(request)]
         filters_text = self._filters_text(request)
@@ -633,7 +629,7 @@ class AnalysisReportExportService:
             "click a bar",
             "matching responses",
             "matching groups responses",
-            "matching themes responses",
+            "matching topics responses",
         )
         if any(phrase in lower_caption for phrase in interactive_phrases):
             return ""

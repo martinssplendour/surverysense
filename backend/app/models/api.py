@@ -1,3 +1,4 @@
+"""Pydantic request and response models for all ingest and analysis API endpoints."""
 from __future__ import annotations
 
 from typing import Literal
@@ -10,23 +11,31 @@ from app.models.manifest import TransformationManifest
 
 
 class MetadataFilterOptionModel(BaseModel):
+    """A single selectable value for a metadata filter, with its response count."""
+
     value: str
     count: int
 
 
 class MetadataFilterDefinitionModel(BaseModel):
+    """Describes one filterable metadata column and all its available option values."""
+
     column_name: str
     display_name: str
     options: list[MetadataFilterOptionModel] = Field(default_factory=list)
 
 
 class DiagnosticConfigResponse(BaseModel):
+    """Reports whether AI-based manifest diagnosis is configured and what mode will be used by default."""
+
     ai_available: bool
     default_diagnostic_mode: Literal["ai", "rule_based"]
     architect_row_count: int
 
 
 class UploadIngestResponse(BaseModel):
+    """Full response from a successful CSV upload: encoding, manifest, transformed and analysis dataset info."""
+
     result_id: str
     filename: str
     encoding: str
@@ -75,6 +84,8 @@ class ColumnRoleUpdateResponse(BaseModel):
 
 
 class AnalysisRunRequest(BaseModel):
+    """Parameters for a topic-analysis run: which model to use, which column to analyse, and optional row filters."""
+
     model_config = ConfigDict(protected_namespaces=())
     model_key: Literal["bertopic", "kmeans", "hdbscan", "ngrams"]
     text_column_name: str
@@ -131,6 +142,8 @@ class AnalysisScatterPointModel(BaseModel):
 
 
 class AnalysisRunResponse(BaseModel):
+    """Complete result from a topic-analysis run, including groups, n-gram buckets, and scatter coordinates."""
+
     model_config = ConfigDict(protected_namespaces=())
     ok: bool
     result_id: str
@@ -140,8 +153,6 @@ class AnalysisRunResponse(BaseModel):
     filtered_row_count: int
     valid_document_count: int
     skipped_document_count: int
-    translated_document_count: int = 0
-    warnings: list[str] = Field(default_factory=list)
     error: str | None = None
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)

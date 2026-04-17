@@ -1,3 +1,4 @@
+// Manages top-level page layout: loading results from storage, switching workspaces, and rendering the preview table.
 import {
     FULL_DATA_VISIBLE_COLUMN_COUNT,
     RESULT_STORAGE_KEY,
@@ -20,8 +21,14 @@ import { renderAnalysisOutput, renderAnalysisPanel } from "./analysis.js";
 import { closeAnalysisGroupModal } from "./modals.js";
 import { closeColumnRoleModal } from "./columnRoles.js";
 
+/**
+ * Entry point called on page load. Decides whether to restore a previous result or show the empty upload state.
+ * A page reload (detected via the Navigation Timing API) clears stored results, whereas a ?handoff=1 redirect
+ * from the upload page indicates fresh data that should be loaded immediately.
+ */
 export async function loadResultsPage() {
     const queryHandoff = isUploadHandoffNavigation();
+    // A plain browser reload should not restore stale results — clear and show the upload prompt instead.
     if (isPageReload() && !queryHandoff) {
         sessionStorage.removeItem(RESULT_STORAGE_KEY);
         showEmptyState();
@@ -29,6 +36,7 @@ export async function loadResultsPage() {
     }
 
     if (queryHandoff) {
+        // Remove ?handoff=1 from the URL so a subsequent reload treats it as a normal reload.
         clearUploadHandoffQuery();
     }
 
@@ -101,6 +109,8 @@ export async function openWorkspace(nextWorkspace) {
     updateWorkspaceVisibility();
 
     if (nextWorkspace === "data") {
+        // The data workspace fills the preview lazily so large uploads do not pay
+        // the cost of fetching every row before the user even opens the table.
         renderFilterBar();
         const dataset = currentPreviewDataset();
         await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));
@@ -424,6 +434,8 @@ export function handleMissingResultState(message = "The processed result is no l
 }
 
 function applyPayload(payload) {
+    // Fresh uploads and restored cached payloads both flow through this reset so the
+    // rest of the app can assume one consistent baseline state shape.
     state.response = payload;
     state.resultId = typeof payload.result_id === "string" ? payload.result_id : null;
     state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
@@ -525,6 +537,7 @@ function isPageReload() {
     return Boolean(legacyNavigation && legacyNavigation.type === 1);
 }
 
+/** Returns true when upload.js redirected here via window.location.assign("/?handoff=1"). */
 function isUploadHandoffNavigation() {
     if (typeof window === "undefined") {
         return false;
@@ -533,6 +546,7 @@ function isUploadHandoffNavigation() {
     return params.get("handoff") === "1";
 }
 
+/** Strips the ?handoff=1 param from the URL bar without triggering a navigation, so a reload is clean. */
 function clearUploadHandoffQuery() {
     if (typeof window === "undefined" || typeof history.replaceState !== "function") {
         return;
@@ -547,6 +561,10 @@ function clearUploadHandoffQuery() {
     history.replaceState(null, "", nextUrl);
 }
 
+/**
+ * Shows the upload form and hides all result panels. Body CSS classes drive visibility in CSS,
+ * so each workspace swap is a coordinated set of class and hidden-attribute changes.
+ */
 function showEmptyState() {
     document.body.classList.add("upload-workspace-active");
     document.body.classList.remove("dashboard-workspace-active");
@@ -581,6 +599,7 @@ function showEmptyState() {
     elements.analysisResultsPanel.hidden = true;
 }
 
+/** Hides the upload view, shows the results view, and renders the dashboard for a freshly loaded payload. */
 function renderResults(payload) {
     document.body.classList.remove("upload-workspace-active");
     if (elements.emptyState) {

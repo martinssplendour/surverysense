@@ -1,3 +1,4 @@
+// Builds and manages Plotly charts for topic/group distribution (bar), K-means scatter, and n-gram frequency.
 import { elements, state } from "./shared.js";
 import {
     buildExampleRowLabel,
@@ -40,10 +41,10 @@ export function renderAnalysisChart(groups, scatterPoints = []) {
         return;
     }
     const isThemeView = modelKey === "bertopic";
-    const subjectLabel = isThemeView ? "theme" : "group";
-    const yAxisLabel = isThemeView ? "Theme name" : "Group name";
+    const subjectLabel = isThemeView ? "topic" : "group";
+    const yAxisLabel = isThemeView ? "Topic name" : "Group name";
     const chartTitle = isThemeView
-        ? "How responses are spread across themes"
+        ? "How responses are spread across topics"
         : "How responses are spread across groups";
     const chartCaption = `Hover to see the number of responses in each ${subjectLabel}. Click a bar to open the matching ${subjectLabel} responses.`;
 
@@ -123,9 +124,10 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
     const sortedGroups = groups
         .map((group, index) => ({ group, index }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
-    const subjectLabel = yAxisLabel === "Theme name" ? "theme" : "group";
+    const subjectLabel = yAxisLabel === "Topic name" ? "topic" : "group";
     const figureHeight = Math.max(180, sortedGroups.length * 30);
 
+    // Plotly config: hide branding, allow responsive resize, remove unused selection tools.
     const plotPromise = plotly.newPlot(
         plotContainer,
         [
@@ -204,6 +206,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
         },
     );
 
+    // customdata[0] carries the original (pre-sort) group index, used to look up the group in state.
     if (plotPromise && typeof plotPromise.then === "function") {
         plotPromise.then(() => {
             if (typeof plotContainer.on === "function") {
@@ -277,7 +280,7 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
         x: bucket.points.map((point) => Number(point.x || 0)),
         y: bucket.points.map((point) => Number(point.y || 0)),
         marker: {
-            size: 16,
+            size: 8,
             color: colorPalette[index % colorPalette.length],
             line: {
                 color: "#ffffff",
@@ -303,9 +306,9 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
         window.innerWidth || 0,
         document.documentElement?.clientWidth || 0,
     );
-    const plotWidth = Math.round(Math.min(1275, Math.max(810, viewportWidth * 0.81)));
-    const plotHeight = Math.round(Math.min(735, Math.max(540, plotWidth * 0.56)));
-    const legendMargin = viewportWidth <= 1180 ? 250 : viewportWidth <= 1440 ? 300 : 340;
+    const plotWidth = Math.round(Math.min(1245, Math.max(790, viewportWidth * 0.79)));
+    const plotHeight = Math.round(Math.min(405, Math.max(297, plotWidth * 0.62)));
+    const legendMargin = viewportWidth <= 1180 ? 150 : viewportWidth <= 1440 ? 190 : 220;
 
     const plotPromise = plotly.newPlot(
         plotContainer,
@@ -314,7 +317,7 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
             width: plotWidth,
             height: plotHeight,
             margin: {
-                t: 40,
+                t: 18,
                 r: legendMargin,
                 b: 96,
                 l: 96,
@@ -327,6 +330,7 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
                 size: 19,
             },
             xaxis: {
+                // These are projected embedding coordinates, not original CSV values.
                 title: {
                     text: "Position on response map",
                     font: {
@@ -340,6 +344,7 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
                 },
             },
             yaxis: {
+                // Same projection space as x; the scatter is for visual separation only.
                 title: {
                     text: "Position on response map",
                     font: {
@@ -359,7 +364,7 @@ function renderInteractiveKmeansScatterChart(plotContainer, scatterPoints) {
                 xanchor: "left",
                 x: 1.03,
                 font: {
-                    size: 17,
+                    size: 9,
                 },
                 itemsizing: "constant",
             },
@@ -542,6 +547,10 @@ function purgePlotlyCharts(container) {
     });
 }
 
+/**
+ * Tells Plotly to recalculate layout for every visible plot surface.
+ * Called on window resize so charts fill their containers after the viewport changes.
+ */
 export function resizeAnalysisPlots() {
     const plotly = getPlotly();
     if (!plotly || elements.analysisChart.hidden) {
@@ -557,6 +566,7 @@ export function resizeAnalysisPlots() {
     });
 }
 
+// Two rAF ticks give the browser time to paint the new DOM before Plotly measures container dimensions.
 function queueAnalysisPlotResize() {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -565,6 +575,7 @@ function queueAnalysisPlotResize() {
     });
 }
 
+// Plotly is loaded as a global script tag rather than an npm module, so check window at call time.
 function getPlotly() {
     return typeof window !== "undefined" && typeof window.Plotly !== "undefined"
         ? window.Plotly

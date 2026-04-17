@@ -1,3 +1,4 @@
+"""Orchestrates the full topic-analysis pipeline: validation, text prep, embeddings, clustering, labelling, and translation."""
 from __future__ import annotations
 
 import logging
@@ -28,6 +29,8 @@ logger = logging.getLogger(__name__)
 
 
 class TopicAnalysisService:
+    """End-to-end topic analysis service that routes to the appropriate model (BERTopic, K-means, HDBSCAN, n-grams)."""
+
     def __init__(
         self,
         *,
@@ -58,6 +61,7 @@ class TopicAnalysisService:
         self.ai_label_service = ai_label_service
 
     def warm_up(self) -> None:
+        """Pre-load the embedding model and trigger JIT compilation for UMAP/PyTorch at server startup."""
         self.text_preparation_service.warm_up()
         self.embedding_service.warm_up(
             model_name=self.config.embedding_model,
@@ -85,6 +89,10 @@ class TopicAnalysisService:
         text_column_name: str,
         available_verbatim_columns: Iterable[str],
     ) -> dict[str, object]:
+        """Run the full analysis pipeline and return a serialisable result dict.
+
+        Always returns a dict (never raises); on error, 'ok' is False and 'error' contains the message.
+        """
         model_label = self.input_validation_service.get_model_label(model_key)
         base_response: dict[str, object] = {
             "ok": False,
@@ -136,6 +144,8 @@ class TopicAnalysisService:
                 return base_response
 
             clustering_texts = list(prepared.texts)
+            # BERTopic uses its own internal UMAP+HDBSCAN and expects raw embeddings;
+            # K-means and HDBSCAN receive embeddings in a separate branch below.
             if model_key == "bertopic":
                 embeddings = self.embedding_service.encode(
                     clustering_texts,
@@ -203,6 +213,9 @@ class TopicAnalysisService:
                 explicit_groups=model_result.get("groups", {}),
                 model_key=model_key,
             )
+            # Let AI relabel first, then translate only whatever labels/examples still
+            # need English display text. That avoids translating fresh AI labels back
+            # through the normal output-translation pass.
             _, ai_warnings = self._apply_ai_labels(
                 groups,
                 model_key=model_key,
@@ -238,6 +251,7 @@ class TopicAnalysisService:
         explicit_groups: dict[str, dict[str, object]],
         model_key: str,
     ) -> list[dict[str, object]]:
+        """Map cluster assignments back to documents and build the serialisable group list with labels and examples."""
         grouped_documents: dict[int, list[PreparedDocument]] = defaultdict(list)
         for assignment, document in zip(assignments, documents):
             grouped_documents[int(assignment)].append(document)
@@ -249,7 +263,7 @@ class TopicAnalysisService:
             key=lambda group_id: (-len(grouped_documents[group_id]), group_id),
         )
 
-        fallback_prefix = "Theme" if model_key == "bertopic" else "Group"
+        fallback_prefix = "Topic" if model_key == "bertopic" else "Group"
         for group_id in ordered_group_ids:
             group_key = str(group_id)
             grouped_rows = grouped_documents[group_id]
@@ -298,6 +312,8 @@ class TopicAnalysisService:
                     "terms": list(terms),
                     "examples": examples,
                     "is_noise": is_noise,
+                    # Keep a lightweight row_number/text list for drilldown modals and
+                    # fast filtered rebuilds without carrying the full document objects.
                     "_documents": [
                         {
                             "row_number": int(document.row_number),
@@ -317,8 +333,10 @@ class TopicAnalysisService:
     def _translate_and_merge_bertopic_groups(
         self, groups: list[dict[str, object]]
     ) -> list[dict[str, object]]:
-        """Translate all BERTopic topic terms to English in one batch, rebuild labels,
-        then merge any topics whose first translated term matches (same concept, different source language)."""
+        """Translate BERTopic terms to English and merge topics that share the same first translated term.
+
+        Merging handles multilingual datasets where the same concept appears as separate topics per language.
+        """
         translation_service = self.text_preparation_service.translation_service
 
         all_terms: list[str] = []
@@ -366,7 +384,7 @@ class TopicAnalysisService:
             terms = group.get("terms", [])
             if not terms:
                 continue
-            key = terms[0].casefold().strip().rstrip("s")  # collapse simple plurals
+            key = terms[0].casefold().strip().rstrip("s")  # Strip trailing "s" to collapse simple plurals before comparing.
             gid = str(group["group_id"])
             if key in first_term_index:
                 merge_into[gid] = first_term_index[key]
@@ -378,6 +396,8 @@ class TopicAnalysisService:
             for src_id, tgt_id in merge_into.items():
                 src = group_by_id[src_id]
                 tgt = group_by_id[tgt_id]
+                # Merge only the exported group payload; the raw assignments stay as-is
+                # because this is a display-layer dedupe for multilingual topic names.
                 tgt["_documents"].extend(src.get("_documents", []))
                 tgt["count"] = int(tgt["count"]) + int(src["count"])
             merged_ids = set(merge_into.keys())
@@ -613,6 +633,7 @@ class TopicAnalysisService:
         embeddings,
         groups: list[dict[str, object]],
     ) -> list[dict[str, object]]:
+        """Project PCA-reduced embeddings to 2D via a second PCA pass for scatter-plot visualisation."""
         if not documents or not assignments:
             return []
 

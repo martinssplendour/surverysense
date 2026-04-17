@@ -1,3 +1,4 @@
+"""Header resolution and cleaning services: resolves question headers in vertical layouts and cleans/sorts verbatim column names."""
 from __future__ import annotations
 
 import re
@@ -16,18 +17,23 @@ from app.services.cleaning_services.text_normalization_service import TextNormal
 
 @dataclass(slots=True)
 class VerbatimHeaderInfo:
+    """Parsed metadata for one verbatim column header, including its question-family and sub-question subject."""
+
     original_header: str
     normalized_header: str
-    subject: str | None
-    question_family: str | None
-    family_key: str
+    subject: str | None        # The part before ": " (e.g. "Product features" in "Product features: Please explain")
+    question_family: str | None  # The part after ": "
+    family_key: str            # Casefolded family used for grouping repeated sub-questions
 
 
 class QuestionHeaderResolutionService:
+    """Builds a single question-header Series from multiple fallback columns in a vertical layout."""
+
     def __init__(self, text_normalizer: TextNormalizationService) -> None:
         self.text_normalizer = text_normalizer
 
     def resolve(self, raw_df: pd.DataFrame, question_header_indices: list[int]) -> pd.Series:
+        """Merge columns at question_header_indices left-to-right, filling nulls from successive fallbacks."""
         resolved = pd.Series([None] * len(raw_df), index=raw_df.index, dtype=object)
         _null_like = frozenset({"nan", "<na>", "none"})
         for idx in question_header_indices:
@@ -51,6 +57,8 @@ class QuestionHeaderResolutionService:
 
 
 class VerbatimHeaderCleaningService:
+    """Renames and re-orders verbatim columns, grouping repeated sub-questions as 'Family | Subject'."""
+
     def __init__(self, text_normalizer: TextNormalizationService) -> None:
         self.text_normalizer = text_normalizer
 
@@ -68,6 +76,8 @@ class VerbatimHeaderCleaningService:
             return df.copy()
 
         infos = [self._build_header_info(column) for column in verbatim_columns]
+        # A family is "repeated" only when at least 2 columns share the same question_family text —
+        # that's when grouping as "Family | Subject" becomes meaningful.
         family_counts = Counter(
             info.family_key
             for info in infos

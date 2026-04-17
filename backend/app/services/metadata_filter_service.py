@@ -1,3 +1,4 @@
+"""Builds filter option lists for low-cardinality metadata columns and applies equality filters to DataFrames."""
 from __future__ import annotations
 
 import re
@@ -29,9 +30,12 @@ class MetadataFilterService:
         "response id",
         "user id",
     }
+    # Upper bound on distinct values to show as filter options (prevents ID-like columns becoming filters).
     MAX_UNIQUE_VALUE_COUNT = 120
+    # Above this ratio of unique values to total rows the column is too high-cardinality to filter usefully.
     MAX_UNIQUE_RATIO = 0.45
     MAX_OPTION_COUNT = 120
+    # Unique-ratio check only applies once a column has at least this many non-blank rows.
     UNIQUE_RATIO_CARDINALITY_FLOOR = 25
 
     def build_definitions(
@@ -40,6 +44,7 @@ class MetadataFilterService:
         *,
         metadata_columns: list[str],
     ) -> list[MetadataFilterDefinition]:
+        """Return filter definitions for metadata columns that have 2–120 distinct non-blank values."""
         definitions: list[MetadataFilterDefinition] = []
         for column in metadata_columns:
             if column not in df.columns:
@@ -83,6 +88,7 @@ class MetadataFilterService:
         filters: dict[str, list[str]] | None,
         allowed_columns: set[str] | None = None,
     ) -> pd.DataFrame:
+        """Apply a dict of column→values equality filters to df; raises ValueError for unknown columns."""
         if not filters:
             return df
 

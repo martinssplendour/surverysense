@@ -1,3 +1,4 @@
+"""Runs BERTopic clustering with PCA pre-reduction and optional outlier reassignment."""
 from __future__ import annotations
 
 from app.core.exceptions import TopicAnalysisDependencyError
@@ -5,6 +6,8 @@ from app.services.topic_analysis_services.keyword_service import TopicAnalysisKe
 
 
 class BertopicAnalysisService:
+    """Wraps BERTopic with a custom UMAP/CTF-IDF pipeline and post-processing for outlier reduction."""
+
     def run(
         self,
         texts: list[str],
@@ -116,6 +119,7 @@ class BertopicAnalysisService:
         enabled: bool,
         threshold: float,
     ) -> tuple[list[int], list[str]]:
+        """Reassign outlier (-1) documents to the nearest topic by embedding similarity; returns updated topics and warnings."""
         if not enabled or not topics or not any(topic == -1 for topic in topics):
             return topics, []
 
@@ -140,7 +144,7 @@ class BertopicAnalysisService:
         except Exception:
             return topics, ["BERTopic kept some responses unassigned because outlier reassignment was unavailable."]
         warnings = [
-            f"BERTopic reassigned {reassigned_count} response(s) from the outlier bucket to the nearest existing theme."
+            f"BERTopic reassigned {reassigned_count} response(s) from the outlier bucket to the nearest existing topic."
         ]
         remaining_outliers = sum(1 for topic in normalized_topics if topic == -1)
         if remaining_outliers:
@@ -153,4 +157,4 @@ class BertopicAnalysisService:
             return "Unassigned responses"
         if terms:
             return " / ".join(term.replace("_", " ") for term in terms[:3])
-        return f"Theme {topic_id}"
+        return f"Topic {topic_id}"

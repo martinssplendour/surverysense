@@ -1,3 +1,4 @@
+// Handles the "Edit Columns" modal, letting users reassign CSV columns between verbatim, metadata, and unassigned roles.
 import { RESULT_STORAGE_KEY, elements, state } from "./shared.js";
 import { displayColumnLabel, escapeHtml } from "./utils.js";
 import {
@@ -84,6 +85,10 @@ export function handleColumnRoleSearch(event) {
     renderColumnRoleModal();
 }
 
+/**
+ * Posts the selected column/role pair to the backend, then updates all derived state
+ * (column lists, available filters, analysis column selection) from the API response.
+ */
 export async function applyColumnRoleChange() {
     const columnName = elements.columnRoleSelect.value;
     const role = elements.columnRoleTypeSelect.value;

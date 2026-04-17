@@ -1,3 +1,4 @@
+"""Detects the character encoding of a raw CSV byte payload using a priority-ordered strategy chain."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,7 +18,13 @@ class EncodingDetectionResult:
 
 
 class EncodingDetectionService:
+    """Detects CSV encoding by trying UTF-8 first, then chardet, then legacy Windows fallbacks."""
+
     def detect(self, payload: bytes) -> EncodingDetectionResult:
+        """Return the first encoding that successfully decodes the payload, or raise CsvDecodeError.
+
+        Strategy order: utf-8-sig (BOM), utf-8, chardet heuristic, cp1252, latin-1.
+        """
         for encoding in ("utf-8-sig", "utf-8"):
             if self._can_decode(payload, encoding):
                 return EncodingDetectionResult(encoding=encoding, strategy="utf-8-first")

@@ -1,3 +1,4 @@
+"""Low-level text normalisation (BOM removal, smart-apostrophe folding) and null-equivalent scrubbing."""
 from __future__ import annotations
 
 from typing import Any
@@ -11,6 +12,7 @@ class TextNormalizationService:
     """Shared text normalization for muddy survey exports."""
 
     def normalize_scalar(self, value: Any) -> Any:
+        """Normalise a single value: strip BOM, fold smart apostrophes, and strip trailing apostrophes."""
         if value is None or pd.isna(value):
             return None
         text = str(value).replace("\ufeff", "")
@@ -35,7 +37,10 @@ class TextNormalizationService:
 
 
 class NullScrubbingService:
+    """Replaces manifest-defined null-equivalent strings (e.g. 'n/a', 'none') with None across all columns."""
+
     def scrub_dataframe(self, df: pd.DataFrame, null_equivalents: list[str]) -> pd.DataFrame:
+        """Replace cells whose stripped/casefolded value is in null_equivalents with None."""
         normalized_nulls = {self._normalize_token(item) for item in null_equivalents}
         normalized_nulls.update({"", "nan", "<na>"})
 

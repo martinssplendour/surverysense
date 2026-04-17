@@ -1,3 +1,4 @@
+// Entry-point orchestrator: wires all results sub-modules together and binds every DOM event listener.
 import { elements, state } from "./results/shared.js";
 import {
     configureResultsFilters,
@@ -100,6 +101,7 @@ import {
         renderDashboard,
     });
 
+    // Guard against running on pages that don't include the results markup (e.g. the upload-only layout).
     if (elements.dashboardPanel && elements.openAnalysisButton && elements.openDataButton) {
         bindEvents();
         void loadResultsPage();
@@ -139,6 +141,7 @@ import {
         elements.downloadAnalysisReportButton?.addEventListener("click", () => {
             void downloadAnalysisReport();
         });
+        // stopPropagation prevents the document-level click listener from immediately closing the menu.
         elements.analysisExportToggleButton?.addEventListener("click", (event) => {
             event.stopPropagation();
             if (state.analysisExportRunning) {

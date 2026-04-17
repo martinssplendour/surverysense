@@ -1,3 +1,4 @@
+// Pure utility functions: HTML escaping, number formatting, column label display, and Plotly label wrapping.
 import { ANALYSIS_MODE_OPTIONS } from "./shared.js";
 
 export function analysisCard(label, value) {
@@ -47,6 +48,7 @@ export function escapeHtml(value) {
         .replaceAll("'", "&#39;");
 }
 
+// Strips the internal deduplication suffix (e.g. "__idx_2") that the backend appends to duplicate column names.
 export function displayColumnLabel(value) {
     return `${value}`.replace(/__idx_\d+$/i, "");
 }
@@ -124,6 +126,10 @@ export function wrapPlotLabel(value, maxLineLength = 28) {
     return lines.join("<br>");
 }
 
+/**
+ * Wraps a plot label into exactly two balanced lines separated by Plotly's "<br>" newline token.
+ * Finds the word split that minimises the length difference between the two lines.
+ */
 export function wrapPlotLabelTwoLines(value) {
     const words = normalizeValue(value).split(/\s+/).filter(Boolean);
     if (!words.length) {

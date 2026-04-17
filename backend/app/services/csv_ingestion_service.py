@@ -1,3 +1,4 @@
+"""Reads a raw CSV payload into DataFrames and produces preview/architect samples."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from app.services.encoding_service import EncodingDetectionResult, EncodingDetec
 
 @dataclass(slots=True)
 class IngestedCsv:
+    """Output of a successful CSV ingest: full dataframe, UI sample, architect sample, detected encoding, and column index map."""
+
     dataframe: pd.DataFrame
     sample_df: pd.DataFrame
     architect_df: pd.DataFrame
@@ -21,6 +24,7 @@ class IngestedCsv:
 
 
 class CsvIngestionService:
+    """Orchestrates encoding detection, CSV parsing, and sample slicing for an uploaded file."""
     def __init__(
         self,
         encoding_service: EncodingDetectionService,
@@ -49,6 +53,7 @@ class CsvIngestionService:
         )
 
     def serialize_sample_rows(self, df: pd.DataFrame) -> list[dict[str, Any]]:
+        """Serialise sample rows as index-keyed dicts (idx_0, idx_1, ...) to avoid header-name collisions in JSON."""
         col_keys = [f"idx_{i}" for i in range(len(df.columns))]
         arr = df.to_numpy(dtype=object, na_value=None)
         return [dict(zip(col_keys, row)) for row in arr.tolist()]

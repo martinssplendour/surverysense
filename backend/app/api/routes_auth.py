@@ -66,6 +66,8 @@ def build_auth_router(
             name=verified_user.name,
             picture=verified_user.picture,
         )
+        # Writing the verified profile into the session is the only point where a
+        # browser becomes authenticated; everything else reads from that session.
         set_authenticated_user(request, session_user)
         return AuthSessionResponse(
             is_authenticated=True,
@@ -80,6 +82,8 @@ def build_auth_router(
         clear_authenticated_user(request)
         request.session.clear()
         if result_store_service is not None:
+            # Uploaded result state lives only in process memory, so logout also
+            # removes any result ids registered to this browser session.
             for result_id in session_result_ids:
                 result_store_service.delete(result_id)
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)

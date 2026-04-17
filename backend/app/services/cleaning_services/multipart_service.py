@@ -1,3 +1,4 @@
+"""Detects and consolidates multi-part verbatim answers (e.g. 'Top 3 Words: Word 1/2/3') into a single column."""
 from __future__ import annotations
 
 import re
@@ -16,12 +17,14 @@ from app.services.cleaning_services.text_normalization_service import TextNormal
 
 @dataclass(slots=True)
 class MultipartVerbatimPart:
+    """Parsed metadata for one part of a multi-part verbatim column (e.g. 'Question: Word 2')."""
+
     column_name: str
-    base_label: str
-    group_key: str
-    slot_label: str
-    slot_index: int
-    column_order: int
+    base_label: str   # Shared stem across all parts (e.g. "Top 3 words")
+    group_key: str    # Casefolded base_label used to group parts together
+    slot_label: str   # Slot type keyword, e.g. "word", "answer"
+    slot_index: int   # Numeric ordinal from the column header (1, 2, 3, ...)
+    column_order: int # Original column position, used as a tie-breaker when sorting parts
 
 
 class MultipartVerbatimConsolidationService:
@@ -120,6 +123,8 @@ class MultipartVerbatimConsolidationService:
         return None
 
     def _separator_for_group(self, group_parts: list[MultipartVerbatimPart]) -> str:
+        # "Word N" parts represent single vocabulary items; join with comma for natural reading.
+        # All other part types (answer, comment, …) are joined with " | " to preserve boundaries.
         if all(part.slot_label == "word" for part in group_parts):
             return self.WORD_SEPARATOR
         return self.DEFAULT_SEPARATOR

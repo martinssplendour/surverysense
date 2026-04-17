@@ -1,3 +1,4 @@
+"""Identifies metadata columns in a transformed DataFrame using a curated phrase/word/token allowlist."""
 from __future__ import annotations
 
 import re
@@ -193,6 +194,10 @@ class MetadataColumnSelectionService:
         ]
 
     def is_metadata_column(self, column_name: str) -> bool:
+        """Return True when the column name (which must carry the __idx_ suffix) matches a metadata pattern.
+
+        The __idx_ guard ensures only post-transformation columns are evaluated.
+        """
         if "__idx_" not in column_name:
             return False
 
@@ -219,6 +224,7 @@ class MetadataColumnSelectionService:
 
     @classmethod
     def _looks_like_identifier_header(cls, tokens: list[str]) -> bool:
+        """Return True when the token list looks like an ID-style column name (ends in 'id' or contains uid/sid/cid)."""
         if not tokens or len(tokens) > 4:
             return False
         if any(token in cls.QUESTION_LIKE_TOKENS for token in tokens):

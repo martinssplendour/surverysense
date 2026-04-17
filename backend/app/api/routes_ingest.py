@@ -1,3 +1,4 @@
+"""Ingest router: handles CSV upload, transformation, analysis, export, and paging endpoints."""
 from __future__ import annotations
 
 import json
@@ -44,9 +45,13 @@ def build_ingest_router(
     report_export_service: AnalysisReportExportService,
     result_store_service: ResultStoreService,
     translation_service: EnglishTranslationService,
-    preview_size: int,
     architect_sample_size: int,
 ) -> APIRouter:
+    """Build and return the APIRouter containing all ingest/analysis endpoints.
+
+    Uses a factory function so all service dependencies are injected at startup rather than
+    using FastAPI's dependency-injection system for long-lived singletons.
+    """
     router = APIRouter(tags=["ingestion"])
 
     def raise_unexpected_api_error(action: str, exc: Exception) -> None:
@@ -57,6 +62,7 @@ def build_ingest_router(
         ) from exc
 
     def serialize_filters(result_id: str) -> list[MetadataFilterDefinitionModel]:
+        """Convert stored filter definitions to API response models for the given result."""
         definitions = result_store_service.get_filters(result_id)
         return [
             MetadataFilterDefinitionModel(
@@ -71,6 +77,10 @@ def build_ingest_router(
         ]
 
     def parse_filters(raw_filters: str | None) -> dict[str, list[str]]:
+        """Deserialise and validate a JSON filter string from a query parameter.
+
+        Accepts a JSON object mapping column names to a string or list of strings.
+        """
         if raw_filters is None or not raw_filters.strip():
             return {}
 
@@ -165,6 +175,7 @@ def build_ingest_router(
                 metadata_columns=analysis_metadata_columns,
                 verbatim_columns=analysis_verbatim_columns,
             )
+            # Tie the in-memory result to this browser session so logout can clean it up.
             register_session_result_id(request, result_id)
         except (CsvDecodeError, RowLimitExceededError, IngestionError) as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -202,8 +213,10 @@ def build_ingest_router(
         result_id: str,
         analysis_request: AnalysisRunRequest,
     ) -> AnalysisRunResponse:
+        """Execute topic analysis on a stored dataset and cache the result for fast filtered re-runs."""
         require_authenticated_user(request)
 
+        # Return cached snapshot if available — avoids re-running ML for simple filter changes.
         fast_result = result_store_service.get_fast_filtered_result(
             result_id,
             model_key=analysis_request.model_key,
@@ -214,6 +227,8 @@ def build_ingest_router(
             return AnalysisRunResponse.model_validate(fast_result)
 
         try:
+            # Dataset selection reapplies any active metadata filters before the
+            # model runs, so the analysis path always works from a filtered frame.
             selection = result_store_service.get_dataset(
                 result_id,
                 dataset="analysis",
@@ -322,6 +337,8 @@ def build_ingest_router(
     ) -> Response:
         require_authenticated_user(request)
         try:
+            # Validate that the result still exists before asking the export service
+            # to build a file from the client-supplied chart payload.
             result_store_service.get_filters(result_id)
             artifact = report_export_service.export_report(
                 result_id=result_id,
@@ -421,6 +438,8 @@ def build_ingest_router(
             )
 
         try:
+            # Modal translations are explicitly on-demand; the main analysis route
+            # should not pay this cost for every representative response.
             result = translation_service.translate([source_text])
         except Exception as exc:
             raise_unexpected_api_error("translate_to_english", exc)

@@ -1,3 +1,4 @@
+// Shared constants, singleton state object, and element references imported by every results sub-module.
 export const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
 export const ROW_PAGE_SIZE = 250;
 export const INITIAL_VISIBLE_ROW_TARGET = 250;
@@ -5,12 +6,24 @@ export const FULL_DATA_ROW_PAGE_SIZE = 50;
 export const FULL_DATA_INITIAL_VISIBLE_ROW_TARGET = 50;
 export const FULL_DATA_VISIBLE_COLUMN_COUNT = 12;
 export const ANALYSIS_MODE_OPTIONS = [
-    { key: "bertopic", label: "BERTopic", description: "Groups similar responses into topics. Pick this when you want natural themes without presetting the number of groups." },
+    { key: "bertopic", label: "BERTopic", description: "Groups similar responses into topics. Pick this when you want natural topics without presetting the number of groups." },
     { key: "kmeans", label: "K-means", description: "Splits responses into a fixed number of similarity groups. Pick this when you already know roughly how many groups you expect." },
-    { key: "hdbscan", label: "Natural Groups", description: "Finds dense similarity groups and can leave outliers unassigned. Pick this when you want tighter groups and are happy to leave some responses unmatched." },
+    { key: "hdbscan", label: "HDBSCAN", description: "Finds dense similarity groups and can leave outliers unassigned. Pick this when you want tighter groups and are happy to leave some responses unmatched." },
     { key: "ngrams", label: "N-grams", description: "Highlights the most repeated words and phrases in the text. Pick this when you want the quickest read on repeated language rather than grouped topics." },
 ];
 
+/**
+ * Central mutable state for the results page. All sub-modules read from and write to this object directly.
+ * Shape summary:
+ *   response / resultId        — raw API payload and its server-side ID
+ *   analysisVerbatimColumns    — columns eligible for NLP analysis
+ *   analysisMetadataColumns    — columns available as filter dimensions
+ *   transformed* / analysis*   — parallel row sets for the full-data and verbatim-only table views
+ *   activeFilters              — { [columnName]: string[] } applied to row fetches and analysis runs
+ *   analysisResult             — last /run-analysis response, or null if not yet run
+ *   analysisGroupModal*        — all state for the drilldown modal (mode: "group" | "ngram")
+ *   currentWorkspace           — "dashboard" | "data" | "analysis" | "analysis-results"
+ */
 export const state = {
     response: null,
     resultId: null,
@@ -40,7 +53,7 @@ export const state = {
     analysisExportFormat: "pdf",
     analysisExportMenuOpen: false,
     analysisExportRunning: false,
-    analysisGroupModalMode: "group",
+    analysisGroupModalMode: "group",  // "group" | "ngram" — controls which modal variant is rendered
     analysisGroupModalGroupId: "",
     analysisGroupModalNgramSize: 0,
     analysisGroupModalTerm: "",
@@ -59,6 +72,7 @@ export const state = {
     columnSearchTerm: "",
 };
 
+// Eagerly-resolved DOM element references. Populated once at module evaluation time and reused throughout.
 export const elements = {
     emptyState: document.getElementById("empty-state"),
     uploadView: document.getElementById("upload-view"),

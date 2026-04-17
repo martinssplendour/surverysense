@@ -1,3 +1,4 @@
+"""Assembles the analysis-ready DataFrame slice by selecting metadata/verbatim columns and dropping empty rows."""
 from __future__ import annotations
 
 import pandas as pd
@@ -24,6 +25,7 @@ class AnalysisReadyDatasetService:
         self.row_filter = row_filter
 
     def build(self, df: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[str]]:
+        """Auto-detect metadata and verbatim columns and return (analysis_df, metadata_columns, verbatim_columns)."""
         if df.empty:
             metadata_columns = self.metadata_selector.select_columns(df)
             return df.copy(), metadata_columns, []
@@ -50,6 +52,7 @@ class AnalysisReadyDatasetService:
         metadata_columns: list[str],
         verbatim_columns: list[str],
     ) -> tuple[pd.DataFrame, list[str], list[str]]:
+        """Build the analysis dataset from explicitly assigned column lists (used when the user overrides column roles)."""
         if df.empty:
             resolved_metadata = [column for column in metadata_columns if column in df.columns]
             resolved_verbatim = [column for column in verbatim_columns if column in df.columns and column not in set(resolved_metadata)]

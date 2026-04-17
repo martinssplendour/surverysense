@@ -1,3 +1,4 @@
+"""Application factory: wires together all services and mounts the FastAPI app."""
 from __future__ import annotations
 
 import asyncio
@@ -60,6 +61,7 @@ from app.services.transformation_service import DataTransformationService
 logger = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+# Paths / prefixes that must never be gated by the auth redirect.
 PUBLIC_PATH_PREFIXES = ("/static", "/auth", "/health")
 PUBLIC_PATHS = {"/login"}
 
@@ -78,6 +80,8 @@ def _should_redirect_to_login(request: Request) -> bool:
 
 
 class AuthRedirectMiddleware(BaseHTTPMiddleware):
+    """Redirects unauthenticated browser GET requests to the login page."""
+
     async def dispatch(self, request: Request, call_next):
         if get_authenticated_user(request) is None and _should_redirect_to_login(request):
             return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
@@ -193,6 +197,8 @@ def create_app() -> FastAPI:
     )
 
     app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
+    # Auth redirect runs outermost so browser page requests bounce to /login before
+    # any view logic tries to serve HTML to an unauthenticated user.
     app.add_middleware(AuthRedirectMiddleware)
     app.add_middleware(
         SessionMiddleware,
@@ -218,7 +224,6 @@ def create_app() -> FastAPI:
             report_export_service=report_export_service,
             result_store_service=result_store_service,
             translation_service=translation_service,
-            preview_size=settings.transformed_preview_size,
             architect_sample_size=settings.architect_sample_size,
         )
     )
@@ -226,6 +231,8 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def warm_topic_models() -> None:
+        # Fire model warm-up in a background task so the server becomes ready immediately;
+        # the first analysis request will block until warm-up completes if it arrives first.
         async def _warm_models_after_startup() -> None:
             try:
                 await asyncio.to_thread(topic_analysis_service.warm_up)
@@ -246,12 +253,6 @@ def create_app() -> FastAPI:
         if get_authenticated_user(request) is not None:
             return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
         return FileResponse(FRONTEND_DIR / "login.html")
-
-    @app.get("/results", include_in_schema=False, response_model=None)
-    async def results(request: Request):
-        if get_authenticated_user(request) is None:
-            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:

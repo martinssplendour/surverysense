@@ -1,3 +1,4 @@
+"""Record-level cleaning services: validates vertical records, deduplicates answers, consolidates metadata, and assembles wide output."""
 from __future__ import annotations
 
 from typing import Any
@@ -6,6 +7,8 @@ import pandas as pd
 
 
 class VerticalRecordFilterService:
+    """Drops rows from a vertical record DataFrame that are missing a key, question, or answer value."""
+
     def drop_invalid_rows(
         self,
         record_df: pd.DataFrame,
@@ -24,6 +27,8 @@ class VerticalRecordFilterService:
 
 
 class DuplicateAnswerResolutionService:
+    """Resolves duplicate question/answer rows for the same respondent by keeping the last non-null occurrence."""
+
     def resolve(
         self,
         record_df: pd.DataFrame,
@@ -36,6 +41,8 @@ class DuplicateAnswerResolutionService:
         if record_df.empty:
             return record_df.copy()
 
+        # Two-pass dedup: first remove exact (key, question, answer) duplicates,
+        # then keep the last answer per (key, question) if multiple different answers exist.
         deduped = (
             record_df.sort_values(order_column)
             .drop_duplicates(subset=key_columns + [question_column, answer_column], keep="last")
@@ -45,6 +52,8 @@ class DuplicateAnswerResolutionService:
 
 
 class MetadataConsolidationService:
+    """Collapses a raw DataFrame to one row per unique key, taking the first non-null value for each metadata column."""
+
     def consolidate(
         self,
         raw_df: pd.DataFrame,
@@ -77,6 +86,8 @@ class MetadataConsolidationService:
 
 
 class VerticalRecordAssemblyService:
+    """Pivots a cleaned vertical record DataFrame into one wide row per respondent with each question as a column."""
+
     def assemble(
         self,
         record_df: pd.DataFrame,

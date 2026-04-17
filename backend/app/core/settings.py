@@ -1,3 +1,4 @@
+"""Application settings loaded from environment variables (with optional .env file support)."""
 from __future__ import annotations
 
 import os
@@ -32,11 +33,11 @@ def _parse_csv_env(name: str) -> tuple[str, ...]:
 
 @dataclass(slots=True)
 class Settings:
+    """All runtime configuration values, each read from an environment variable with a safe default."""
     app_env: str = os.getenv("APP_ENV", "development").strip().casefold() or "development"
     ingest_sample_size: int = int(os.getenv("INGEST_SAMPLE_SIZE", "25"))
     architect_sample_size: int = int(os.getenv("ARCHITECT_SAMPLE_SIZE", "25"))
     row_limit: int = int(os.getenv("TRANSFORM_ROW_LIMIT", "5000"))
-    transformed_preview_size: int = int(os.getenv("TRANSFORM_PREVIEW_SIZE", "25"))
     topic_embedding_model: str = os.getenv(
         "TOPIC_EMBEDDING_MODEL",
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -86,12 +87,15 @@ class Settings:
 
     @property
     def is_default_session_secret(self) -> bool:
+        """True when the session secret has not been overridden from the insecure placeholder."""
         return self.session_secret == DEFAULT_SESSION_SECRET
 
     @property
     def debug(self) -> bool:
+        """True in any local/test environment; controls security guards such as the session-secret check."""
         return self.app_env in {"development", "dev", "local", "test"}
 
 
 def get_settings() -> Settings:
+    """Create a fresh Settings instance (re-reads env vars on each call)."""
     return Settings()

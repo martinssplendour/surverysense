@@ -1,3 +1,4 @@
+"""Translates survey responses to English via Google Translate (deep-translator), with in-process caching."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,10 +35,11 @@ class EnglishTranslationBatchResult:
 class _TranslationCacheEntry:
     translated_text: str
     translated: bool
-    detected_language: str | None
 
 
 class EnglishTranslationService:
+    """Translates a list of texts to English, caching results in memory to avoid redundant API calls."""
+
     def __init__(self, *, config: EnglishTranslationConfig) -> None:
         self.config = config
         self._lock = Lock()
@@ -48,11 +50,13 @@ class EnglishTranslationService:
         return
 
     def translate(self, texts: list[str]) -> EnglishTranslationBatchResult:
+        """Translate a batch of texts to English, returning original texts if translation is disabled or fails."""
         passthrough = self._build_passthrough_result(texts)
         if not self.config.enabled or not texts:
             return passthrough
 
         warnings: list[str] = []
+        # dict.fromkeys preserves insertion order while deduplicating — faster than a seen-set loop.
         unique_texts = list(dict.fromkeys(texts))
         pending_texts: list[str] = []
 
@@ -80,6 +84,8 @@ class EnglishTranslationService:
             for batch_start in range(0, len(pending_texts), batch_size):
                 batch = pending_texts[batch_start: batch_start + batch_size]
                 try:
+                    # Prefer batch translation for throughput, but fall back to
+                    # item-by-item translation so one bad string does not sink the batch.
                     translated_batch = self._translate_batch(translator, batch)
                 except DeepTranslatorError as exc:
                     logger.warning(
@@ -103,10 +109,10 @@ class EnglishTranslationService:
 
                 for source_text, translated_text in zip(batch, translated_batch):
                     normalized_text = self._normalize_translated_text(source_text, translated_text)
+                    # Casefold comparison: treat texts as untranslated if they differ only in casing.
                     self._translation_cache[source_text] = _TranslationCacheEntry(
                         translated_text=normalized_text,
                         translated=normalized_text.casefold() != source_text.casefold(),
-                        detected_language=None,
                     )
 
             if failed_count:
@@ -127,13 +133,15 @@ class EnglishTranslationService:
         detected_languages: list[str | None] = []
 
         for text in texts:
+            # The cache key is the original source text, so repeated representative
+            # responses or labels reuse the same translation result across requests.
             cached = self._translation_cache.get(
                 text,
-                _TranslationCacheEntry(translated_text=text, translated=False, detected_language=None),
+                _TranslationCacheEntry(translated_text=text, translated=False),
             )
             translated_texts.append(cached.translated_text)
             translated_flags.append(cached.translated)
-            detected_languages.append(cached.detected_language)
+            detected_languages.append(None)
 
         translated_count = sum(1 for translated in translated_flags if translated)
         return EnglishTranslationBatchResult(
@@ -159,6 +167,7 @@ class EnglishTranslationService:
         )
 
     def _get_translator(self):
+        """Lazily initialise the GoogleTranslator, thread-safe via a lock."""
         with self._lock:
             if self._translator is None:
                 from deep_translator import GoogleTranslator
