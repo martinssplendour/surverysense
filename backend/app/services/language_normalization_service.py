@@ -61,16 +61,6 @@ class EnglishTranslationService:
                 continue
             pending_texts.append(text)
 
-        if self.config.target_language == "en":
-            for text in list(pending_texts):
-                if self._is_latin_script(text):
-                    self._translation_cache[text] = _TranslationCacheEntry(
-                        translated_text=text,
-                        translated=False,
-                        detected_language="en",
-                    )
-                    pending_texts.remove(text)
-
         if pending_texts:
             try:
                 translator = self._get_translator()
@@ -190,18 +180,6 @@ class EnglishTranslationService:
     def _translate_single(translator, text: str) -> str:
         translated = translator.translate(text)
         return str(translated).strip()
-
-    @staticmethod
-    def _is_latin_script(text: str) -> bool:
-        """Return True if the text is predominantly Latin-script (ASCII alphabetic chars).
-        Used to skip the Google Translate API for texts that are already English.
-        Non-Latin scripts (Cyrillic, Arabic, CJK, Devanagari, etc.) have a low ASCII
-        alphabetic ratio and will still be sent for translation."""
-        alpha_chars = [c for c in text if c.isalpha()]
-        if not alpha_chars:
-            return True
-        ascii_alpha = sum(1 for c in alpha_chars if ord(c) < 128)
-        return ascii_alpha / len(alpha_chars) >= 0.85
 
     @staticmethod
     def _normalize_translated_text(source_text: str, translated_text: str) -> str:
