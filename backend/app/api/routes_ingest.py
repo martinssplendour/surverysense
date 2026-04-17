@@ -408,7 +408,7 @@ def build_ingest_router(
         )
 
     @router.post("/translate-to-english", response_model=TranslateTextResponse)
-    async def translate_to_english(
+    def translate_to_english(
         request: Request,
         translate_request: TranslateTextRequest,
     ) -> TranslateTextResponse:

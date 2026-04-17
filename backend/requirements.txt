@@ -31,7 +31,6 @@ accelerate==0.33.0
 # Auth & HTTP
 google-auth==2.42.0
 requests==2.31.0
-slowapi==0.1.9
 
 # Translation
 deep-translator==1.11.4

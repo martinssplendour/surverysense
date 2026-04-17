@@ -64,13 +64,15 @@ class TopicAnalysisService:
             local_model_path=self.config.embedding_local_path,
         )
         # Trigger Numba JIT compilation for UMAP at startup so the first real BERTopic
-        # run doesn't pay a ~40s cold-start penalty. A tiny 20-point fit is enough to
-        # compile all Numba kernels used by the full-size run.
+        # run doesn't pay a cold-start penalty. Parameters must match the actual BERTopic
+        # run: n_neighbors=10, n_components=5, input shape (N, 50) after PCA pre-reduction.
+        # Using mismatched params (e.g. n_components=2) compiles different Numba kernels
+        # and leaves the real run's kernels uncompiled.
         try:
             import numpy as _np
             import umap as _umap
-            _dummy = _np.random.default_rng(0).random((20, 10))
-            _umap.UMAP(n_neighbors=5, n_components=2, random_state=42).fit_transform(_dummy)
+            _dummy = _np.random.default_rng(0).random((50, 50))
+            _umap.UMAP(n_neighbors=10, n_components=5, random_state=42).fit_transform(_dummy)
         except Exception:
             pass
 
