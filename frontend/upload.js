@@ -1,6 +1,5 @@
 (function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
-const RESULT_HANDOFF_FLAG_KEY = "verbatim-app:pending-handoff";
 let uploadElapsedTimer = null;
 let uploadStartedAt = 0;
 
@@ -75,9 +74,6 @@ async function loadDiagnosticConfig() {
         state.architectRowCount = 25;
         state.diagnosticMode = "ai";
     }
-    console.info(
-        `[Verbatim App] Diagnosis workflow ready: ${formatDiagnosticModeLabel(state.diagnosticMode)} using first ${state.architectRowCount} rows.`,
-    );
 }
 
 function setFile(file) {
@@ -120,10 +116,6 @@ async function handleSubmit(event) {
 
     setBusyState(true);
     showStatus("neutral", `Processing CSV with ${formatDiagnosticModeLabel(state.diagnosticMode)}...`);
-    console.info(
-        `[Verbatim App] Starting upload with ${formatDiagnosticModeLabel(state.diagnosticMode)} for ${state.file.name}.`,
-    );
-
     try {
         const response = await fetch("/upload-ingest", {
             method: "POST",
@@ -145,14 +137,6 @@ async function handleSubmit(event) {
         } catch (error) {
             console.warn("[Verbatim App] Unable to cache processed result in session storage.", error);
         }
-        console.info("[Verbatim App][Upload] Upload succeeded.", {
-            resultId: payload?.result_id || null,
-            transformedColumns: Array.isArray(payload?.transformed_column_names) ? payload.transformed_column_names.length : 0,
-            verbatimColumns: Array.isArray(payload?.analysis_verbatim_column_names) ? payload.analysis_verbatim_column_names.length : 0,
-        });
-        console.info(
-            `[Verbatim App] Processing finished with ${payload.manifest?.diagnostic_source || state.diagnosticMode} manifest generation.`,
-        );
         setBusyState(false);
         showStatus("neutral", "File processed.");
         handoffProcessedResult();
@@ -202,12 +186,6 @@ function updateElapsedStatus() {
 }
 
 function handoffProcessedResult() {
-    try {
-        sessionStorage.setItem(RESULT_HANDOFF_FLAG_KEY, "1");
-        console.info("[Verbatim App][Upload] Stored pending handoff flag and redirecting to dashboard.");
-    } catch (_error) {
-        console.warn("[Verbatim App][Upload] Unable to store pending handoff flag before redirect.");
-    }
     window.location.assign("/?handoff=1");
 }
 

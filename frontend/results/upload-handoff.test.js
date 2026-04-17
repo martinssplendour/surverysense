@@ -50,7 +50,6 @@ function buildHarness(overrides = {}) {
         transformed_row_count: 5,
         analysis_verbatim_column_names: ["comment"],
     };
-    const applyProcessedResult = vi.fn();
     const locationAssign = vi.fn();
     const fetchMock = vi.fn(async (url) => {
         if (url === "/diagnostic-config") {
@@ -77,9 +76,7 @@ function buildHarness(overrides = {}) {
     });
 
     const windowListeners = new Map();
-    const hasApplyOverride = Object.prototype.hasOwnProperty.call(overrides, "applyProcessedResult");
     const hasLocationAssignOverride = Object.prototype.hasOwnProperty.call(overrides, "locationAssign");
-    const hasSetTimeoutOverride = Object.prototype.hasOwnProperty.call(overrides, "setTimeout");
 
     const context = {
         console,
@@ -115,7 +112,6 @@ function buildHarness(overrides = {}) {
             },
         },
         window: {
-            verbatimApplyProcessedResult: hasApplyOverride ? overrides.applyProcessedResult : applyProcessedResult,
             addEventListener(type, handler) {
                 windowListeners.set(type, handler);
             },
@@ -130,15 +126,15 @@ function buildHarness(overrides = {}) {
             },
             clearInterval: vi.fn(),
             setInterval: vi.fn(() => 1),
-            setTimeout: hasSetTimeoutOverride ? overrides.setTimeout : ((fn) => {
+            setTimeout: (fn) => {
                 fn();
                 return 1;
-            }),
+            },
         },
-        setTimeout: hasSetTimeoutOverride ? overrides.setTimeout : ((fn) => {
+        setTimeout: (fn) => {
             fn();
             return 1;
-        }),
+        },
         clearTimeout: vi.fn(),
     };
     context.globalThis = context;
@@ -150,7 +146,6 @@ function buildHarness(overrides = {}) {
         elements,
         storage,
         uploadPayload,
-        applyProcessedResult,
         locationAssign,
         fetchMock,
     };
@@ -174,15 +169,12 @@ describe("upload handoff", () => {
         });
 
         expect(harness.storage.get("verbatim-app:last-upload-result")).toBe(JSON.stringify(harness.uploadPayload));
-        expect(harness.storage.get("verbatim-app:pending-handoff")).toBe("1");
         expect(harness.locationAssign).toHaveBeenCalledWith("/?handoff=1");
         expect(harness.elements["status-message"].textContent).toBe("File processed.");
     });
 
-    it("still navigates to the handoff route when direct handoff is unavailable", async () => {
-        const harness = buildHarness({
-            applyProcessedResult: undefined,
-        });
+    it("uses the same navigation handoff path every time", async () => {
+        const harness = buildHarness();
         const fileInput = harness.elements["csv-file"];
         const uploadForm = harness.elements["upload-form"];
 

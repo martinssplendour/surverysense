@@ -1,153 +1,26 @@
 # Verbatim App Backend
 
-## Install
+Backend-specific notes live here. The main project documentation is now in the repo-root `README.md`.
+
+## Local Run
 
 ```bash
+cd backend
 pip install -r requirements.txt
+python download_topic_model.py
+python -m uvicorn app.main:app --reload
 ```
-
-## Run
-
-```bash
-uvicorn app.main:app --reload
-```
-
-## Render Deploy
-
-For Render, use:
-
-```bash
-pip install -r requirements.txt && python download_topic_model.py
-```
-
-as the build command, and:
-
-```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-as the start command.
-
-`download_topic_model.py` downloads the configured sentence-transformer into `TOPIC_EMBEDDING_LOCAL_PATH` during the build step. At runtime, the analysis pipeline loads the model from that local folder instead of the Hugging Face repo id.
-
-The analysis pipeline now groups raw verbatim responses first, using multilingual embeddings by default. When translation is enabled, only output labels and representative examples are translated to English for display after grouping.
-
-## Endpoint
-
-- `POST /upload-ingest`
-
-Upload a CSV file as multipart form data using the field name `file`.
-
-The architect returns a manifest that distinguishes:
-
-- `metadata_indices`
-- `verbatim_indices` for wide files
-- `vertical_assembly` for vertical files:
-  - `record_key_indices`
-  - `question_header_indices` in fallback order
-  - `answer_col_idx`
-  - `helper_indices`
-  - `duplicate_resolution`
-  - `row_consolidation`
-
-## Data Preparation Services
-
-The Verbatim App includes standalone survey cleaning/preparation services in `app/services/survey_preparation_services.py`, including:
-
-- `UserIdCastingService`
-- `FullTitleFallbackService`
-- `MainTitleFallbackService`
-- `TitleNormalizationColumnsService`
-- `WideSurveyPivotService`
-- `QuestionRecordExtractionService`
-- `QuestionSelectionService`
-- `QuestionTextService`
-- `AnswerCoverageService`
-- `CountryFilterService`
-- `CareerMetadataBackfillService`
-
-The ingestion pipeline also uses standalone vertical verbatim assembly services in `app/services/cleaning_services.py`, including:
-
-- `TextNormalizationService`
-- `NullScrubbingService`
-- `QuestionHeaderResolutionService`
-- `VerbatimHeaderCleaningService`
-- `VerbatimQuestionSelectionService`
-- `VerticalRecordFilterService`
-- `DuplicateAnswerResolutionService`
-- `MetadataConsolidationService`
-- `VerticalRecordAssemblyService`
-- `VerbatimRowFilterService`
-
-## Gemini
-
-Set `GEMINI_API_KEY` to enable the LLM architect. If the key is missing or Gemini fails, the backend falls back to a heuristic manifest generator.
-
-Environment variables can be placed in [`.env.example`](C:/Users/HP/Downloads/tvp-analysis-main/Verbatim%20App/backend/.env.example) format as `Verbatim App/backend/.env`. The backend now auto-loads that file on startup when `python-dotenv` is installed.
-
-## Google OAuth
-
-Google sign-in can be configured either with direct env vars or with the legacy client JSON file.
-
-Preferred env vars:
-
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `GOOGLE_OAUTH_CLIENT_SECRET` optional for the current credential-verification flow
-- `GOOGLE_OAUTH_REDIRECT_URIS` optional comma-separated list
-- `GOOGLE_OAUTH_JAVASCRIPT_ORIGINS` optional comma-separated list
-- `GOOGLE_OAUTH_ALLOWED_DOMAINS`
-
-Backward-compatible fallback:
-
-- `GOOGLE_OAUTH_CLIENT_JSON_PATH`
-
-If `GOOGLE_OAUTH_CLIENT_ID` is set, the backend uses the env config and does not need the JSON file.
-
-## Translation
-
-Analysis-time translation is controlled with:
-
-- `TOPIC_TRANSLATION_ENABLED`
-- `TOPIC_TRANSLATION_SOURCE_LANGUAGE`
-- `TOPIC_TRANSLATION_TARGET_LANGUAGE`
-- `TOPIC_TRANSLATION_BATCH_SIZE`
-
-The current translation path uses `deep-translator` with Google Translate. It does not download a local model, but it does send translated output snippets to Google's translation service when analysis runs.
-
-## Local Embedding Model
-
-Sentence embeddings can be loaded from a local folder with:
-
-- `TOPIC_EMBEDDING_MODEL`
-- `TOPIC_EMBEDDING_LOCAL_PATH`
-
-When the local folder exists, the backend loads it with `local_files_only=True` and skips Hugging Face lookup calls during analysis. The included `download_topic_model.py` script can populate that folder during your Render build or before local testing.
-
-## AI Topic Labels
-
-When `GEMINI_API_KEY` is configured and `TOPIC_AI_LABELING_ENABLED=true`, grouped analysis can make one batched Gemini call after clustering to replace weak heuristic labels with shorter human-readable English labels.
-
-Latency controls:
-
-- `TOPIC_AI_LABELING_TIMEOUT_SECONDS`
-- `TOPIC_AI_LABELING_MAX_GROUPS`
-- `TOPIC_AI_LABELING_MAX_EXAMPLES`
-- `TOPIC_AI_LABELING_MAX_TERMS`
-- `TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE`
-
-The AI labeler does not decide group membership. It only renames the largest non-noise groups after clustering, and if the call fails or times out the backend keeps the heuristic labels.
-
-## BERTopic Outliers
-
-BERTopic can leave some clear responses in its `-1` outlier bucket. This backend can reassign those responses to the nearest existing theme after clustering.
-
-- `TOPIC_BERTOPIC_REDUCE_OUTLIERS`
-- `TOPIC_BERTOPIC_OUTLIER_THRESHOLD`
-
-The current implementation uses BERTopic's embedding-based outlier reduction. With the default threshold `0.0`, outlier responses are assigned to their nearest existing theme whenever possible. Any responses that still remain in the `-1` bucket are shown as `Unassigned responses`.
 
 ## Tests
 
 ```bash
-python -m unittest tests.test_transformation_service tests.test_survey_preparation_services
+cd backend
+python -m unittest discover -s tests
+```
+
+## Render
+
+```bash
+build: cd backend && pip install -r requirements.txt && python download_topic_model.py
+start: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```

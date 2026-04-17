@@ -4,8 +4,6 @@ import {
     elements,
     state,
 } from "./results/shared.js";
-
-const RESULT_HANDOFF_FLAG_KEY = "verbatim-app:pending-handoff";
 import {
     analysisCard,
     displayAnalysisMode,
@@ -122,25 +120,6 @@ configureResultsColumnRoles({
 });
 
 if (elements.dashboardPanel && elements.openAnalysisButton && elements.openDataButton) {
-    window.verbatimApplyProcessedResult = applyPayload;
-    window.verbatimShowUploadState = resetToUploadState;
-    console.info("[Verbatim App][Results] Results controller initialized.");
-    window.addEventListener("verbatim:result-ready", (event) => {
-        const payload = event instanceof CustomEvent ? event.detail : null;
-        console.info("[Verbatim App][Results] Received verbatim:result-ready event.", {
-            hasPayload: Boolean(payload),
-        });
-        if (isValidStoredPayload(payload)) {
-            try {
-                applyPayload(payload);
-            } catch (error) {
-                console.error("[Verbatim App][Results] applyPayload failed from event.", error);
-                throw error;
-            }
-            return;
-        }
-        void loadResultsPage();
-    });
     bindEvents();
     void loadResultsPage();
 }
@@ -318,50 +297,27 @@ function bindEvents() {
 }
 
 async function loadResultsPage() {
-    const pendingHandoff = sessionStorage.getItem(RESULT_HANDOFF_FLAG_KEY) === "1";
     const queryHandoff = isUploadHandoffNavigation();
-    const allowRestore = pendingHandoff || queryHandoff;
-    console.info("[Verbatim App][Results] loadResultsPage()", {
-        pendingHandoff,
-        queryHandoff,
-        allowRestore,
-        isReload: isPageReload(),
-    });
-    if (isPageReload() && !allowRestore) {
-        console.info("[Verbatim App][Results] Clearing stored result because this is a manual reload.");
+    if (isPageReload() && !queryHandoff) {
         sessionStorage.removeItem(RESULT_STORAGE_KEY);
         showEmptyState();
         return;
     }
 
-    if (allowRestore) {
-        console.info("[Verbatim App][Results] Allowing stored result restore after upload handoff.");
-        sessionStorage.removeItem(RESULT_HANDOFF_FLAG_KEY);
+    if (queryHandoff) {
         clearUploadHandoffQuery();
     }
 
     const payload = readStoredPayload();
     if (!payload) {
-        console.warn("[Verbatim App][Results] No stored payload found. Showing upload state.");
         showEmptyState();
         return;
     }
 
-    try {
-        applyPayload(payload);
-    } catch (error) {
-        console.error("[Verbatim App][Results] applyPayload failed during page load.", error);
-        throw error;
-    }
+    applyPayload(payload);
 }
 
 function applyPayload(payload) {
-    console.info("[Verbatim App][Results] applyPayload()", {
-        resultId: payload?.result_id || null,
-        transformedColumns: Array.isArray(payload?.transformed_column_names) ? payload.transformed_column_names.length : 0,
-        verbatimColumns: Array.isArray(payload?.analysis_verbatim_column_names) ? payload.analysis_verbatim_column_names.length : 0,
-        availableFilters: Array.isArray(payload?.available_filters) ? payload.available_filters.length : 0,
-    });
     state.response = payload;
     state.resultId = typeof payload.result_id === "string" ? payload.result_id : null;
     state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
@@ -428,20 +384,16 @@ function applyPayload(payload) {
 function readStoredPayload() {
     const raw = sessionStorage.getItem(RESULT_STORAGE_KEY);
     if (!raw) {
-        console.warn("[Verbatim App][Results] RESULT_STORAGE_KEY missing from sessionStorage.");
         return null;
     }
 
     try {
         const parsed = JSON.parse(raw);
         if (!isValidStoredPayload(parsed)) {
-            console.warn("[Verbatim App][Results] Stored payload is present but invalid.");
             return null;
         }
-        console.info("[Verbatim App][Results] Stored payload restored successfully.");
         return parsed;
     } catch {
-        console.error("[Verbatim App][Results] Failed to parse stored payload JSON.");
         return null;
     }
 }
@@ -524,9 +476,6 @@ function showEmptyState() {
 }
 
 function renderResults(payload) {
-    console.info("[Verbatim App][Results] renderResults()", {
-        filename: payload?.filename || null,
-    });
     document.body.classList.remove("upload-workspace-active");
     if (elements.emptyState) {
         elements.emptyState.hidden = true;
@@ -549,7 +498,6 @@ function renderResults(payload) {
     }
     renderDashboard(payload);
     updateWorkspaceVisibility();
-    console.info("[Verbatim App][Results] Dashboard view should now be visible.");
     closeFilterModal();
     closeColumnRoleModal();
     closeAnalysisGroupModal();
@@ -557,7 +505,6 @@ function renderResults(payload) {
 
 function resetToUploadState() {
     sessionStorage.removeItem(RESULT_STORAGE_KEY);
-    sessionStorage.removeItem(RESULT_HANDOFF_FLAG_KEY);
     state.response = null;
     state.resultId = null;
     state.analysisResult = null;
@@ -591,12 +538,6 @@ function renderDashboard(payload) {
     const rowCount = Number(payload.transformed_row_count || 0);
     const columnCount = Array.isArray(payload.transformed_column_names) ? payload.transformed_column_names.length : 0;
     const verbatimCount = state.analysisVerbatimColumns.length;
-    console.info("[Verbatim App][Results] renderDashboard()", {
-        filename,
-        rowCount,
-        columnCount,
-        verbatimCount,
-    });
 
     elements.dashboardFileName.textContent = filename;
 
