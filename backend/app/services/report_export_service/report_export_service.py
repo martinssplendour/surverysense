@@ -260,7 +260,7 @@ class AnalysisReportExportService:
         title_top = 3.3
         subtitle_top = 4.02
         title_box_width = _PPTX_CONTENT_WIDTH * 0.76
-        title_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - title_box_width) / 2)
+        title_box_left = _PPTX_CONTENT_LEFT
 
         title_box = slide.shapes.add_textbox(
             PptxInches(title_box_left),
@@ -275,7 +275,7 @@ class AnalysisReportExportService:
         title_paragraph.font.size = PptxPt(26)
         title_paragraph.font.bold = True
         title_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
-        title_paragraph.alignment = PP_ALIGN.CENTER
+        title_paragraph.alignment = PP_ALIGN.LEFT
 
         subtitle_box = slide.shapes.add_textbox(
             PptxInches(title_box_left),
@@ -290,7 +290,7 @@ class AnalysisReportExportService:
         subtitle_paragraph.text = self._build_subtitle(request)
         subtitle_paragraph.font.size = PptxPt(10)
         subtitle_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
-        subtitle_paragraph.alignment = PP_ALIGN.CENTER
+        subtitle_paragraph.alignment = PP_ALIGN.LEFT
 
     def _build_pptx_chart_slide(self, presentation: Presentation, chart: DecodedChartImage) -> None:
         slide = presentation.slides.add_slide(presentation.slide_layouts[6])
@@ -334,7 +334,7 @@ class AnalysisReportExportService:
 
     def _build_pptx_summary_slide(self, presentation: Presentation, request: AnalysisExportRequest) -> None:
         summary_box_width = _PPTX_CONTENT_WIDTH * 0.7
-        summary_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - summary_box_width) / 2)
+        summary_box_left = _PPTX_CONTENT_LEFT
         group_sections = self._build_group_summary_sections(request)
         if group_sections:
             for chunk_start in range(0, min(len(group_sections), 8), 4):
@@ -362,11 +362,13 @@ class AnalysisReportExportService:
                     heading.font.size = PptxPt(16)
                     heading.font.bold = True
                     heading.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+                    heading.alignment = PP_ALIGN.LEFT
 
                     paragraph = frame.add_paragraph()
                     paragraph.text = section.summary
                     paragraph.font.size = PptxPt(12)
                     paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
+                    paragraph.alignment = PP_ALIGN.LEFT
                     paragraph.space_after = PptxPt(6)
                     top += 1.35
             return
@@ -391,6 +393,7 @@ class AnalysisReportExportService:
             paragraph.bullet = True
             paragraph.font.size = PptxPt(14)
             paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
+            paragraph.alignment = PP_ALIGN.LEFT
             paragraph.space_after = PptxPt(8)
 
     def _build_pptx_representative_slides(self, presentation: Presentation, request: AnalysisExportRequest) -> None:
@@ -405,7 +408,7 @@ class AnalysisReportExportService:
 
             top = 1.25
             group_box_width = _PPTX_CONTENT_WIDTH * 0.7
-            group_box_left = _PPTX_CONTENT_LEFT + ((_PPTX_CONTENT_WIDTH - group_box_width) / 2)
+            group_box_left = _PPTX_CONTENT_LEFT
             for label, examples in sections[chunk_start:chunk_start + 2]:
                 group_box = slide.shapes.add_textbox(
                     PptxInches(group_box_left),
@@ -422,12 +425,14 @@ class AnalysisReportExportService:
                 heading.font.size = PptxPt(16)
                 heading.font.bold = True
                 heading.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
+                heading.alignment = PP_ALIGN.LEFT
 
                 for index, example in enumerate(examples, start=1):
                     paragraph = frame.add_paragraph()
                     paragraph.text = f"{index}. {example}"
                     paragraph.font.size = PptxPt(12)
                     paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
+                    paragraph.alignment = PP_ALIGN.LEFT
                     paragraph.space_after = PptxPt(6)
                 top += 2.8
 

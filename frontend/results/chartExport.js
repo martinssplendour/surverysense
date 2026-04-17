@@ -343,7 +343,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             tickangle: 0,
             tickfont: {
                 ...(baseYAxis.tickfont || {}),
-                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), ngramSize === 3 ? 17 : 24),
+                size: ngramSize === 2 ? 12 : (ngramSize === 3 ? 17 : 24),
             },
         };
     }
