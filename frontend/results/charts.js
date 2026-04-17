@@ -605,7 +605,7 @@ function purgePlotlyCharts(container) {
     });
 }
 
-function resizeAnalysisPlots() {
+export function resizeAnalysisPlots() {
     const plotly = getPlotly();
     if (!plotly || elements.analysisChart.hidden) {
         return;
@@ -619,8 +619,6 @@ function resizeAnalysisPlots() {
         }
     });
 }
-
-export { resizeAnalysisPlots };
 
 function queueAnalysisPlotResize() {
     requestAnimationFrame(() => {

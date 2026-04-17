@@ -1,7 +1,6 @@
 (function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
-const RESULT_HANDOFF_MAX_ATTEMPTS = 20;
-const RESULT_HANDOFF_RETRY_MS = 100;
+const RESULT_HANDOFF_FLAG_KEY = "verbatim-app:pending-handoff";
 let uploadElapsedTimer = null;
 let uploadStartedAt = 0;
 
@@ -146,12 +145,17 @@ async function handleSubmit(event) {
         } catch (error) {
             console.warn("[Verbatim App] Unable to cache processed result in session storage.", error);
         }
+        console.info("[Verbatim App][Upload] Upload succeeded.", {
+            resultId: payload?.result_id || null,
+            transformedColumns: Array.isArray(payload?.transformed_column_names) ? payload.transformed_column_names.length : 0,
+            verbatimColumns: Array.isArray(payload?.analysis_verbatim_column_names) ? payload.analysis_verbatim_column_names.length : 0,
+        });
         console.info(
             `[Verbatim App] Processing finished with ${payload.manifest?.diagnostic_source || state.diagnosticMode} manifest generation.`,
         );
         setBusyState(false);
         showStatus("neutral", "File processed.");
-        handoffProcessedResult(payload);
+        handoffProcessedResult();
     } catch (error) {
         const message = error instanceof Error ? error.message : "Processing failed.";
         showStatus("error", message);
@@ -197,27 +201,14 @@ function updateElapsedStatus() {
     showStatus("neutral", `Processing CSV with ${formatDiagnosticModeLabel(state.diagnosticMode)}... ${elapsedLabel}`);
 }
 
-function handoffProcessedResult(payload, attempt = 0) {
-    if (typeof window.verbatimApplyProcessedResult === "function") {
-        window.verbatimApplyProcessedResult(payload);
-        return;
+function handoffProcessedResult() {
+    try {
+        sessionStorage.setItem(RESULT_HANDOFF_FLAG_KEY, "1");
+        console.info("[Verbatim App][Upload] Stored pending handoff flag and redirecting to dashboard.");
+    } catch (_error) {
+        console.warn("[Verbatim App][Upload] Unable to store pending handoff flag before redirect.");
     }
-
-    window.dispatchEvent(new CustomEvent("verbatim:result-ready", { detail: payload }));
-
-    if (typeof window.verbatimApplyProcessedResult === "function") {
-        window.verbatimApplyProcessedResult(payload);
-        return;
-    }
-
-    if (attempt >= RESULT_HANDOFF_MAX_ATTEMPTS) {
-        window.location.assign("/");
-        return;
-    }
-
-    window.setTimeout(() => {
-        handoffProcessedResult(payload, attempt + 1);
-    }, RESULT_HANDOFF_RETRY_MS);
+    window.location.assign("/?handoff=1");
 }
 
 async function parseJson(response) {
