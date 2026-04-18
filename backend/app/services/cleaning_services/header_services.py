@@ -1,7 +1,5 @@
 """Header resolution and cleaning services: resolves question headers in vertical layouts and cleans/sorts verbatim column names."""
 from __future__ import annotations
-
-import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any

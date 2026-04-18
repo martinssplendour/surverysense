@@ -1,0 +1,40 @@
+export default [
+    {
+        files: ["**/*.js"],
+        ignores: ["node_modules/**"],
+        languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "module",
+            globals: {
+                URLSearchParams: "readonly",
+                CustomEvent: "readonly",
+                Event: "readonly",
+                File: "readonly",
+                FormData: "readonly",
+                HTMLElement: "readonly",
+                HTMLInputElement: "readonly",
+                HTMLSelectElement: "readonly",
+                HTMLButtonElement: "readonly",
+                KeyboardEvent: "readonly",
+                Node: "readonly",
+                document: "readonly",
+                fetch: "readonly",
+                history: "readonly",
+                performance: "readonly",
+                requestAnimationFrame: "readonly",
+                sessionStorage: "readonly",
+                window: "readonly",
+                console: "readonly",
+            },
+        },
+        rules: {
+            "no-var": "error",
+            "prefer-const": "error",
+            "object-shorthand": ["error", "always"],
+            "no-unused-vars": ["error", {
+                args: "none",
+                caughtErrors: "none",
+            }],
+        },
+    },
+];

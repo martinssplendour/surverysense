@@ -7,7 +7,6 @@ from app.core.exceptions import TopicAnalysisDependencyError
 class KMeansAnalysisService:
     def run(self, embeddings, *, requested_clusters: int, random_state: int) -> dict[str, object]:
         try:
-            import numpy as np
             from sklearn.cluster import KMeans, MiniBatchKMeans
         except Exception as exc:  # pragma: no cover - dependency error path
             raise TopicAnalysisDependencyError(

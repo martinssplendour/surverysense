@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import base64
-import re
 from dataclasses import dataclass
 from io import BytesIO
-from types import SimpleNamespace
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches as DocxInches
 from docx.shared import Pt as DocxPt
 from docx.shared import RGBColor
-from PIL import Image, ImageChops
 from pptx import Presentation
 from pptx.dml.color import RGBColor as PptxRGBColor
 from pptx.enum.text import PP_ALIGN
@@ -32,8 +28,6 @@ from reportlab.platypus import (
 
 from app.models.api import AnalysisExportChartModel, AnalysisExportRequest
 from app.services.report_export_service._constants import (
-    _DATA_URL_PATTERN,
-    _FILENAME_PATTERN,
     _PPTX_CONTENT_LEFT,
     _PPTX_CONTENT_WIDTH,
     _PPTX_DETAIL_RGB,
@@ -42,6 +36,14 @@ from app.services.report_export_service._constants import (
     _PPTX_TEXT_RGB,
     _REPORT_TITLE_COLOR,
     _REPORT_TITLE_RGB,
+)
+from app.services.report_export_service.chart_image_service import (
+    DecodedChartImage,
+    ReportChartImageService,
+)
+from app.services.report_export_service.report_content_service import (
+    GroupSummarySection,
+    ReportContentService,
 )
 
 
@@ -52,35 +54,19 @@ class ExportedReportArtifact:
     content: bytes
 
 
-@dataclass(slots=True)
-class DecodedChartImage:
-    title: str
-    caption: str
-    image_bytes: bytes
-    width: int
-    height: int
-
-
-@dataclass(slots=True)
-class GroupSummarySection:
-    label: str
-    summary: str
-    examples: list[str]
-
-
 class AnalysisReportExportService:
     def __init__(self, result_store_service=None) -> None:
         self.result_store_service = result_store_service
+        self.content_service = ReportContentService(result_store_service=result_store_service)
+        self.chart_image_service = ReportChartImageService(
+            sanitize_chart_caption=self.content_service.sanitize_chart_caption,
+        )
 
     def export_report(self, *, result_id: str, request: AnalysisExportRequest) -> ExportedReportArtifact:
         if request.analysis_result.result_id != result_id:
             raise ValueError("The report payload does not match the requested analysis result.")
 
         charts = [self._normalize_export_chart_image(self._decode_chart(chart)) for chart in request.charts]
-        content: bytes
-        media_type: str
-        extension = request.format
-
         if request.format == "pdf":
             content = self._build_pdf(request=request, charts=charts)
             media_type = "application/pdf"
@@ -93,7 +79,7 @@ class AnalysisReportExportService:
 
         stem = self._slugify(self._build_filename_stem(request))
         return ExportedReportArtifact(
-            filename=f"{stem}.{extension}",
+            filename=f"{stem}.{request.format}",
             media_type=media_type,
             content=content,
         )
@@ -312,12 +298,10 @@ class AnalysisReportExportService:
             caption_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
             content_top = 1.42
 
-        image = Image.open(BytesIO(chart.image_bytes))
-        target_max_width = _PPTX_CONTENT_WIDTH * 0.8
         width_inches, height_inches = self._fit_image_to_bounds(
-            width=image.width,
-            height=image.height,
-            max_width=target_max_width,
+            width=chart.width,
+            height=chart.height,
+            max_width=_PPTX_CONTENT_WIDTH * 0.8,
             max_height=_PPTX_SLIDE_HEIGHT - content_top - 0.45,
         )
         width_inches *= 0.9
@@ -478,9 +462,8 @@ class AnalysisReportExportService:
                 "ReportPlotTitle",
                 parent=base["Heading3"],
                 fontName="Helvetica-Bold",
-                fontSize=14,
-                textColor=colors.HexColor(_REPORT_TITLE_COLOR),
-                alignment=TA_LEFT,
+                fontSize=11,
+                textColor=colors.HexColor("#3d352d"),
                 spaceAfter=2,
             ),
             "plot_caption": ParagraphStyle(
@@ -490,8 +473,7 @@ class AnalysisReportExportService:
                 fontSize=9,
                 leading=12,
                 textColor=colors.HexColor("#6d655b"),
-                alignment=TA_LEFT,
-                spaceAfter=0,
+                spaceAfter=6,
             ),
             "body": ParagraphStyle(
                 "ReportBody",
@@ -521,286 +503,78 @@ class AnalysisReportExportService:
         canvas.restoreState()
 
     def _build_summary_lines(self, request: AnalysisExportRequest) -> list[str]:
-        result = request.analysis_result
-        if result.ngram_buckets:
-            findings: list[str] = []
-            for bucket in result.ngram_buckets:
-                top_items = bucket.items[:5]
-                if not top_items:
-                    continue
-                lines = ", ".join(
-                    f"{item.term} ({item.document_count} responses)"
-                    for item in top_items
-                )
-                findings.append(f"{bucket.label}: {lines}")
-            return findings or ["No phrase-level findings were available for export."]
-
-        group_sections = self._build_group_summary_sections(request)
-        if group_sections:
-            return [f"{section.label}: {section.summary}" for section in group_sections[:8]]
-
-        return ["The selected analysis completed without exportable topic findings."]
+        return self.content_service.build_summary_lines(request)
 
     def _build_group_summary_sections(self, request: AnalysisExportRequest) -> list[GroupSummarySection]:
-        groups = self._get_export_groups(request)
-        if not groups:
-            return []
-
-        sections: list[GroupSummarySection] = []
-        ordered_groups = sorted(groups, key=lambda group: (-group.count, group.label))
-        for group in ordered_groups:
-            share_pct = round(group.share * 100)
-            terms = ", ".join(group.terms[:4]) if group.terms else "no top terms available"
-            examples = [
-                self._truncate_text(" ".join(example.text.split()), limit=240)
-                for example in group.examples[:3]
-                if example.text.strip()
-            ]
-            sections.append(
-                GroupSummarySection(
-                    label=group.label,
-                    summary=f"{group.count} responses ({share_pct}%). Top terms: {terms}.",
-                    examples=examples,
-                )
-            )
-        return sections
+        return self.content_service.build_group_summary_sections(request)
 
     def _get_export_groups(self, request: AnalysisExportRequest):
-        if self.result_store_service is not None:
-            try:
-                fast_result = self.result_store_service.get_fast_filtered_result(
-                    request.analysis_result.result_id,
-                    model_key=request.analysis_result.model_key,
-                    text_column_name=request.analysis_result.text_column_name,
-                    filters=self._build_active_filter_lookup(request),
-                )
-            except Exception:
-                fast_result = None
-            if fast_result and fast_result.get("groups"):
-                return [
-                    SimpleNamespace(
-                        label=str(group.get("label", "")),
-                        count=int(group.get("count", 0) or 0),
-                        share=float(group.get("share", 0) or 0),
-                        terms=list(group.get("terms", [])),
-                        examples=[
-                            SimpleNamespace(
-                                row_number=int(example.get("row_number", 0) or 0),
-                                text=str(example.get("text", "")),
-                            )
-                            for example in group.get("examples", [])
-                            if isinstance(example, dict)
-                        ],
-                    )
-                    for group in fast_result.get("groups", [])
-                    if isinstance(group, dict)
-                ]
-        return request.analysis_result.groups
+        return self.content_service.get_export_groups(request)
 
     def _build_active_filter_lookup(self, request: AnalysisExportRequest) -> dict[str, list[str]]:
-        return {
-            item.column_name: list(item.values)
-            for item in request.active_filters
-            if item.values
-        }
+        return self.content_service.build_active_filter_lookup(request)
 
     def _build_subtitle(self, request: AnalysisExportRequest) -> str:
-        parts = [self._display_column_label(request.analysis_result.text_column_name)]
-        filters_text = self._filters_text(request)
-        if filters_text:
-            parts.append(filters_text)
-        parts.append(self._row_count_text(request))
-        return " | ".join(part for part in parts if part)
+        return self.content_service.build_subtitle(request)
 
     def _build_report_title(self) -> str:
-        return "Verbatim Analysis Report"
+        return self.content_service.build_report_title()
 
     def _build_summary_heading(self, request: AnalysisExportRequest) -> str:
-        if request.analysis_result.ngram_buckets:
-            return "Phrase summaries"
-        return "Topic summaries"
+        return self.content_service.build_summary_heading(request)
 
     def _build_representative_heading(self) -> str:
-        return "Representative documents (topics and top 3 responses)"
+        return self.content_service.build_representative_heading()
 
     def _build_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
-        if request.analysis_result.ngram_buckets:
-            return self._build_ngram_representative_sections(request)
-        return [
-            (section.label, section.examples)
-            for section in self._build_group_summary_sections(request)
-            if section.examples
-        ]
+        return self.content_service.build_representative_sections(request)
 
     def _build_ngram_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
-        if self.result_store_service is None:
-            return []
-
-        sections: list[tuple[str, list[str]]] = []
-        for bucket in request.analysis_result.ngram_buckets[:3]:
-            items = list(bucket.items[:5]) if bucket.items else []
-            if not items:
-                continue
-
-            selected_item = None
-            examples: list[str] = []
-            for item in items:
-                lookup_term = (item.source_term or item.term or "").strip()
-                if not lookup_term:
-                    continue
-                try:
-                    page = self.result_store_service.get_analysis_ngram_page(
-                        request.analysis_result.result_id,
-                        ngram_size=int(bucket.ngram_size),
-                        term=lookup_term,
-                        offset=0,
-                        limit=3,
-                    )
-                except Exception:
-                    continue
-
-                documents = getattr(page, "documents", []) or []
-                examples = [
-                    self._truncate_text(" ".join(str(document.get("text", "")).split()), limit=240)
-                    for document in documents
-                    if str(document.get("text", "")).strip()
-                ]
-                if examples:
-                    selected_item = item
-                    break
-
-            if selected_item and examples:
-                sections.append((f"{bucket.label}: {selected_item.term}", examples))
-        return sections
+        return self.content_service.build_ngram_representative_sections(request)
 
     def _build_filename_stem(self, request: AnalysisExportRequest) -> str:
-        source_stem = self._strip_extension(request.source_filename or "analysis")
-        method = request.analysis_result.model_label.lower().replace(" ", "-")
-        return f"{source_stem}-{method}-report"
+        return self.content_service.build_filename_stem(request)
 
     def _filters_text(self, request: AnalysisExportRequest) -> str:
-        if not request.active_filters:
-            return ""
-        return " | ".join(
-            f"{item.display_name or item.column_name}: {', '.join(item.values)}"
-            for item in request.active_filters
-            if item.values
-        )
+        return self.content_service.filters_text(request)
 
     def _row_count_text(self, request: AnalysisExportRequest) -> str:
-        return f"{int(request.analysis_result.filtered_row_count)} rows"
+        return self.content_service.row_count_text(request)
 
     def _decode_chart(self, chart: AnalysisExportChartModel) -> DecodedChartImage:
-        match = _DATA_URL_PATTERN.match(chart.image_data_url.strip())
-        if match is None:
-            raise ValueError(f"Chart '{chart.title}' does not contain a supported image data URL.")
-
-        image_bytes = base64.b64decode(match.group("data"))
-        image = Image.open(BytesIO(image_bytes))
-        image.load()
-        normalized = BytesIO()
-        if image.mode not in {"RGB", "RGBA"}:
-            image = image.convert("RGB")
-        image.save(normalized, format="PNG")
-        return DecodedChartImage(
-            title=chart.title.strip() or "Chart",
-            caption=self._sanitize_chart_caption(chart.caption),
-            image_bytes=normalized.getvalue(),
-            width=int(image.width),
-            height=int(image.height),
-        )
+        return self.chart_image_service.decode_chart(chart)
 
     def _fit_image_to_bounds(self, *, width: int, height: int, max_width: float, max_height: float) -> tuple[float, float]:
-        if width <= 0 or height <= 0:
-            return max_width, min(max_height, max_width * 0.6)
-        scale = min(max_width / float(width), max_height / float(height))
-        return width * scale, height * scale
+        return self.chart_image_service.fit_image_to_bounds(
+            width=width,
+            height=height,
+            max_width=max_width,
+            max_height=max_height,
+        )
 
     def _display_column_label(self, value: str) -> str:
-        return re.sub(r"__idx_\d+$", "", value or "")
+        return self.content_service.display_column_label(value)
 
     def _strip_extension(self, filename: str) -> str:
-        value = (filename or "").strip()
-        if "." not in value:
-            return value
-        return value.rsplit(".", 1)[0]
+        return self.content_service.strip_extension(filename)
 
     def _slugify(self, value: str) -> str:
-        lowered = value.strip().lower()
-        normalized = _FILENAME_PATTERN.sub("-", lowered).strip("-")
-        return normalized or "analysis-report"
+        return self.content_service.slugify(value)
 
     def _escape(self, value: str) -> str:
-        return (
-            str(value)
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
+        return self.content_service.escape(value)
 
     def _truncate_text(self, value: str, *, limit: int) -> str:
-        normalized = " ".join((value or "").split())
-        if len(normalized) <= limit:
-            return normalized
-        return normalized[: max(0, limit - 3)].rstrip() + "..."
+        return self.content_service.truncate_text(value, limit=limit)
 
     def _sanitize_chart_caption(self, value: str | None) -> str:
-        caption = " ".join((value or "").split())
-        lower_caption = caption.casefold()
-        interactive_phrases = (
-            "hover to see",
-            "click a bar",
-            "matching responses",
-            "matching groups responses",
-            "matching topics responses",
-        )
-        if any(phrase in lower_caption for phrase in interactive_phrases):
-            return ""
-        return caption
+        return self.content_service.sanitize_chart_caption(value)
 
     def _normalize_export_chart_image(self, chart: DecodedChartImage) -> DecodedChartImage:
-        image = Image.open(BytesIO(chart.image_bytes)).convert("RGB")
-        background_color = image.getpixel((0, 0))
-        background = Image.new("RGB", image.size, background_color)
-        difference = ImageChops.difference(image, background).convert("L")
-        mask = difference.point(lambda value: 255 if value > 8 else 0)
-        bbox = mask.getbbox()
-        if bbox is None:
-            return chart
-
-        padding = 10
-        left = max(0, bbox[0] - padding)
-        top = max(0, bbox[1] - padding)
-        right = min(image.width, bbox[2] + padding)
-        bottom = min(image.height, bbox[3] + padding)
-        cropped = image.crop((left, top, right, bottom))
-
-        white = Image.new("RGB", cropped.size, _PPTX_SLIDE_BACKGROUND_RGB)
-        recolored = cropped.copy()
-        pixels = recolored.load()
-        for x in range(recolored.width):
-            for y in range(recolored.height):
-                r, g, b = pixels[x, y]
-                if (
-                    abs(r - background_color[0]) <= 20
-                    and abs(g - background_color[1]) <= 20
-                    and abs(b - background_color[2]) <= 20
-                ):
-                    pixels[x, y] = _PPTX_SLIDE_BACKGROUND_RGB
-        cropped = ImageChops.blend(white, recolored, 1.0)
-
-        normalized = BytesIO()
-        cropped.save(normalized, format="PNG")
-        return DecodedChartImage(
-            title=chart.title,
-            caption=chart.caption,
-            image_bytes=normalized.getvalue(),
-            width=int(cropped.width),
-            height=int(cropped.height),
-        )
+        return self.chart_image_service.normalize_export_chart_image(chart)
 
     def _trim_pptx_chart_image(self, chart: DecodedChartImage) -> DecodedChartImage:
-        return self._normalize_export_chart_image(chart)
+        return self.chart_image_service.trim_pptx_chart_image(chart)
 
     def _set_pptx_slide_background(self, slide) -> None:
         background = slide.background.fill

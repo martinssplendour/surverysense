@@ -1,0 +1,199 @@
+from __future__ import annotations
+
+from collections import defaultdict
+
+from app.services.topic_analysis_services.config import (
+    PreparedDocument,
+    TopicAnalysisConfig,
+)
+from app.services.topic_analysis_services.example_selection_service import (
+    RepresentativeExampleSelectionService,
+)
+from app.services.topic_analysis_services.keyword_service import (
+    TopicAnalysisKeywordService,
+)
+from app.services.topic_analysis_services.narrative_service import (
+    TopicAnalysisNarrativeService,
+)
+
+
+class TopicGroupAssemblyService:
+    def __init__(
+        self,
+        *,
+        config: TopicAnalysisConfig,
+        keyword_service: TopicAnalysisKeywordService,
+        narrative_service: TopicAnalysisNarrativeService,
+        representative_example_service: RepresentativeExampleSelectionService,
+        translation_service=None,
+    ) -> None:
+        self.config = config
+        self.keyword_service = keyword_service
+        self.narrative_service = narrative_service
+        self.representative_example_service = representative_example_service
+        self.translation_service = translation_service
+
+    def build_groups(
+        self,
+        *,
+        documents: list[PreparedDocument],
+        assignments: list[int],
+        explicit_groups: dict[str, dict[str, object]],
+        model_key: str,
+    ) -> list[dict[str, object]]:
+        grouped_documents: dict[int, list[PreparedDocument]] = defaultdict(list)
+        for assignment, document in zip(assignments, documents):
+            grouped_documents[int(assignment)].append(document)
+
+        total_documents = max(1, len(documents))
+        groups: list[dict[str, object]] = []
+        ordered_group_ids = sorted(
+            grouped_documents.keys(),
+            key=lambda group_id: (-len(grouped_documents[group_id]), group_id),
+        )
+
+        fallback_prefix = "Topic" if model_key == "bertopic" else "Group"
+        for group_id in ordered_group_ids:
+            group_key = str(group_id)
+            grouped_rows = grouped_documents[group_id]
+            grouped_texts = [document.text for document in grouped_rows]
+            explicit_group = explicit_groups.get(group_key, {})
+            terms = [
+                str(term)
+                for term in explicit_group.get("terms", [])
+                if isinstance(term, str) and term.strip()
+            ]
+            terms = self.keyword_service.sanitize_terms(terms, top_n=self.config.top_terms_per_group)
+            if not terms:
+                terms = self.keyword_service.top_terms(grouped_texts, top_n=self.config.top_terms_per_group)
+
+            is_noise = bool(explicit_group.get("is_noise", group_id == -1))
+            label = self.narrative_service.build_label(
+                texts=grouped_texts,
+                terms=terms,
+                is_noise=is_noise,
+                fallback_prefix=fallback_prefix,
+                fallback_id=group_key,
+                prefer_terms=model_key == "bertopic",
+            )
+            examples = self.representative_example_service.select(
+                grouped_rows,
+                terms=terms,
+                max_examples=self.config.representative_examples_per_group,
+            )
+            comment = self.narrative_service.build_comment(
+                label=label,
+                count=int(len(grouped_rows)),
+                total_documents=total_documents,
+                examples=examples,
+            )
+            groups.append(
+                {
+                    "group_id": group_key,
+                    "label": label,
+                    "source_label": None,
+                    "translated": False,
+                    "ai_generated": False,
+                    "comment": comment,
+                    "count": int(len(grouped_rows)),
+                    "share": round(len(grouped_rows) / total_documents, 4),
+                    "total_documents": total_documents,
+                    "terms": list(terms),
+                    "examples": examples,
+                    "is_noise": is_noise,
+                    "_documents": [
+                        {
+                            "row_number": int(document.row_number),
+                            "text": document.text,
+                        }
+                        for document in grouped_rows
+                        if int(document.row_number) > 0 and document.text
+                    ],
+                }
+            )
+
+        if model_key == "bertopic":
+            groups = self.translate_and_merge_bertopic_groups(groups)
+
+        return groups
+
+    def translate_and_merge_bertopic_groups(
+        self, groups: list[dict[str, object]]
+    ) -> list[dict[str, object]]:
+        translation_service = self.translation_service
+
+        all_terms: list[str] = []
+        seen_terms: set[str] = set()
+        for group in groups:
+            if group.get("is_noise"):
+                continue
+            for term in group.get("terms", []):
+                if term and term not in seen_terms:
+                    seen_terms.add(term)
+                    all_terms.append(term)
+
+        term_to_english: dict[str, str] = {t: t for t in all_terms}
+        if translation_service and all_terms:
+            result = translation_service.translate(all_terms)
+            for source, translated, was_translated in zip(all_terms, result.texts, result.translated_flags):
+                if was_translated and translated.strip():
+                    term_to_english[source] = translated.strip()
+
+        for group in groups:
+            if group.get("is_noise"):
+                continue
+            raw_terms = list(group.get("terms", []))
+            translated_terms: list[str] = []
+            seen: set[str] = set()
+            for t in raw_terms:
+                english = term_to_english.get(t, t)
+                key = english.casefold()
+                if key not in seen:
+                    seen.add(key)
+                    translated_terms.append(english)
+            group["terms"] = translated_terms
+            if translated_terms:
+                new_label = " / ".join(t.replace("_", " ") for t in translated_terms[:2])
+                if new_label != group.get("label"):
+                    group["source_label"] = group["label"]
+                    group["translated"] = True
+                    group["label"] = new_label
+
+        merge_into: dict[str, str] = {}
+        first_term_index: dict[str, str] = {}
+        for group in groups:
+            if group.get("is_noise"):
+                continue
+            terms = group.get("terms", [])
+            if not terms:
+                continue
+            key = terms[0].casefold().strip().rstrip("s")
+            gid = str(group["group_id"])
+            if key in first_term_index:
+                merge_into[gid] = first_term_index[key]
+            else:
+                first_term_index[key] = gid
+
+        if merge_into:
+            group_by_id = {str(g["group_id"]): g for g in groups}
+            for src_id, tgt_id in merge_into.items():
+                src = group_by_id[src_id]
+                tgt = group_by_id[tgt_id]
+                tgt["_documents"].extend(src.get("_documents", []))
+                tgt["count"] = int(tgt["count"]) + int(src["count"])
+            merged_ids = set(merge_into.keys())
+            groups = [g for g in groups if str(g["group_id"]) not in merged_ids]
+
+        grand_total = max(1, sum(int(g["count"]) for g in groups))
+        for group in groups:
+            count = int(group["count"])
+            group["share"] = round(count / grand_total, 4)
+            group["total_documents"] = grand_total
+            group["comment"] = self.narrative_service.build_comment(
+                label=str(group["label"]),
+                count=count,
+                total_documents=grand_total,
+                examples=group.get("examples", []),
+            )
+
+        return sorted(groups, key=lambda g: (-int(g["count"]), str(g["group_id"])))

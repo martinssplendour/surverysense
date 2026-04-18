@@ -1,34 +1,46 @@
-// Manages top-level page layout: loading results from storage, switching workspaces, and rendering the preview table.
+// Manages top-level page layout: loading results from storage, switching workspaces, and delegating preview/filter helpers.
 import {
-    FULL_DATA_VISIBLE_COLUMN_COUNT,
     RESULT_STORAGE_KEY,
     elements,
     state,
 } from "./shared.js";
-import { displayColumnLabel, escapeHtml, formatCell, formatNumber, summaryMetric } from "./utils.js";
-import { displayFilterName, getFilterDefinition, hideFilterModalMessage } from "./filters.js";
+import { formatNumber, summaryMetric } from "./utils.js";
 import {
-    buildPreviewEmptyMessage,
     currentPreviewDataset,
     ensureDatasetRowCount,
     getInitialVisibleRowTarget,
-    getVisiblePreviewColumns,
-    hasActiveFilters,
-    maybeLoadMorePreviewRows,
-    updatePreviewRowStatus,
 } from "./rows.js";
 import { renderAnalysisOutput, renderAnalysisPanel } from "./analysis.js";
 import { closeAnalysisGroupModal } from "./modals.js";
 import { closeColumnRoleModal } from "./columnRoles.js";
+import {
+    closeFilterModal,
+    openFilterModal,
+    renderFilterBar,
+} from "./workspaceFilterBar.js";
+import {
+    handlePreviewModeChange,
+    handlePreviewTableScroll,
+    handleSliderInput,
+    renderPreviewTable,
+    syncSliderRange,
+} from "./workspacePreviewTable.js";
+import { handleDocumentKeydown } from "./workspaceModalFocus.js";
 
-/**
- * Entry point called on page load. Decides whether to restore a previous result or show the empty upload state.
- * A page reload (detected via the Navigation Timing API) clears stored results, whereas a ?handoff=1 redirect
- * from the upload page indicates fresh data that should be loaded immediately.
- */
+export {
+    closeFilterModal,
+    handleDocumentKeydown,
+    handlePreviewModeChange,
+    handlePreviewTableScroll,
+    handleSliderInput,
+    openFilterModal,
+    renderFilterBar,
+    renderPreviewTable,
+    syncSliderRange,
+};
+
 export async function loadResultsPage() {
     const queryHandoff = isUploadHandoffNavigation();
-    // A plain browser reload should not restore stale results — clear and show the upload prompt instead.
     if (isPageReload() && !queryHandoff) {
         sessionStorage.removeItem(RESULT_STORAGE_KEY);
         showEmptyState();
@@ -36,7 +48,6 @@ export async function loadResultsPage() {
     }
 
     if (queryHandoff) {
-        // Remove ?handoff=1 from the URL so a subsequent reload treats it as a normal reload.
         clearUploadHandoffQuery();
     }
 
@@ -99,7 +110,7 @@ export function renderDashboard(payload) {
         elements.dashboardActionNote.hidden = Boolean(verbatimCount);
         elements.dashboardActionNote.textContent = verbatimCount
             ? ""
-            : "No verbatim columns detected — use Edit Columns to assign them.";
+            : "No verbatim columns detected â€” use Edit Columns to assign them.";
     }
 }
 
@@ -109,8 +120,6 @@ export async function openWorkspace(nextWorkspace) {
     updateWorkspaceVisibility();
 
     if (nextWorkspace === "data") {
-        // The data workspace fills the preview lazily so large uploads do not pay
-        // the cost of fetching every row before the user even opens the table.
         renderFilterBar();
         const dataset = currentPreviewDataset();
         await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));
@@ -132,283 +141,6 @@ export function updateWorkspaceVisibility() {
     document.body.classList.toggle("data-workspace-active", state.currentWorkspace === "data");
     document.body.classList.toggle("analysis-setup-workspace-active", state.currentWorkspace === "analysis");
     document.body.classList.toggle("analysis-results-workspace-active", state.currentWorkspace === "analysis-results");
-}
-
-export function renderFilterBar() {
-    if (!elements.filterBar && !elements.analysisResultsFilterBar) {
-        return;
-    }
-
-    const filters = Array.isArray(state.availableFilters) ? state.availableFilters : [];
-    if (elements.filterBar) {
-        elements.filterBar.hidden = filters.length === 0;
-    }
-    if (elements.analysisResultsFilterBar) {
-        elements.analysisResultsFilterBar.hidden = filters.length === 0;
-    }
-    if (!filters.length) {
-        return;
-    }
-
-    if (!state.selectedFilterColumn || !filters.some((definition) => definition.column_name === state.selectedFilterColumn)) {
-        state.selectedFilterColumn = filters[0]?.column_name || "";
-    }
-
-    const selectedDefinition = getFilterDefinition(state.selectedFilterColumn);
-    const selectedOptions = Array.isArray(selectedDefinition?.options) ? selectedDefinition.options : [];
-    if (!state.selectedFilterValue || !selectedOptions.some((option) => option.value === state.selectedFilterValue)) {
-        state.selectedFilterValue = selectedOptions[0]?.value || "";
-    }
-
-    if (elements.openFilterModalButton) {
-        elements.openFilterModalButton.disabled = filters.length === 0;
-    }
-    if (elements.openAnalysisResultsFilterModalButton) {
-        elements.openAnalysisResultsFilterModalButton.disabled = filters.length === 0;
-    }
-
-    elements.filterColumnSelect.innerHTML = filters
-        .map((definition) => {
-            const isSelected = definition.column_name === state.selectedFilterColumn ? " selected" : "";
-            return `<option value="${escapeHtml(definition.column_name)}"${isSelected}>${escapeHtml(displayFilterName(definition))}</option>`;
-        })
-        .join("");
-
-    elements.filterValueSelect.innerHTML = selectedOptions.length
-        ? selectedOptions
-            .map((option) => {
-                const isSelected = option.value === state.selectedFilterValue ? " selected" : "";
-                const optionLabel = `${option.value} (${formatNumber(option.count || 0)})`;
-                return `<option value="${escapeHtml(option.value)}"${isSelected}>${escapeHtml(optionLabel)}</option>`;
-            })
-            .join("")
-        : '<option value="">No values available</option>';
-
-    elements.filterValueSelect.disabled = !selectedOptions.length;
-    elements.addFilterButton.disabled = !state.selectedFilterColumn || !state.selectedFilterValue;
-    elements.verbatimToggle.checked = state.showOnlyVerbatim;
-
-    const activeEntries = Object.entries(state.activeFilters);
-    if (elements.activeFilters) {
-        elements.activeFilters.hidden = activeEntries.length === 0;
-    }
-    if (elements.analysisResultsActiveFilters) {
-        elements.analysisResultsActiveFilters.hidden = activeEntries.length === 0;
-    }
-    const activeChips = activeEntries
-        .map(([columnName, values]) => {
-            const definition = getFilterDefinition(columnName);
-            const valueLabel = Array.isArray(values) ? values.join(", ") : "";
-            return `
-                <div class="active-filter-chip">
-                    <span class="active-filter-text">${escapeHtml(displayFilterName(definition))}: ${escapeHtml(valueLabel)}</span>
-                    <button type="button" class="active-filter-remove" data-remove-filter="${escapeHtml(columnName)}">Remove</button>
-                </div>
-            `;
-        });
-    if (activeEntries.length > 1) {
-        activeChips.push(`
-            <div class="active-filter-chip active-filter-chip-clear">
-                <span class="active-filter-text">Clear all</span>
-                <button type="button" class="active-filter-remove" data-remove-filter="__all__">Remove</button>
-            </div>
-        `);
-    }
-    const chipMarkup = activeChips.join("");
-    if (elements.activeFilters) {
-        elements.activeFilters.innerHTML = chipMarkup;
-    }
-    if (elements.analysisResultsActiveFilters) {
-        elements.analysisResultsActiveFilters.innerHTML = chipMarkup;
-    }
-
-    const hasFilters = hasActiveFilters();
-    if (elements.filterActiveNote) {
-        elements.filterActiveNote.textContent = hasFilters
-            ? "Active metadata filters apply to both the data table and analysis."
-            : "Metadata filters apply to both the data table and analysis.";
-    }
-    if (elements.analysisResultsFilterNote) {
-        elements.analysisResultsFilterNote.textContent = hasFilters
-            ? "Active metadata filters are updating the current analysis results and plots."
-            : "Metadata filters update the current analysis results and plots.";
-    }
-}
-
-export function openFilterModal() {
-    if (!elements.filterModal || elements.openFilterModalButton?.disabled) {
-        return;
-    }
-    hideFilterModalMessage();
-    elements.filterModal.hidden = false;
-    renderFilterBar();
-    requestAnimationFrame(() => {
-        elements.filterColumnSelect?.focus();
-    });
-}
-
-export function closeFilterModal() {
-    if (!elements.filterModal) {
-        return;
-    }
-    elements.filterModal.hidden = true;
-    hideFilterModalMessage();
-}
-
-export function handleDocumentKeydown(event) {
-    if (!(event instanceof KeyboardEvent)) {
-        return;
-    }
-
-    if (event.key === "Escape") {
-        if (!elements.analysisGroupModal?.hidden) {
-            closeAnalysisGroupModal();
-            return;
-        }
-        if (!elements.columnRoleModal?.hidden) {
-            closeColumnRoleModal();
-            return;
-        }
-        if (!elements.filterModal?.hidden) {
-            closeFilterModal();
-        }
-        return;
-    }
-
-    if (event.key !== "Tab") {
-        return;
-    }
-
-    const activeModal = getActiveModalCard();
-    if (!(activeModal instanceof HTMLElement)) {
-        return;
-    }
-
-    trapFocusWithinModal(event, activeModal);
-}
-
-export function renderPreviewTable(preserveScroll) {
-    renderFilterBar();
-
-    const dataset = currentPreviewDataset();
-    const allColumns = dataset === "analysis"
-        ? state.analysisVerbatimColumns
-        : state.transformedColumnNames;
-    const previewColumns = getVisiblePreviewColumns(allColumns, dataset);
-    const previewRows = dataset === "analysis"
-        ? state.analysisRows
-        : state.transformedRows;
-    const scrollTop = preserveScroll ? elements.tableWrap.scrollTop : 0;
-    const scrollLeft = preserveScroll && dataset === "analysis" ? elements.tableWrap.scrollLeft : 0;
-
-    if (!allColumns.length || !previewColumns.length) {
-        elements.tableControls.hidden = true;
-        elements.tableRowStatus.textContent = "";
-        elements.tableEmpty.hidden = false;
-        elements.tableWrap.hidden = true;
-        elements.previewTable.innerHTML = "";
-        return;
-    }
-
-    elements.tableControls.hidden = false;
-
-    if (!previewRows.length || !previewColumns.length) {
-        updatePreviewRowStatus();
-        elements.tableEmpty.textContent = buildPreviewEmptyMessage();
-        elements.tableEmpty.hidden = false;
-        elements.tableWrap.hidden = true;
-        elements.previewTable.innerHTML = "";
-        return;
-    }
-
-    elements.tableEmpty.textContent = buildPreviewEmptyMessage();
-    updatePreviewRowStatus();
-
-    const head = [
-        '<th scope="col" class="row-number-header">Row</th>',
-        ...previewColumns.map((column) => `<th scope="col">${escapeHtml(displayColumnLabel(column))}</th>`),
-    ].join("");
-
-    const body = previewRows
-        .map((row, index) => {
-            const cells = previewColumns
-                .map((column) => `<td>${formatCell(row[column])}</td>`)
-                .join("");
-            return `<tr><th scope="row" class="row-number-cell">${index + 1}</th>${cells}</tr>`;
-        })
-        .join("");
-
-    elements.previewTable.innerHTML = `
-        <thead>
-            <tr>${head}</tr>
-        </thead>
-        <tbody>${body}</tbody>
-    `;
-
-    elements.tableEmpty.hidden = true;
-    elements.tableWrap.hidden = false;
-    requestAnimationFrame(() => {
-        if (preserveScroll) {
-            elements.tableWrap.scrollTop = scrollTop;
-            if (dataset === "analysis") {
-                elements.tableWrap.scrollLeft = scrollLeft;
-            }
-        }
-        syncSliderRange();
-    });
-}
-
-export function handleSliderInput(event) {
-    if (currentPreviewDataset() === "analysis") {
-        elements.tableWrap.scrollLeft = Number(event.target.value);
-        return;
-    }
-
-    state.previewColumnOffset = Number(event.target.value);
-    renderPreviewTable(true);
-}
-
-export function handlePreviewTableScroll() {
-    if (currentPreviewDataset() === "analysis") {
-        syncSliderToScroll();
-    }
-    void maybeLoadMorePreviewRows();
-}
-
-export async function handlePreviewModeChange() {
-    state.showOnlyVerbatim = Boolean(elements.verbatimToggle.checked);
-    state.previewColumnOffset = 0;
-    const dataset = currentPreviewDataset();
-    await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));
-    renderPreviewTable(false);
-    syncSliderRange();
-}
-
-export function syncSliderRange() {
-    if (elements.tableWrap.hidden) {
-        elements.tableControls.hidden = true;
-        return;
-    }
-
-    if (currentPreviewDataset() !== "analysis") {
-        const totalColumns = state.transformedColumnNames.length;
-        const maxOffset = Math.max(0, totalColumns - FULL_DATA_VISIBLE_COLUMN_COUNT);
-        elements.tableSlider.max = `${maxOffset}`;
-        elements.tableSlider.value = `${Math.min(state.previewColumnOffset, maxOffset)}`;
-        if (elements.tableSliderLabel) {
-            elements.tableSliderLabel.textContent = "Choose which columns to show";
-        }
-        elements.tableScrollControl.hidden = maxOffset <= 0;
-        return;
-    }
-
-    const maxScroll = Math.max(0, elements.tableWrap.scrollWidth - elements.tableWrap.clientWidth);
-    elements.tableSlider.max = `${Math.round(maxScroll)}`;
-    elements.tableSlider.value = `${Math.min(Math.round(elements.tableWrap.scrollLeft), Math.round(maxScroll))}`;
-    if (elements.tableSliderLabel) {
-        elements.tableSliderLabel.textContent = "Slide across columns";
-    }
-    elements.tableScrollControl.hidden = maxScroll <= 0;
 }
 
 export function persistCurrentPayload() {
@@ -437,8 +169,6 @@ export function handleMissingResultState(message = "The processed result is no l
 }
 
 function applyPayload(payload) {
-    // Fresh uploads and restored cached payloads both flow through this reset so the
-    // rest of the app can assume one consistent baseline state shape.
     state.response = payload;
     state.resultId = typeof payload.result_id === "string" ? payload.result_id : null;
     state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
@@ -540,7 +270,6 @@ function isPageReload() {
     return Boolean(legacyNavigation && legacyNavigation.type === 1);
 }
 
-/** Returns true when upload.js redirected here via window.location.assign("/?handoff=1"). */
 function isUploadHandoffNavigation() {
     if (typeof window === "undefined") {
         return false;
@@ -549,7 +278,6 @@ function isUploadHandoffNavigation() {
     return params.get("handoff") === "1";
 }
 
-/** Strips the ?handoff=1 param from the URL bar without triggering a navigation, so a reload is clean. */
 function clearUploadHandoffQuery() {
     if (typeof window === "undefined" || typeof history.replaceState !== "function") {
         return;
@@ -564,10 +292,6 @@ function clearUploadHandoffQuery() {
     history.replaceState(null, "", nextUrl);
 }
 
-/**
- * Shows the upload form and hides all result panels. Body CSS classes drive visibility in CSS,
- * so each workspace swap is a coordinated set of class and hidden-attribute changes.
- */
 function showEmptyState() {
     document.body.classList.add("upload-workspace-active");
     document.body.classList.remove("dashboard-workspace-active");
@@ -602,7 +326,6 @@ function showEmptyState() {
     elements.analysisResultsPanel.hidden = true;
 }
 
-/** Hides the upload view, shows the results view, and renders the dashboard for a freshly loaded payload. */
 function renderResults(payload) {
     document.body.classList.remove("upload-workspace-active");
     if (elements.emptyState) {
@@ -629,54 +352,4 @@ function renderResults(payload) {
     closeFilterModal();
     closeColumnRoleModal();
     closeAnalysisGroupModal();
-}
-
-function getActiveModalCard() {
-    if (!elements.analysisGroupModal?.hidden) {
-        return elements.analysisGroupModalCard;
-    }
-    if (!elements.columnRoleModal?.hidden) {
-        return elements.columnRoleModal?.querySelector(".modal-card");
-    }
-    if (!elements.filterModal?.hidden) {
-        return elements.filterModal?.querySelector(".modal-card");
-    }
-    return null;
-}
-
-function trapFocusWithinModal(event, modalCard) {
-    const focusable = Array.from(
-        modalCard.querySelectorAll(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-    ).filter((element) => element instanceof HTMLElement && !element.hidden && element.offsetParent !== null);
-
-    if (!focusable.length) {
-        event.preventDefault();
-        modalCard.focus();
-        return;
-    }
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    const active = document.activeElement;
-
-    if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-        return;
-    }
-
-    if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-    }
-}
-
-function syncSliderToScroll() {
-    if (currentPreviewDataset() !== "analysis") {
-        elements.tableSlider.value = `${state.previewColumnOffset}`;
-        return;
-    }
-    elements.tableSlider.value = `${Math.round(elements.tableWrap.scrollLeft)}`;
 }
