@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import urllib.request
 from dataclasses import dataclass
-from typing import Any
+
+from app.services.gemini_topic_label_client import GeminiTopicLabelClient
+from app.services.topic_label_evidence_builder import TopicLabelEvidenceBuilder
+from app.services.topic_label_prompt_builder import TopicLabelPromptBuilder
+from app.services.topic_label_response_parser import TopicLabelResponseParser
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,21 @@ class TopicAiLabelService:
 
     def __init__(self, *, config: TopicAiLabelingConfig) -> None:
         self.config = config
+        self.evidence_builder = TopicLabelEvidenceBuilder(
+            max_groups=config.max_groups,
+            max_examples_per_group=config.max_examples_per_group,
+            max_terms_per_group=config.max_terms_per_group,
+            max_chars_per_example=config.max_chars_per_example,
+        )
+        self.prompt_builder = TopicLabelPromptBuilder()
+        self.client = GeminiTopicLabelClient(
+            api_key=config.gemini_api_key,
+            model=config.gemini_model,
+            temperature=config.gemini_temperature,
+            timeout_seconds=config.timeout_seconds,
+            prompt_builder=self.prompt_builder,
+        )
+        self.response_parser = TopicLabelResponseParser()
 
     def is_available(self) -> bool:
         return self.config.enabled and bool(self.config.gemini_api_key)
@@ -48,7 +65,6 @@ class TopicAiLabelService:
         model_key: str,
         text_column_name: str,
     ) -> TopicAiLabelingBatchResult:
-        """Request AI-generated labels for up to max_groups non-noise groups; returns empty result on any failure."""
         if not self.is_available() or not groups:
             return TopicAiLabelingBatchResult(labels_by_group_id={}, warnings=[], labeled_group_count=0)
 
@@ -88,60 +104,13 @@ class TopicAiLabelService:
         )
 
     def _build_group_evidence(self, groups: list[dict[str, object]]) -> list[dict[str, object]]:
-        """Assemble a trimmed evidence dict for each non-noise group to send to Gemini."""
-        evidence_groups: list[dict[str, object]] = []
-        for group in groups:
-            if len(evidence_groups) >= max(1, self.config.max_groups):
-                break
-            if bool(group.get("is_noise")):
-                continue
-
-            group_id = str(group.get("group_id", "")).strip()
-            if not group_id:
-                continue
-
-            examples = self._collect_examples(group)
-            terms = self._collect_terms(group)
-            evidence_groups.append(
-                {
-                    "group_id": group_id,
-                    "current_label": str(group.get("label", "")).strip(),
-                    "count": int(group.get("count", 0)),
-                    "share_percent": round(float(group.get("share", 0.0)) * 100, 1),
-                    "terms": terms,
-                    "examples": examples,
-                }
-            )
-        return evidence_groups
+        return self.evidence_builder.build_group_evidence(groups)
 
     def _collect_examples(self, group: dict[str, object]) -> list[str]:
-        """Extract up to max_examples representative texts from a group, truncating each to max_chars."""
-        examples: list[str] = []
-        max_examples = max(1, self.config.max_examples_per_group)
-        max_chars = max(80, self.config.max_chars_per_example)
-        for example in group.get("examples", []):
-            if not isinstance(example, dict):
-                continue
-            text = str(example.get("source_text") or example.get("text") or "").strip()
-            if not text:
-                continue
-            normalized = re.sub(r"\s+", " ", text)
-            examples.append(normalized[:max_chars].rstrip())
-            if len(examples) >= max_examples:
-                break
-        return examples
+        return self.evidence_builder.collect_examples(group)
 
     def _collect_terms(self, group: dict[str, object]) -> list[str]:
-        terms: list[str] = []
-        max_terms = max(1, self.config.max_terms_per_group)
-        for term in group.get("terms", []):
-            normalized = re.sub(r"\s+", " ", str(term).strip())
-            if not normalized:
-                continue
-            terms.append(normalized)
-            if len(terms) >= max_terms:
-                break
-        return terms
+        return self.evidence_builder.collect_terms(group)
 
     def _request_labels(
         self,
@@ -149,121 +118,34 @@ class TopicAiLabelService:
         *,
         model_key: str,
         text_column_name: str,
-    ) -> dict[str, Any]:
-        endpoint = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.config.gemini_model}:generateContent"
+    ) -> dict[str, object]:
+        return self.client.request_labels(
+            groups,
+            model_key=model_key,
+            text_column_name=text_column_name,
         )
-        request_payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [
-                        {
-                            "text": self._build_prompt(
-                                groups,
-                                model_key=model_key,
-                                text_column_name=text_column_name,
-                            )
-                        }
-                    ],
-                }
-            ],
-            "generationConfig": {
-                "temperature": self.config.gemini_temperature,
-                "responseMimeType": "application/json",
-                "responseSchema": self._gemini_response_schema(),
-            },
-        }
-        payload = json.dumps(request_payload, ensure_ascii=False).encode("utf-8")
-        request = urllib.request.Request(
-            endpoint,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "x-goog-api-key": self.config.gemini_api_key,
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
 
-    @staticmethod
     def _build_prompt(
+        self,
         groups: list[dict[str, object]],
         *,
         model_key: str,
         text_column_name: str,
     ) -> str:
-        evidence_blob = json.dumps(
-            {
-                "analysis_mode": model_key,
-                "text_column_name": text_column_name,
-                "groups": groups,
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-        return (
-            "Create concise English labels for clustered survey-response groups.\n"
-            "Rules:\n"
-            "- Return exactly one label per group_id.\n"
-            "- 2 to 6 words.\n"
-            "- Title case.\n"
-            "- Plain English.\n"
-            "- Prefer specific topic headings such as Curriculum Resources or Search Function Issues.\n"
-            "- Do not use quotes, numbering, or explanations.\n"
-            "- Current labels are weak hints only.\n"
-            "- If a group is genuinely noisy, use Mixed or Unclear Responses.\n\n"
-            f"Evidence:{evidence_blob}"
+        return self.prompt_builder.build_prompt(
+            groups,
+            model_key=model_key,
+            text_column_name=text_column_name,
         )
 
-    @staticmethod
-    def _gemini_response_schema() -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "group_id": {"type": "string"},
-                            "label": {"type": "string"},
-                        },
-                        "required": ["group_id", "label"],
-                    },
-                }
-            },
-            "required": ["labels"],
-        }
+    def _gemini_response_schema(self) -> dict[str, object]:
+        return self.prompt_builder.gemini_response_schema()
 
-    @staticmethod
-    def _extract_gemini_text(response_json: dict[str, Any]) -> str:
-        candidates = response_json.get("candidates", [])
-        if not candidates:
-            return ""
-        parts = candidates[0].get("content", {}).get("parts", [])
-        text_parts = [str(part.get("text", "")) for part in parts if str(part.get("text", "")).strip()]
-        return "\n".join(text_parts).strip()
+    def _extract_gemini_text(self, response_json: dict[str, object]) -> str:
+        return self.response_parser.extract_gemini_text(response_json)
 
-    @staticmethod
-    def _parse_labels(payload: dict[str, Any], *, allowed_group_ids: set[str]) -> dict[str, str]:
-        labels_by_group_id: dict[str, str] = {}
-        for item in payload.get("labels", []):
-            if not isinstance(item, dict):
-                continue
-            group_id = str(item.get("group_id", "")).strip()
-            label = TopicAiLabelService._normalize_label(str(item.get("label", "")).strip())
-            if not group_id or group_id not in allowed_group_ids or not label:
-                continue
-            labels_by_group_id[group_id] = label
-        return labels_by_group_id
+    def _parse_labels(self, payload: dict[str, object], *, allowed_group_ids: set[str]) -> dict[str, str]:
+        return self.response_parser.parse_labels(payload, allowed_group_ids=allowed_group_ids)
 
-    @staticmethod
-    def _normalize_label(label: str) -> str:
-        """Strip surrounding punctuation/whitespace from a Gemini label and cap it at 80 characters."""
-        normalized = re.sub(r"\s+", " ", label).strip(" \t\r\n\"'`.,:;!?-")
-        if not normalized:
-            return ""
-        return normalized[:80].rstrip()
+    def _normalize_label(self, label: str) -> str:
+        return self.response_parser.normalize_label(label)

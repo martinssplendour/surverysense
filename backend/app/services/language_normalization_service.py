@@ -3,23 +3,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from threading import Lock
+
+from app.services.language_detection_service import LanguageDetectionService
+from app.services.translation_gateway_service import (
+    DeepTranslatorError,
+    TranslationGatewayService,
+)
 
 
 logger = logging.getLogger(__name__)
-
-try:  # pragma: no cover - optional dependency at runtime
-    from deep_translator.exceptions import BaseError as DeepTranslatorError
-except ImportError:  # pragma: no cover - dependency may be absent until installed
-    DeepTranslatorError = Exception
-
-try:  # pragma: no cover - optional dependency at runtime
-    from langdetect import DetectorFactory, LangDetectException, detect
-
-    DetectorFactory.seed = 0
-except ImportError:  # pragma: no cover - dependency may be absent until installed
-    LangDetectException = Exception
-    detect = None
 
 
 @dataclass(slots=True)
@@ -51,9 +43,13 @@ class EnglishTranslationService:
 
     def __init__(self, *, config: EnglishTranslationConfig) -> None:
         self.config = config
-        self._lock = Lock()
         self._translation_cache: dict[str, _TranslationCacheEntry] = {}
-        self._translators_by_source: dict[str, object] = {}
+        self.language_detection_service = LanguageDetectionService(
+            source_language=config.source_language,
+        )
+        self.translation_gateway = TranslationGatewayService(
+            target_language=config.target_language,
+        )
 
     def warm_up(self) -> None:
         return
@@ -219,60 +215,23 @@ class EnglishTranslationService:
         )
 
     def _get_translator(self, source_language: str):
-        """Lazily initialise a GoogleTranslator for each detected source language."""
-        with self._lock:
-            if source_language not in self._translators_by_source:
-                from deep_translator import GoogleTranslator
-
-                self._translators_by_source[source_language] = GoogleTranslator(
-                    source=source_language,
-                    target=self.config.target_language,
-                )
-            return self._translators_by_source[source_language]
+        return self.translation_gateway.get_translator(source_language)
 
     def _detect_language(self, text: str) -> str | None:
-        if self.config.source_language != "auto":
-            return self._normalize_source_language(self.config.source_language)
-        if detect is None:
-            raise ImportError("langdetect is not installed")
-
-        try:
-            detected_language = detect(text)
-        except LangDetectException as exc:
-            logger.warning(
-                "Language detection failed (%s). Falling back to configured source=%s for this response.",
-                type(exc).__name__,
-                self.config.source_language,
-            )
-            return None
-        return self._normalize_source_language(detected_language)
+        return self.language_detection_service.detect_language(text)
 
     @staticmethod
     def _normalize_source_language(language: str) -> str:
-        normalized = str(language or "").strip()
-        if not normalized or normalized.casefold() == "auto":
-            return "auto"
-
-        language_map = {
-            "zh-cn": "zh-CN",
-            "zh-tw": "zh-TW",
-            "pt-br": "pt",
-        }
-        return language_map.get(normalized.casefold(), normalized)
+        return LanguageDetectionService.normalize_source_language(language)
 
     @staticmethod
     def _translate_batch(translator, texts: list[str]) -> list[str]:
-        translated = translator.translate_batch(texts)
-        if isinstance(translated, str):
-            return [translated]
-        return [str(item).strip() for item in translated]
+        return TranslationGatewayService.translate_batch(translator, texts)
 
     @staticmethod
     def _translate_single(translator, text: str) -> str:
-        translated = translator.translate(text)
-        return str(translated).strip()
+        return TranslationGatewayService.translate_single(translator, text)
 
     @staticmethod
     def _normalize_translated_text(source_text: str, translated_text: str) -> str:
-        normalized = str(translated_text).strip()
-        return normalized or source_text
+        return TranslationGatewayService.normalize_translated_text(source_text, translated_text)

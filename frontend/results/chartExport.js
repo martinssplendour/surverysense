@@ -1,15 +1,15 @@
 // Exports analysis results as PDF, DOCX, or PPTX by capturing Plotly chart images and posting them to the backend.
 import { RESULT_STORAGE_KEY, elements, state } from "./shared.js";
+import { parseDownloadFilename } from "./utils.js";
+import { captureAnalysisChartImage, getPlotly } from "./chartExportFigure.js";
 import {
-    displayAnalysisMode,
-    displayColumnLabel,
-    parseDownloadFilename,
-    slugify,
-    stripFilenameExtension,
-    wrapPlotLabelTwoLines,
-} from "./utils.js";
+    buildAnalysisChartDefinitions,
+    buildAnalysisExportFileStem,
+    buildAnalysisExportFilters,
+    buildAnalysisExportTitle,
+    resolveAnalysisExportDimensions,
+} from "./chartExportMetadata.js";
 
-const REPORT_EXPORT_MAX_BARS = 12;
 
 const callbacks = {
     clearAnalysisMessage: () => {},
@@ -19,15 +19,18 @@ const callbacks = {
     renderAnalysisMessage: () => {},
 };
 
+
 export function configureChartExport(nextCallbacks) {
     Object.assign(callbacks, nextCallbacks);
 }
+
 
 export function normalizeAnalysisExportFormat(value) {
     return value === "docx" || value === "pptx" || value === "pdf"
         ? value
         : "pdf";
 }
+
 
 export function displayAnalysisExportFormat(value) {
     switch (normalizeAnalysisExportFormat(value)) {
@@ -39,6 +42,7 @@ export function displayAnalysisExportFormat(value) {
         return "PDF";
     }
 }
+
 
 export async function downloadAnalysisReport() {
     if (!state.resultId || !state.analysisResult?.ok || state.analysisExportRunning) {
@@ -83,7 +87,6 @@ export async function downloadAnalysisReport() {
         }
 
         const blob = await response.blob();
-        // Trigger a browser download by creating a temporary <a> element pointing at an object URL.
         const objectUrl = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = objectUrl;
@@ -103,29 +106,6 @@ export async function downloadAnalysisReport() {
     }
 }
 
-function buildAnalysisExportTitle() {
-    if (!state.analysisResult) {
-        return "Verbatim Analysis Report";
-    }
-    return `${displayColumnLabel(state.analysisResult.text_column_name)} - ${state.analysisResult.model_label} Report`;
-}
-
-function buildAnalysisExportFileStem() {
-    const sourceName = stripFilenameExtension(state.response?.filename || "verbatim-analysis");
-    const methodSlug = slugify(displayAnalysisMode(state.analysisResult?.model_key || state.selectedAnalysisModel));
-    return `${slugify(sourceName)}-${methodSlug || "analysis"}-report`;
-}
-
-function buildAnalysisExportFilters() {
-    return Object.entries(state.activeFilters).map(([columnName, values]) => {
-        const definition = state.availableFilters.find((item) => item.column_name === columnName) || null;
-        return {
-            column_name: columnName,
-            display_name: definition?.display_name || definition?.column_name || columnName,
-            values: Array.isArray(values) ? values : [],
-        };
-    });
-}
 
 async function captureRenderedAnalysisCharts() {
     const plotly = getPlotly();
@@ -176,291 +156,4 @@ async function captureRenderedAnalysisCharts() {
     );
 
     return images.filter(Boolean);
-}
-
-function resolveAnalysisExportDimensions({ definition, fallbackWidth, fallbackHeight }) {
-    const kind = definition?.kind || "";
-    if (kind === "group" || kind === "ngram") {
-        return {
-            width: 900,
-            height: Math.max(900, fallbackHeight),
-        };
-    }
-
-    return {
-        width: fallbackWidth,
-        height: fallbackHeight,
-    };
-}
-
-function buildAnalysisChartDefinitions(surfaceCount) {
-    const result = state.analysisResult;
-    if (!result) {
-        return [];
-    }
-    const chartCaption = elements.analysisChart?.querySelector(".analysis-chart-caption")?.textContent?.trim() || "";
-    const chartTitle = elements.analysisChart?.querySelector(".analysis-chart-title")?.textContent?.trim() || "";
-
-    if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
-        return result.ngram_buckets.slice(0, surfaceCount).map((bucket) => ({
-            title: bucket.label || `${bucket.ngram_size}-grams`,
-            caption: chartCaption,
-            kind: "ngram",
-            ngramSize: Number(bucket.ngram_size || 0),
-        }));
-    }
-
-    if (result.model_key === "kmeans") {
-        return [
-            {
-                title: "Response map",
-                caption: "Spatial view of the clustered responses currently shown on screen.",
-                kind: "scatter",
-            },
-        ];
-    }
-
-    return [
-        {
-            title: chartTitle || `${displayAnalysisMode(result.model_key)} distribution`,
-            caption: chartCaption,
-            kind: "group",
-        },
-    ];
-}
-
-async function captureAnalysisChartImage(plotly, plotSurface, { width, height, definition }) {
-    const baseLayout = clonePlotlyFigureValue(plotSurface.layout) || {};
-    const exportOverrides = buildAnalysisExportLayoutOverrides(definition, baseLayout);
-    if (!Object.keys(exportOverrides).length) {
-        return plotly.toImage(plotSurface, {
-            format: "png",
-            width,
-            height,
-        });
-    }
-
-    const exportHeight = resolveAnalysisExportHeight({
-        data: limitAnalysisExportData(clonePlotlyFigureValue(plotSurface.data) || [], definition),
-        definition,
-        fallbackHeight: height,
-    });
-    // Render an off-screen Plotly instance with export-tuned layout so the captured image is high-quality.
-    const exportContainer = document.createElement("div");
-    exportContainer.style.position = "fixed";
-    exportContainer.style.left = "-10000px";  // Position off-screen; invisible but still measurable by Plotly.
-    exportContainer.style.top = "0";
-    exportContainer.style.pointerEvents = "none";
-    exportContainer.style.width = `${width}px`;
-    exportContainer.style.height = `${exportHeight}px`;
-    document.body.appendChild(exportContainer);
-
-    try {
-        const data = limitAnalysisExportData(clonePlotlyFigureValue(plotSurface.data) || [], definition);
-        const layout = {
-            ...baseLayout,
-            ...exportOverrides,
-            width,
-            height: exportHeight,
-        };
-        const config = {
-            displaylogo: false,
-            responsive: false,
-            modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
-            staticPlot: true,
-        };
-        await plotly.newPlot(exportContainer, data, layout, config);
-        return await plotly.toImage(exportContainer, {
-            format: "png",
-            width,
-            height: exportHeight,
-        });
-    } finally {
-        if (typeof plotly.purge === "function") {
-            plotly.purge(exportContainer);
-        }
-        exportContainer.remove();
-    }
-}
-
-function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
-    const kind = definition?.kind || "";
-    const ngramSize = Number(definition?.ngramSize || 0);
-    const baseMargin = baseLayout?.margin || {};
-    const baseFont = baseLayout?.font || {};
-    const baseXAxis = baseLayout?.xaxis || {};
-    const baseYAxis = baseLayout?.yaxis || {};
-
-    const overrides = {
-        paper_bgcolor: "#fffaf2",
-        // The report/slides already render the chart title outside the image,
-        // so remove Plotly's internal title to avoid duplicate headers and
-        // prevent backend image cleanup from clipping the top of the plot area.
-        title: {
-            ...(baseLayout?.title || {}),
-            text: "",
-        },
-    };
-
-    // Report exports need a denser, print-friendly layout than the live dashboard:
-    // wider label margins, larger axis text, and capped label height.
-    if (kind === "ngram") {
-        const exportLeftMargin = ngramSize === 3 ? 190 : 172;
-        overrides.margin = {
-            ...baseMargin,
-            l: Math.max(Number(baseMargin.l || 0), exportLeftMargin),
-            r: Math.max(Number(baseMargin.r || 0), 12),
-            t: Math.max(Number(baseMargin.t || 0), 44),
-            b: Math.max(Number(baseMargin.b || 0), 40),
-        };
-        overrides.font = {
-            ...baseFont,
-            size: Math.max(Number(baseFont.size || 0), 11),
-        };
-        overrides.xaxis = {
-            ...baseXAxis,
-            title: {
-                ...(baseXAxis && typeof baseXAxis.title === "object" ? baseXAxis.title : {}),
-                font: {
-                    ...((baseXAxis && typeof baseXAxis.title === "object" && typeof baseXAxis.title.font === "object")
-                        ? baseXAxis.title.font
-                        : {}),
-                    size: 16,
-                },
-            },
-            tickfont: {
-                ...(baseXAxis.tickfont || {}),
-                size: Math.max(Number(baseXAxis?.tickfont?.size || 0), 15),
-            },
-        };
-        overrides.yaxis = {
-            ...baseYAxis,
-            title: {
-                ...(baseYAxis && typeof baseYAxis.title === "object" ? baseYAxis.title : {}),
-                text: "",
-            },
-            automargin: true,
-            tickangle: 0,
-            tickfont: {
-                ...(baseYAxis.tickfont || {}),
-                size: ngramSize === 2 ? 12 : (ngramSize === 3 ? 17 : 24),
-            },
-        };
-    }
-
-    if (kind === "group") {
-        overrides.margin = {
-            ...baseMargin,
-            l: Math.max(Number(baseMargin.l || 0), 184),
-            t: Math.max(Number(baseMargin.t || 0), 44),
-            b: Math.max(Number(baseMargin.b || 0), 58),
-        };
-        overrides.xaxis = {
-            ...baseXAxis,
-            title: {
-                ...(baseXAxis && typeof baseXAxis.title === "object" ? baseXAxis.title : {}),
-                standoff: 18,
-                font: {
-                    ...((baseXAxis && typeof baseXAxis.title === "object" && typeof baseXAxis.title.font === "object")
-                        ? baseXAxis.title.font
-                        : {}),
-                    size: 16,
-                },
-            },
-            tickfont: {
-                ...(baseXAxis.tickfont || {}),
-                size: Math.max(Number(baseXAxis?.tickfont?.size || 0), 15),
-            },
-        };
-        overrides.yaxis = {
-            ...baseYAxis,
-            automargin: true,
-            tickangle: 0,
-            title: {
-                ...(baseYAxis && typeof baseYAxis.title === "object" ? baseYAxis.title : {}),
-                text: "Topic names",
-                font: {
-                    ...((baseYAxis && typeof baseYAxis.title === "object" && typeof baseYAxis.title.font === "object")
-                        ? baseYAxis.title.font
-                        : {}),
-                    size: 16,
-                },
-            },
-            tickfont: {
-                ...(baseYAxis.tickfont || {}),
-                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 13.5),
-            },
-        };
-    }
-
-    return overrides;
-}
-
-function limitAnalysisExportData(data, definition) {
-    const kind = definition?.kind || "";
-    if (kind !== "group" && kind !== "ngram") {
-        return data;
-    }
-
-    // Reports only keep the first N horizontal bars; the live chart can stay more
-    // interactive, but the exported page/slide needs a readable fixed height.
-    return data.map((trace) => {
-        if (!trace || trace.type !== "bar" || trace.orientation !== "h") {
-            return trace;
-        }
-
-        return {
-            ...trace,
-            x: Array.isArray(trace.x) ? trace.x.slice(0, REPORT_EXPORT_MAX_BARS) : trace.x,
-            y: Array.isArray(trace.y)
-                ? trace.y
-                    .slice(0, REPORT_EXPORT_MAX_BARS)
-                    .map((label) => clampExportPlotLabel(label, kind === "group" ? 20 : 18))
-                : trace.y,
-            customdata: Array.isArray(trace.customdata) ? trace.customdata.slice(0, REPORT_EXPORT_MAX_BARS) : trace.customdata,
-            text: Array.isArray(trace.text) ? trace.text.slice(0, REPORT_EXPORT_MAX_BARS) : trace.text,
-            hovertext: Array.isArray(trace.hovertext) ? trace.hovertext.slice(0, REPORT_EXPORT_MAX_BARS) : trace.hovertext,
-        };
-    });
-}
-
-function clampExportPlotLabel(label, maxLineLength = 18) {
-    const normalized = `${label || ""}`
-        .replaceAll("<br>", " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    return wrapPlotLabelTwoLines(normalized, maxLineLength);
-}
-
-function resolveAnalysisExportHeight({ data, definition, fallbackHeight }) {
-    const kind = definition?.kind || "";
-    if (kind !== "group" && kind !== "ngram") {
-        return fallbackHeight;
-    }
-
-    const firstBarTrace = Array.isArray(data)
-        ? data.find((trace) => trace && trace.type === "bar" && trace.orientation === "h")
-        : null;
-    const barCount = Array.isArray(firstBarTrace?.y) ? firstBarTrace.y.length : 0;
-    if (!barCount) {
-        return fallbackHeight;
-    }
-
-    // Height follows the trimmed bar count so export images do not keep the huge
-    // whitespace from the on-screen canvas after bars are removed.
-    const barHeight = kind === "ngram" ? 48 : 52;
-    return Math.max(560, Math.min(fallbackHeight, barCount * barHeight + 180));
-}
-
-function clonePlotlyFigureValue(value) {
-    if (value === null || value === undefined) {
-        return value;
-    }
-    return JSON.parse(JSON.stringify(value));
-}
-
-function getPlotly() {
-    return typeof window !== "undefined" && typeof window.Plotly !== "undefined"
-        ? window.Plotly
-        : null;
 }

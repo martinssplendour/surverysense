@@ -1,16 +1,19 @@
-"""Compatibility facade for survey-preparation services split into focused modules."""
-from app.services.survey_preparation import (
+from app.services.survey_preparation.coverage import (
     AnswerCoverageService,
-    CareerMetadataBackfillService,
     CountryFilterService,
-    FullTitleFallbackService,
-    MainTitleFallbackService,
+)
+from app.services.survey_preparation.metadata_backfill import CareerMetadataBackfillService
+from app.services.survey_preparation.question_services import (
     QuestionRecordExtractionService,
     QuestionSelectionService,
     QuestionTextService,
+)
+from app.services.survey_preparation.survey_pivot import WideSurveyPivotService
+from app.services.survey_preparation.title_preparation import (
+    FullTitleFallbackService,
+    MainTitleFallbackService,
     TitleNormalizationColumnsService,
     UserIdCastingService,
-    WideSurveyPivotService,
 )
 
 __all__ = [

@@ -4,11 +4,21 @@ import {
     FULL_DATA_ROW_PAGE_SIZE,
     FULL_DATA_VISIBLE_COLUMN_COUNT,
     INITIAL_VISIBLE_ROW_TARGET,
-    RESULT_STORAGE_KEY,
     ROW_PAGE_SIZE,
     elements,
     state,
 } from "./shared.js";
+import { fetchRowsPage as fetchRowsPageApi, parseJson } from "./rowsApi.js";
+import {
+    applyRowsPayload,
+    buildRowStatusText,
+    getDatasetHasMore,
+    getDatasetLoadedCount,
+    getDatasetTotalCount,
+    resetDatasetRows,
+} from "./rowsDatasetState.js";
+
+export { parseJson };
 
 const callbacks = {
     handleMissingResultState: () => {},
@@ -87,18 +97,6 @@ export async function refreshFilteredDatasets({ suppressAnalysisRender = false }
     }
 }
 
-function getDatasetLoadedCount(dataset) {
-    return dataset === "analysis" ? state.analysisRows.length : state.transformedRows.length;
-}
-
-function getDatasetHasMore(dataset) {
-    return dataset === "analysis" ? state.analysisHasMore : state.transformedHasMore;
-}
-
-function getDatasetTotalCount(dataset) {
-    return dataset === "analysis" ? state.analysisTotalRows : state.transformedTotalRows;
-}
-
 export function buildPreviewEmptyMessage() {
     const dataset = currentPreviewDataset();
     const isLoading = dataset === "analysis" ? state.analysisLoading : state.transformedLoading;
@@ -111,7 +109,7 @@ export function buildPreviewEmptyMessage() {
 }
 
 export function updatePreviewRowStatus() {
-    elements.tableRowStatus.textContent = buildRowStatusText(currentPreviewDataset());
+    elements.tableRowStatus.textContent = buildRowStatusText(currentPreviewDataset(), { hasActiveFilters });
 }
 
 export function hasActiveFilters() {
@@ -144,77 +142,11 @@ export function getVisiblePreviewColumns(columns, dataset) {
     return columns.slice(start, start + FULL_DATA_VISIBLE_COLUMN_COUNT);
 }
 
-function resetDatasetRows(dataset) {
-    if (dataset === "transformed") {
-        state.transformedRows = [];
-        state.transformedHasMore = false;
-        state.transformedLoading = false;
-        state.transformedTotalRows = 0;
-        return;
-    }
-
-    state.analysisRows = [];
-    state.analysisHasMore = false;
-    state.analysisLoading = false;
-    state.analysisTotalRows = 0;
-}
-
-function applyRowsPayload(dataset, payload) {
-    if (dataset === "transformed") {
-        state.transformedRows = Array.isArray(payload.rows) ? payload.rows : [];
-        state.transformedHasMore = Boolean(payload.has_more);
-        state.transformedTotalRows = Number(payload.total_row_count || 0);
-        state.transformedUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-        if (Array.isArray(payload.column_names) && payload.column_names.length) {
-            state.transformedColumnNames = payload.column_names;
-        }
-        return;
-    }
-
-    state.analysisRows = Array.isArray(payload.rows) ? payload.rows : [];
-    state.analysisHasMore = Boolean(payload.has_more);
-    state.analysisTotalRows = Number(payload.total_row_count || 0);
-    state.analysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-    if (Array.isArray(payload.column_names) && payload.column_names.length) {
-        state.analysisColumnNames = payload.column_names;
-    }
-}
-
 export async function fetchRowsPage(dataset, offset, limit) {
-    const query = new URLSearchParams({
-        dataset,
-        offset: `${offset}`,
-        limit: `${limit}`,
+    return fetchRowsPageApi(dataset, offset, limit, {
+        hasActiveFilters,
+        handleMissingResultState: callbacks.handleMissingResultState,
     });
-    if (hasActiveFilters()) {
-        query.set("filters", JSON.stringify(state.activeFilters));
-    }
-
-    const response = await fetch(`/result-rows/${encodeURIComponent(state.resultId)}?${query.toString()}`);
-    if (response.status === 401) {
-        sessionStorage.removeItem(RESULT_STORAGE_KEY);
-        window.location.assign("/login");
-        throw new Error("Session expired.");
-    }
-    if (response.status === 404) {
-        const payload = await parseJson(response);
-        callbacks.handleMissingResultState(payload.detail || "The processed result is no longer available.");
-        throw new Error("The processed result is no longer available.");
-    }
-
-    const payload = await parseJson(response);
-    if (!response.ok) {
-        throw new Error(payload.detail || "Unable to load rows.");
-    }
-    return payload;
-}
-
-export async function parseJson(response) {
-    try {
-        return await response.json();
-    } catch {
-        return {};
-    }
 }
 
 async function maybeLoadMoreAnalysisRows() {
@@ -294,33 +226,6 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
         }
         updatePreviewRowStatus();
     }
-}
-
-function buildRowStatusText(dataset) {
-    const loadedCount = dataset === "analysis" ? state.analysisRows.length : state.transformedRows.length;
-    const totalCount = dataset === "analysis"
-        ? Number(state.analysisTotalRows || 0)
-        : Number(state.transformedTotalRows || 0);
-    const unfilteredCount = dataset === "analysis"
-        ? Number(state.analysisUnfilteredTotalRows || 0)
-        : Number(state.transformedUnfilteredTotalRows || 0);
-    const isLoading = dataset === "analysis" ? state.analysisLoading : state.transformedLoading;
-
-    if (!totalCount && !loadedCount) {
-        if (hasActiveFilters()) {
-            return `Loaded 0 of 0 rows | filtered from ${unfilteredCount}`;
-        }
-        return "Loaded 0 rows";
-    }
-
-    let text = `Loaded ${loadedCount} of ${totalCount} rows`;
-    if (hasActiveFilters()) {
-        text += ` | filtered from ${unfilteredCount}`;
-    }
-    if (isLoading) {
-        text += " | loading more";
-    }
-    return text;
 }
 
 // Triggers infinite-scroll loading when the user is within 120 px of the bottom of the scrollable container.

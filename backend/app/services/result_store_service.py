@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass
 import logging
 from threading import Lock
-from typing import Literal
 from uuid import uuid4
 
 import pandas as pd
@@ -13,103 +11,22 @@ import pandas as pd
 from app.models.enums import ColumnRole
 from app.services.cleaning_services import AnalysisReadyDatasetService
 from app.services.metadata_filter_service import MetadataFilterDefinition, MetadataFilterService
+from app.services.result_store_models import (
+    AnalysisGroupDocumentsPage,
+    AnalysisNgramDocumentsPage,
+    DatasetName,
+    ResultRowsPage,
+    StoredAnalysisGroupSnapshot,
+    StoredAnalysisNgramSnapshot,
+    StoredAnalysisSnapshot,
+    StoredDatasetSelection,
+    StoredResultDatasets,
+)
 from app.services.result_store_paging_service import ResultStorePagingService
 from app.services.result_store_snapshot_service import ResultStoreSnapshotService
 
 
-DatasetName = Literal["transformed", "analysis"]
 logger = logging.getLogger(__name__)
-
-
-@dataclass(slots=True)
-class StoredResultDatasets:
-    """Both DataFrames for one uploaded result, together with the resolved column role lists and filter definitions."""
-
-    transformed_df: pd.DataFrame
-    analysis_df: pd.DataFrame
-    metadata_columns: list[str]
-    verbatim_columns: list[str]
-    available_filters: list[MetadataFilterDefinition]
-
-
-@dataclass(slots=True)
-class ResultRowsPage:
-    result_id: str
-    dataset: DatasetName
-    total_row_count: int
-    unfiltered_row_count: int
-    offset: int
-    limit: int
-    has_more: bool
-    column_names: list[str]
-    rows: list[dict[str, object]]
-
-
-@dataclass(slots=True)
-class StoredDatasetSelection:
-    result_id: str
-    dataset: DatasetName
-    dataframe: pd.DataFrame
-    total_row_count: int
-    metadata_columns: list[str]
-    verbatim_columns: list[str]
-
-
-@dataclass(slots=True)
-class StoredAnalysisGroupSnapshot:
-    group_id: str
-    label: str
-    count: int
-    documents: list[dict[str, object]]
-    meta: dict[str, object]
-
-
-@dataclass(slots=True)
-class StoredAnalysisNgramSnapshot:
-    term: str
-    source_term: str | None
-    ngram_size: int
-    hit_count: int
-    documents: list[dict[str, object]]
-
-
-@dataclass(slots=True)
-class StoredAnalysisSnapshot:
-    """Cached output of one analysis run, keyed per result_id, used to serve filter changes without re-running ML."""
-
-    text_column_name: str
-    model_key: str
-    groups: dict[str, StoredAnalysisGroupSnapshot]
-    ngram_items: dict[str, StoredAnalysisNgramSnapshot]
-    scatter_points: list[dict[str, object]]
-
-
-@dataclass(slots=True)
-class AnalysisGroupDocumentsPage:
-    result_id: str
-    group_id: str
-    group_label: str
-    text_column_name: str
-    total_count: int
-    offset: int
-    limit: int
-    has_more: bool
-    documents: list[dict[str, object]]
-
-
-@dataclass(slots=True)
-class AnalysisNgramDocumentsPage:
-    result_id: str
-    term: str
-    source_term: str | None
-    ngram_size: int
-    text_column_name: str
-    total_count: int
-    hit_count: int
-    offset: int
-    limit: int
-    has_more: bool
-    documents: list[dict[str, object]]
 
 
 class ResultNotFoundError(KeyError):
