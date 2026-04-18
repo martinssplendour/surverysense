@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
-
+from enum import StrEnum
 
 DEFAULT_NULL_EQUIVALENTS = ["", "n/a", "na", "none", "null", ".", "-", "<na>", "nan"]
 IDENTIFIER_VALUE_PATTERN = re.compile(r"^[0-9a-f]{6,}(?:-[0-9a-f]{2,}){2,}$", re.IGNORECASE)
@@ -18,6 +17,6 @@ class ManifestArchitectConfig:
     row_limit: int
 
 
-class DiagnosticMode(str, Enum):
+class DiagnosticMode(StrEnum):
     AI = "ai"
     RULE_BASED = "rule_based"

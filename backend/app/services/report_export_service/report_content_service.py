@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from app.services.report_export_service._constants import _FILENAME_PATTERN
+from app.services.result_store_service import ResultNotFoundError
 
 
 @dataclass(slots=True)
@@ -64,7 +65,10 @@ class ReportContentService:
         return sections
 
     def get_export_groups(self, request):
-        if self.result_store_service is not None:
+        if (
+            self.result_store_service is not None
+            and hasattr(self.result_store_service, "get_fast_filtered_result")
+        ):
             try:
                 fast_result = self.result_store_service.get_fast_filtered_result(
                     request.analysis_result.result_id,
@@ -72,7 +76,7 @@ class ReportContentService:
                     text_column_name=request.analysis_result.text_column_name,
                     filters=self.build_active_filter_lookup(request),
                 )
-            except Exception:
+            except (ResultNotFoundError, ValueError):
                 fast_result = None
             if fast_result and fast_result.get("groups"):
                 return [
@@ -135,7 +139,10 @@ class ReportContentService:
         ]
 
     def build_ngram_representative_sections(self, request) -> list[tuple[str, list[str]]]:
-        if self.result_store_service is None:
+        if (
+            self.result_store_service is None
+            or not hasattr(self.result_store_service, "get_analysis_ngram_page")
+        ):
             return []
 
         sections: list[tuple[str, list[str]]] = []
@@ -158,7 +165,7 @@ class ReportContentService:
                         offset=0,
                         limit=3,
                     )
-                except Exception:
+                except (ResultNotFoundError, ValueError):
                     continue
 
                 documents = getattr(page, "documents", []) or []

@@ -14,7 +14,6 @@ from app.services.architect_service.manifest_header_scoring_service import Manif
 from app.services.architect_service.vertical_layout_detection_service import VerticalLayoutDetectionService
 from app.services.architect_service.wide_verbatim_detection_service import WideVerbatimDetectionService
 
-
 logger = logging.getLogger(__name__)
 
 

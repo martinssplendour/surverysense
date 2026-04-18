@@ -62,26 +62,7 @@ export async function loadResultsPage() {
 
 export function resetToUploadState() {
     sessionStorage.removeItem(RESULT_STORAGE_KEY);
-    state.response = null;
-    state.resultId = null;
-    state.analysisResult = null;
-    state.analysisRows = [];
-    state.transformedRows = [];
-    state.analysisExportFormat = "pdf";
-    state.analysisExportMenuOpen = false;
-    state.analysisExportRunning = false;
-    state.analysisGroupModalMode = "group";
-    state.analysisGroupModalGroupId = "";
-    state.analysisGroupModalNgramSize = 0;
-    state.analysisGroupModalTerm = "";
-    state.analysisGroupModalSourceTerm = "";
-    state.analysisGroupModalHitCount = 0;
-    state.analysisGroupModalTotalCount = 0;
-    state.analysisGroupModalBucketLabel = "";
-    state.analysisGroupModalDocuments = [];
-    state.analysisGroupModalHasMore = false;
-    state.analysisGroupModalOffset = 0;
-    state.analysisGroupModalLoading = false;
+    resetStoredResultState();
     state.currentWorkspace = "dashboard";
     showEmptyState();
     window.dispatchEvent(new CustomEvent("verbatim:upload-reset"));
@@ -171,6 +152,13 @@ export function handleMissingResultState(message = "The processed result is no l
 function applyPayload(payload) {
     state.response = payload;
     state.resultId = typeof payload.result_id === "string" ? payload.result_id : null;
+    applyPayloadColumns(payload);
+    applyPayloadRows(payload);
+    resetInteractiveWorkspaceState();
+    renderResults(payload);
+}
+
+function applyPayloadColumns(payload) {
     state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
         ? payload.analysis_metadata_column_names
         : [];
@@ -186,6 +174,9 @@ function applyPayload(payload) {
     state.availableFilters = Array.isArray(payload.available_filters)
         ? payload.available_filters
         : [];
+}
+
+function applyPayloadRows(payload) {
     state.selectedFilterColumn = "";
     state.selectedFilterValue = "";
     state.activeFilters = {};
@@ -203,33 +194,19 @@ function applyPayload(payload) {
     state.analysisHasMore = state.analysisRows.length < state.analysisTotalRows;
     state.transformedLoading = false;
     state.analysisLoading = false;
+}
+
+function resetInteractiveWorkspaceState() {
     state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
     state.selectedAnalysisModel = "bertopic";
     state.analysisResult = null;
     state.analysisRunning = false;
-    state.analysisExportFormat = "pdf";
-    state.analysisExportMenuOpen = false;
-    state.analysisExportRunning = false;
-    state.analysisGroupModalMode = "group";
-    state.analysisGroupModalGroupId = "";
-    state.analysisGroupModalNgramSize = 0;
-    state.analysisGroupModalTerm = "";
-    state.analysisGroupModalSourceTerm = "";
-    state.analysisGroupModalHitCount = 0;
-    state.analysisGroupModalTotalCount = 0;
-    state.analysisGroupModalBucketLabel = "";
-    state.analysisGroupModalDocuments = [];
-    state.analysisGroupModalTranslations = {};
-    state.analysisGroupModalTranslationLoading = {};
-    state.analysisGroupModalHasMore = false;
-    state.analysisGroupModalOffset = 0;
-    state.analysisGroupModalLoading = false;
+    resetAnalysisExportState();
+    resetAnalysisGroupModalState();
     state.currentWorkspace = "dashboard";
     state.showOnlyVerbatim = false;
     state.previewColumnOffset = 0;
     state.columnSearchTerm = "";
-
-    renderResults(payload);
 }
 
 function readStoredPayload() {
@@ -292,12 +269,41 @@ function clearUploadHandoffQuery() {
     history.replaceState(null, "", nextUrl);
 }
 
+function resetStoredResultState() {
+    state.response = null;
+    state.resultId = null;
+    state.analysisResult = null;
+    state.analysisRows = [];
+    state.transformedRows = [];
+    resetAnalysisExportState();
+    resetAnalysisGroupModalState();
+}
+
+function resetAnalysisExportState() {
+    state.analysisExportFormat = "pdf";
+    state.analysisExportMenuOpen = false;
+    state.analysisExportRunning = false;
+}
+
+function resetAnalysisGroupModalState() {
+    state.analysisGroupModalMode = "group";
+    state.analysisGroupModalGroupId = "";
+    state.analysisGroupModalNgramSize = 0;
+    state.analysisGroupModalTerm = "";
+    state.analysisGroupModalSourceTerm = "";
+    state.analysisGroupModalHitCount = 0;
+    state.analysisGroupModalTotalCount = 0;
+    state.analysisGroupModalBucketLabel = "";
+    state.analysisGroupModalDocuments = [];
+    state.analysisGroupModalTranslations = {};
+    state.analysisGroupModalTranslationLoading = {};
+    state.analysisGroupModalHasMore = false;
+    state.analysisGroupModalOffset = 0;
+    state.analysisGroupModalLoading = false;
+}
+
 function showEmptyState() {
-    document.body.classList.add("upload-workspace-active");
-    document.body.classList.remove("dashboard-workspace-active");
-    document.body.classList.remove("data-workspace-active");
-    document.body.classList.remove("analysis-setup-workspace-active");
-    document.body.classList.remove("analysis-results-workspace-active");
+    setWorkspaceBodyClasses("upload");
     closeFilterModal();
     closeColumnRoleModal();
     closeAnalysisGroupModal();
@@ -327,14 +333,10 @@ function showEmptyState() {
 }
 
 function renderResults(payload) {
-    document.body.classList.remove("upload-workspace-active");
+    setWorkspaceBodyClasses("results");
     if (elements.emptyState) {
         elements.emptyState.hidden = true;
     }
-    document.body.classList.remove("dashboard-workspace-active");
-    document.body.classList.remove("data-workspace-active");
-    document.body.classList.remove("analysis-setup-workspace-active");
-    document.body.classList.remove("analysis-results-workspace-active");
     if (elements.uploadView) {
         elements.uploadView.hidden = true;
     }
@@ -352,4 +354,12 @@ function renderResults(payload) {
     closeFilterModal();
     closeColumnRoleModal();
     closeAnalysisGroupModal();
+}
+
+function setWorkspaceBodyClasses(mode) {
+    document.body.classList.toggle("upload-workspace-active", mode === "upload");
+    document.body.classList.toggle("dashboard-workspace-active", false);
+    document.body.classList.toggle("data-workspace-active", false);
+    document.body.classList.toggle("analysis-setup-workspace-active", false);
+    document.body.classList.toggle("analysis-results-workspace-active", false);
 }

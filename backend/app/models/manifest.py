@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 
-class LayoutState(str, Enum):
+class LayoutState(StrEnum):
     WIDE = "WIDE"
     VERTICAL = "VERTICAL"
 
@@ -62,7 +62,7 @@ class TransformationManifest(BaseModel):
         return legacy
 
     @model_validator(mode="after")
-    def validate_manifest(self) -> "TransformationManifest":
+    def validate_manifest(self) -> TransformationManifest:
         self.metadata_indices = _unique_non_negative(self.metadata_indices)
         self.verbatim_indices = _unique_non_negative(self.verbatim_indices)
         self.vertical_assembly.record_key_indices = _unique_non_negative(

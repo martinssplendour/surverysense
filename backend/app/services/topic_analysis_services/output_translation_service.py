@@ -9,7 +9,6 @@ from app.services.topic_analysis_services.narrative_service import (
     TopicAnalysisNarrativeService,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

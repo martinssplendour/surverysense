@@ -1,8 +1,7 @@
 """Pydantic request and response models for all ingest and analysis API endpoints."""
 from __future__ import annotations
 
-from typing import Literal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 

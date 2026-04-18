@@ -1,8 +1,8 @@
 """In-memory store for transformed datasets, analysis snapshots, and paged document retrieval."""
 from __future__ import annotations
 
-from collections import OrderedDict
 import logging
+from collections import OrderedDict
 from threading import Lock
 from uuid import uuid4
 
@@ -24,7 +24,6 @@ from app.services.result_store_models import (
 )
 from app.services.result_store_paging_service import ResultStorePagingService
 from app.services.result_store_snapshot_service import ResultStoreSnapshotService
-
 
 logger = logging.getLogger(__name__)
 

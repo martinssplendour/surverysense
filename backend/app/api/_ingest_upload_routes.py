@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 from fastapi import File, Form, HTTPException, Request, UploadFile, status
 
+from app.api._ingest_route_context import IngestRouteContext
 from app.core.auth import register_session_result_id, require_authenticated_user
-from app.core.exceptions import CsvDecodeError, IngestionError, RowLimitExceededError
 from app.models.api import DiagnosticConfigResponse, UploadIngestResponse
 from app.services.architect_service import DiagnosticMode
 
-from app.api._ingest_route_context import IngestRouteContext
-
-
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class _UploadIngestArtifacts:
+    result_id: str
+    ingested: object
+    manifest: object
+    transformed_df: object
+    analysis_df: object
+    analysis_metadata_columns: list[str]
+    analysis_verbatim_columns: list[str]
 
 
 def register_upload_routes(context: IngestRouteContext) -> None:
@@ -48,7 +57,7 @@ def register_upload_routes(context: IngestRouteContext) -> None:
                 detail="Uploaded CSV is empty.",
             )
 
-        try:
+        def _execute() -> _UploadIngestArtifacts:
             ingested = context.ingestion_service.ingest(payload)
             logger.info(
                 "Upload ingest started for file=%s diagnostic_mode=%s sample_rows=%s source_columns=%s.",
@@ -88,19 +97,34 @@ def register_upload_routes(context: IngestRouteContext) -> None:
                 len(analysis_verbatim_columns),
             )
             register_session_result_id(request, result_id)
-        except (CsvDecodeError, RowLimitExceededError, IngestionError) as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-        except Exception as exc:
-            logger.exception(
-                "Upload ingest failed unexpectedly for file=%s with diagnostic_mode=%s.",
-                file.filename or "upload.csv",
-                diagnostic_mode.value,
+            return _UploadIngestArtifacts(
+                result_id=result_id,
+                ingested=ingested,
+                manifest=manifest,
+                transformed_df=transformed_df,
+                analysis_df=analysis_df,
+                analysis_metadata_columns=analysis_metadata_columns,
+                analysis_verbatim_columns=analysis_verbatim_columns,
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An unexpected error occurred.",
-            ) from exc
 
+        try:
+            artifacts = context.execute_api_action("upload_ingest", _execute)
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
+                logger.exception(
+                    "Upload ingest failed unexpectedly for file=%s with diagnostic_mode=%s.",
+                    file.filename or "upload.csv",
+                    diagnostic_mode.value,
+                )
+            raise
+
+        ingested = artifacts.ingested
+        manifest = artifacts.manifest
+        transformed_df = artifacts.transformed_df
+        analysis_df = artifacts.analysis_df
+        analysis_metadata_columns = artifacts.analysis_metadata_columns
+        analysis_verbatim_columns = artifacts.analysis_verbatim_columns
+        result_id = artifacts.result_id
         return UploadIngestResponse(
             result_id=result_id,
             filename=file.filename or "upload.csv",

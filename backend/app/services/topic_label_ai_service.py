@@ -10,7 +10,6 @@ from app.services.topic_label_evidence_builder import TopicLabelEvidenceBuilder
 from app.services.topic_label_prompt_builder import TopicLabelPromptBuilder
 from app.services.topic_label_response_parser import TopicLabelResponseParser
 
-
 logger = logging.getLogger(__name__)
 
 

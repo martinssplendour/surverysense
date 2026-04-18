@@ -1,12 +1,11 @@
 import unittest
 
 import pandas as pd
-
 from app.models.manifest import LayoutState, TransformationManifest
 from app.services.cleaning_services import (
     AnalysisReadyDatasetService,
-    MetadataColumnSelectionService,
     DuplicateAnswerResolutionService,
+    MetadataColumnSelectionService,
     MetadataConsolidationService,
     MultipartVerbatimConsolidationService,
     NullScrubbingService,

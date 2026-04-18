@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from typing import Iterable
+from collections.abc import Iterable
 
 from app.services.topic_analysis_services.config import PreparedDocument
 

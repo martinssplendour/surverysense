@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 DEFAULT_SESSION_SECRET = "verbatim-app-dev-session-secret-change-me"
 
 MODEL_LABELS: dict[str, str] = {

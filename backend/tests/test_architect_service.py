@@ -1,12 +1,11 @@
-import unittest
 import json
+import unittest
 from unittest.mock import patch
 
 import pandas as pd
-
 from app.core.exceptions import ManifestBuildError
-from app.services.architect_service import ManifestArchitectConfig, ManifestArchitectService
-from app.services.architect_service import DiagnosticMode
+from app.models.manifest import LayoutState, TransformationManifest
+from app.services.architect_service import DiagnosticMode, ManifestArchitectConfig, ManifestArchitectService
 from app.services.cleaning_services import (
     DuplicateAnswerResolutionService,
     MetadataConsolidationService,
@@ -21,7 +20,6 @@ from app.services.cleaning_services import (
     VerticalRecordFilterService,
 )
 from app.services.transformation_service import DataTransformationService
-from app.models.manifest import LayoutState, TransformationManifest
 
 
 class ManifestArchitectServiceHeuristicTests(unittest.TestCase):

@@ -6,8 +6,6 @@ from types import SimpleNamespace
 from unittest import TestCase
 from zipfile import ZipFile
 
-from PIL import Image
-
 from app.models.api import (
     AnalysisExampleModel,
     AnalysisExportChartModel,
@@ -19,6 +17,7 @@ from app.models.api import (
     AnalysisRunResponse,
 )
 from app.services.report_export_service import AnalysisReportExportService, DecodedChartImage
+from PIL import Image
 
 
 class AnalysisReportExportServiceTests(TestCase):

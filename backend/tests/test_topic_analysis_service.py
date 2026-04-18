@@ -1,5 +1,5 @@
-import sys
 import shutil
+import sys
 import tempfile
 import types
 import unittest
@@ -7,9 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
-
 from app.services.language_normalization_service import EnglishTranslationBatchResult
-from app.services.topic_label_ai_service import TopicAiLabelingBatchResult
 from app.services.topic_analysis_services import (
     BertopicAnalysisService,
     HdbscanAnalysisService,
@@ -24,6 +22,7 @@ from app.services.topic_analysis_services import (
     TopicAnalysisService,
     TopicAnalysisTextPreparationService,
 )
+from app.services.topic_label_ai_service import TopicAiLabelingBatchResult
 
 
 class _FakeEmbeddingService:

@@ -1,15 +1,14 @@
 """Translates survey responses to English with explicit language detection and in-process caching."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 
 from app.services.language_detection_service import LanguageDetectionService
 from app.services.translation_gateway_service import (
     DeepTranslatorError,
     TranslationGatewayService,
 )
-
 
 logger = logging.getLogger(__name__)
 

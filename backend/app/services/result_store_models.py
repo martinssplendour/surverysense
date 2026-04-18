@@ -8,7 +8,6 @@ import pandas as pd
 
 from app.services.metadata_filter_service import MetadataFilterDefinition
 
-
 DatasetName = Literal["transformed", "analysis"]
 
 

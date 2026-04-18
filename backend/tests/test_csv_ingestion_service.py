@@ -7,12 +7,12 @@ from app.services.encoding_service import EncodingDetectionService
 class CsvIngestionServiceTests(unittest.TestCase):
     def test_ingest_uses_first_rows_for_samples(self) -> None:
         payload = (
-            "id,text\n"
-            "1,first\n"
-            "2,second\n"
-            "3,third\n"
-            "4,fourth\n"
-        ).encode("utf-8")
+            b"id,text\n"
+            b"1,first\n"
+            b"2,second\n"
+            b"3,third\n"
+            b"4,fourth\n"
+        )
         service = CsvIngestionService(
             encoding_service=EncodingDetectionService(),
             sample_size=3,

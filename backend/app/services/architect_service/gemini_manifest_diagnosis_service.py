@@ -11,7 +11,6 @@ from app.core.exceptions import ManifestBuildError
 from app.models.manifest import TransformationManifest
 from app.services.architect_service.config import ManifestArchitectConfig
 
-
 logger = logging.getLogger(__name__)
 
 

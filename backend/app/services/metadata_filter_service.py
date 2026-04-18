@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-
 TRANSFORMED_COLUMN_INDEX_SUFFIX_PATTERN = re.compile(r"__idx_\d+$", re.IGNORECASE)
 
 

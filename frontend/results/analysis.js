@@ -260,6 +260,54 @@ export async function runAnalysis({
         return;
     }
 
+    const signal = beginAnalysisRun({
+        textColumnName,
+        modelKey,
+        preserveCurrentOutput,
+    });
+
+    try {
+        const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(buildAnalysisRequestBody({ modelKey, textColumnName })),
+            signal,
+        });
+        const payload = await handleAnalysisResponse(response);
+        if (!payload) {
+            return;
+        }
+        finishSuccessfulAnalysis({
+            payload,
+            textColumnName,
+            modelKey,
+            scrollIntoView,
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+        }
+        finishFailedAnalysis({
+            error,
+            textColumnName,
+            modelKey,
+        });
+    } finally {
+        activeAnalysisAbortController = null;
+        state.analysisRunning = false;
+        renderAnalysisControls();
+    }
+}
+
+function setAnalysisEmptyState(show) {
+    if (elements.analysisEmptyState) {
+        elements.analysisEmptyState.hidden = !show;
+    }
+}
+
+function beginAnalysisRun({ textColumnName, modelKey, preserveCurrentOutput }) {
     callbacks.closeAnalysisGroupModal();
     state.selectedAnalysisColumn = textColumnName;
     state.selectedAnalysisModel = modelKey || state.selectedAnalysisModel;
@@ -272,81 +320,72 @@ export async function runAnalysis({
         renderAnalysisOutput();
     }
 
-    // Cancel any in-flight request before starting a new one to avoid stale results overwriting fresh ones.
     if (activeAnalysisAbortController) {
         activeAnalysisAbortController.abort();
     }
     activeAnalysisAbortController = new AbortController();
-    const signal = activeAnalysisAbortController.signal;
+    return activeAnalysisAbortController.signal;
+}
 
-    try {
-        const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model_key: modelKey,
-                text_column_name: textColumnName,
-                filters: state.activeFilters,
-            }),
-            signal,
-        });
-        if (response.status === 401) {
-            sessionStorage.removeItem(RESULT_STORAGE_KEY);
-            window.location.assign("/login");
-            return;
-        }
-        if (response.status === 404) {
-            const payload = await parseJson(response);
-            callbacks.handleMissingResultState(payload.detail || "The processed result is no longer available.");
-            return;
-        }
-        const payload = await parseJson(response);
-        if (!response.ok) {
-            throw new Error(payload.detail || "Unable to run analysis.");
-        }
+function buildAnalysisRequestBody({ modelKey, textColumnName }) {
+    return {
+        model_key: modelKey,
+        text_column_name: textColumnName,
+        filters: state.activeFilters,
+    };
+}
 
-        state.analysisResult = payload;
-        state.selectedAnalysisColumn = payload.text_column_name || textColumnName;
-        state.selectedAnalysisModel = payload.model_key || modelKey;
-        state.currentWorkspace = "analysis-results";
-        callbacks.updateWorkspaceVisibility();
-        renderAnalysisOutput();
-        if (scrollIntoView) {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-    } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-            return;
-        }
-        const message = error instanceof Error ? error.message : "Unable to run analysis.";
-        state.analysisResult = {
-            ok: false,
-            result_id: state.resultId,
-            model_key: modelKey,
-            model_label: displayAnalysisMode(modelKey),
-            text_column_name: textColumnName,
-            filtered_row_count: 0,
-            valid_document_count: 0,
-            skipped_document_count: 0,
-            error: message,
-            groups: [],
-            ngram_buckets: [],
-            scatter_points: [],
-        };
-        state.currentWorkspace = "analysis-results";
-        callbacks.updateWorkspaceVisibility();
-        renderAnalysisOutput();
-    } finally {
-        activeAnalysisAbortController = null;
-        state.analysisRunning = false;
-        renderAnalysisControls();
+async function handleAnalysisResponse(response) {
+    if (response.status === 401) {
+        sessionStorage.removeItem(RESULT_STORAGE_KEY);
+        window.location.assign("/login");
+        return null;
+    }
+    const payload = await parseJson(response);
+    if (response.status === 404) {
+        callbacks.handleMissingResultState(payload.detail || "The processed result is no longer available.");
+        return null;
+    }
+    if (!response.ok) {
+        throw new Error(payload.detail || "Unable to run analysis.");
+    }
+    return payload;
+}
+
+function finishSuccessfulAnalysis({
+    payload,
+    textColumnName,
+    modelKey,
+    scrollIntoView,
+}) {
+    state.analysisResult = payload;
+    state.selectedAnalysisColumn = payload.text_column_name || textColumnName;
+    state.selectedAnalysisModel = payload.model_key || modelKey;
+    state.currentWorkspace = "analysis-results";
+    callbacks.updateWorkspaceVisibility();
+    renderAnalysisOutput();
+    if (scrollIntoView) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
     }
 }
 
-function setAnalysisEmptyState(show) {
-    if (elements.analysisEmptyState) {
-        elements.analysisEmptyState.hidden = !show;
-    }
+function finishFailedAnalysis({ error, textColumnName, modelKey }) {
+    const message = error instanceof Error ? error.message : "Unable to run analysis.";
+    state.analysisResult = {
+        ok: false,
+        result_id: state.resultId,
+        model_key: modelKey,
+        model_label: displayAnalysisMode(modelKey),
+        text_column_name: textColumnName,
+        filtered_row_count: 0,
+        valid_document_count: 0,
+        skipped_document_count: 0,
+        error: message,
+        groups: [],
+        ngram_buckets: [],
+        scatter_points: [],
+    };
+    state.currentWorkspace = "analysis-results";
+    callbacks.updateWorkspaceVisibility();
+    renderAnalysisOutput();
 }

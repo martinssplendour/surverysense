@@ -1,14 +1,13 @@
 """Session-based authentication helpers: read/write the authenticated user and manage idle timeouts."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import secrets
 import time
+from dataclasses import asdict, dataclass
 
 from fastapi import HTTPException, Request, status
 
 from app.core.settings import get_settings
-
 
 SESSION_USER_KEY = "authenticated_user"
 SESSION_RESULT_IDS_KEY = "uploaded_result_ids"

@@ -18,7 +18,6 @@ from app.services.architect_service.heuristic_manifest_diagnosis_service import 
     HeuristicManifestDiagnosisService,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

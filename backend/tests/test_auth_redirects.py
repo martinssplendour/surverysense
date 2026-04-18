@@ -1,11 +1,10 @@
 import unittest
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
-
 from app.core.constants import DEFAULT_SESSION_SECRET
 from app.core.settings import Settings
 from app.main import create_app
+from fastapi.testclient import TestClient
 
 
 class AuthRedirectTests(unittest.TestCase):

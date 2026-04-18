@@ -34,7 +34,7 @@ The app is designed for small-team internal use. It runs on a single Render web 
 
 ## Requirements
 
-- Python `3.11`
+- Python `3.12`
 - Bash-compatible shell for the commands below
 
 ## Local Setup
@@ -206,4 +206,3 @@ node --check ../frontend/upload.js
 5. Filter/explore results
 6. Inspect representative responses
 7. Export report
-
