@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.models.api import AnalysisExportChartModel, AnalysisExportRequest
-from app.services.service_protocols import ResultStoreReportReaderProtocol
 from app.services.report_export_service.chart_image_service import (
     DecodedChartImage,
     ReportChartImageService,
@@ -15,6 +14,7 @@ from app.services.report_export_service.report_content_service import (
     GroupSummarySection,
     ReportContentService,
 )
+from app.services.service_protocols import ResultStoreReportReaderProtocol
 
 
 @dataclass(slots=True)

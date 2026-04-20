@@ -4,9 +4,9 @@ import re
 from dataclasses import dataclass
 
 from app.models.api import AnalysisExportRequest
-from app.services.service_protocols import ResultStoreReportReaderProtocol
 from app.services.report_export_service._constants import _FILENAME_PATTERN
 from app.services.result_store_service import ResultNotFoundError
+from app.services.service_protocols import ResultStoreReportReaderProtocol
 from app.services.topic_analysis_services.contracts import (
     AnalysisExampleRecord,
     AnalysisGroupRecord,

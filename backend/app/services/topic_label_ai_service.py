@@ -8,13 +8,13 @@ from dataclasses import dataclass
 
 from app.models.enums import AnalysisModelKey
 from app.services.gemini_topic_label_client import GeminiTopicLabelClient
-from app.services.topic_label_evidence_builder import TopicLabelEvidenceBuilder
-from app.services.topic_label_prompt_builder import TopicLabelPromptBuilder
-from app.services.topic_label_response_parser import TopicLabelResponseParser
 from app.services.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
     TopicLabelEvidenceGroup,
 )
+from app.services.topic_label_evidence_builder import TopicLabelEvidenceBuilder
+from app.services.topic_label_prompt_builder import TopicLabelPromptBuilder
+from app.services.topic_label_response_parser import TopicLabelResponseParser
 
 logger = logging.getLogger(__name__)
 
