@@ -85,6 +85,7 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
             patch("app.main.build_application_services", return_value=services),
             patch("app.api._ingest_upload_routes.require_authenticated_user", return_value=fake_user),
             patch("app.api._ingest_analysis_routes.require_authenticated_user", return_value=fake_user),
+            patch("app.api._ingest_result_routes.require_authenticated_user", return_value=fake_user),
         ]
         for patcher in self.patchers:
             patcher.start()
@@ -155,3 +156,50 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
         self.assertEqual(export_response.headers["content-type"], "application/pdf")
         self.assertIn(".pdf", export_response.headers["content-disposition"])
         self.assertTrue(export_response.content.startswith(b"%PDF"))
+
+    def test_upload_can_export_clean_data_and_verbatim_only_csvs(self) -> None:
+        csv_payload = (
+            "country,team,comment,score\n"
+            "UK,Maths,Need more classroom resources,9\n"
+            "US,Science,More printable materials would help,8\n"
+            "ZA,English,Extra examples would save time,7\n"
+        )
+
+        upload_response = self.client.post(
+            "/upload-ingest",
+            files={"file": ("sample.csv", csv_payload, "text/csv")},
+            data={"diagnostic_mode": "rule_based"},
+        )
+
+        self.assertEqual(upload_response.status_code, 200)
+        result_id = upload_response.json()["result_id"]
+
+        clean_export = self.client.get(
+            f"/result-export/{result_id}",
+            params={
+                "scope": "clean_data",
+                "source_filename": "sample.csv",
+            },
+        )
+        self.assertEqual(clean_export.status_code, 200)
+        self.assertEqual(clean_export.headers["content-type"], "text/csv; charset=utf-8")
+        self.assertIn("sample_clean_data.csv", clean_export.headers["content-disposition"])
+        clean_text = clean_export.content.decode("utf-8-sig")
+        self.assertIn("country__idx_0", clean_text)
+        self.assertIn("comment", clean_text)
+        self.assertIn("score__idx_3", clean_text)
+
+        verbatim_export = self.client.get(
+            f"/result-export/{result_id}",
+            params={
+                "scope": "verbatim_only",
+                "source_filename": "sample.csv",
+            },
+        )
+        self.assertEqual(verbatim_export.status_code, 200)
+        self.assertEqual(verbatim_export.headers["content-type"], "text/csv; charset=utf-8")
+        self.assertIn("sample_verbatim_columns.csv", verbatim_export.headers["content-disposition"])
+        verbatim_text = verbatim_export.content.decode("utf-8-sig")
+        self.assertIn("comment", verbatim_text)
+        self.assertNotIn("country__idx_0", verbatim_text)
+        self.assertNotIn("score__idx_3", verbatim_text)

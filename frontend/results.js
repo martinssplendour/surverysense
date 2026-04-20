@@ -6,6 +6,9 @@ import {
 import {
     configureResultsCharts,
 } from "./results/charts.js";
+import {
+    configureResultsDataExport,
+} from "./results/dataExport.js";
 import { configureResultsRows, parseJson } from "./results/rows.js";
 import {
     clearAnalysisMessage,
@@ -47,6 +50,10 @@ import { bindResultsEvents } from "./results/resultsEventBindings.js";
         parseJson,
         renderAnalysisExportControls,
         renderAnalysisMessage,
+    });
+    configureResultsDataExport({
+        handleMissingResultState,
+        parseJson,
     });
     configureResultsRows({
         handleMissingResultState,

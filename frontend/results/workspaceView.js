@@ -1,4 +1,5 @@
 import { elements, state } from "./shared.js";
+import { clearDataExportMessage, renderDataExportControls } from "./dataExport.js";
 import { formatNumber, summaryMetric } from "./utils.js";
 import {
     currentPreviewDataset,
@@ -38,10 +39,15 @@ export function renderDashboard(payload) {
 
 export async function openWorkspace(nextWorkspace) {
     closeAnalysisGroupModal();
+    if (nextWorkspace !== "data") {
+        state.dataExportMenuOpen = false;
+    }
     state.currentWorkspace = nextWorkspace;
     updateWorkspaceVisibility();
 
     if (nextWorkspace === "data") {
+        clearDataExportMessage();
+        renderDataExportControls();
         renderFilterBar();
         const dataset = currentPreviewDataset();
         await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));

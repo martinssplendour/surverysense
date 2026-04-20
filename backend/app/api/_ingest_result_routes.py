@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+from typing import Literal
+
 from fastapi import Query, Request
+from fastapi.responses import Response
 
 from app.api._ingest_route_context import IngestRouteContext
 from app.core.auth import require_authenticated_user
@@ -10,6 +15,8 @@ from app.models.api import (
     ResultRowsResponse,
 )
 from app.services.result_store_models import DatasetName
+
+ResultExportScope = Literal["clean_data", "verbatim_only"]
 
 
 def register_result_routes(context: IngestRouteContext) -> None:
@@ -72,3 +79,49 @@ def register_result_routes(context: IngestRouteContext) -> None:
             )
 
         return context.execute_api_action("get_result_rows", _execute)
+
+    @router.get("/result-export/{result_id}")
+    async def export_result_csv(
+        request: Request,
+        result_id: str,
+        scope: ResultExportScope = Query(..., pattern="^(clean_data|verbatim_only)$"),
+        filters: str | None = Query(None),
+        source_filename: str | None = Query(None),
+    ) -> Response:
+        require_authenticated_user(request)
+
+        def _execute() -> Response:
+            parsed_filters = context.parse_filters(filters)
+            dataframe = context.result_store_service.get_export_dataframe(
+                result_id,
+                scope=scope,
+                filters=parsed_filters,
+            )
+            csv_content = dataframe.to_csv(index=False)
+            filename = _build_export_filename(
+                source_filename=source_filename,
+                scope=scope,
+                has_filters=bool(parsed_filters),
+            )
+            return Response(
+                content=csv_content.encode("utf-8-sig"),
+                media_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                },
+            )
+
+        return context.execute_api_action("export_result_csv", _execute)
+
+
+def _build_export_filename(
+    *,
+    source_filename: str | None,
+    scope: ResultExportScope,
+    has_filters: bool,
+) -> str:
+    base_name = Path(str(source_filename or "verbatim-app.csv")).name
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(base_name).stem).strip("._-") or "verbatim-app"
+    scope_suffix = "clean_data" if scope == "clean_data" else "verbatim_columns"
+    filtered_suffix = "_filtered" if has_filters else ""
+    return f"{stem}_{scope_suffix}{filtered_suffix}.csv"

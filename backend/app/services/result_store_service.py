@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict
 from threading import Lock
+from typing import Literal
 from uuid import uuid4
 
 import pandas as pd
@@ -25,6 +26,7 @@ from app.services.result_store_snapshot_service import ResultStoreSnapshotServic
 from app.services.topic_analysis_services.contracts import AnalysisRunResult
 
 logger = logging.getLogger(__name__)
+ResultExportScope = Literal["clean_data", "verbatim_only"]
 
 
 class ResultNotFoundError(KeyError):
@@ -177,6 +179,39 @@ class ResultStoreService:
             metadata_columns=list(stored.metadata_columns),
             verbatim_columns=list(stored.verbatim_columns),
         )
+
+    def get_export_dataframe(
+        self,
+        result_id: str,
+        *,
+        scope: ResultExportScope,
+        filters: dict[str, list[str]] | None = None,
+    ) -> pd.DataFrame:
+        with self._lock:
+            stored = self._results.get(result_id)
+
+        if stored is None:
+            raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
+
+        filtered_df = self.metadata_filter_service.apply_filters(
+            stored.transformed_df.copy(),
+            filters=filters,
+            allowed_columns={definition.column_name for definition in stored.available_filters},
+        )
+        if scope == "clean_data":
+            return filtered_df.copy()
+
+        if scope == "verbatim_only":
+            verbatim_columns = [
+                column_name
+                for column_name in stored.verbatim_columns
+                if column_name in filtered_df.columns
+            ]
+            if not verbatim_columns:
+                raise ValueError("No verbatim columns are available to export.")
+            return filtered_df[verbatim_columns].copy()
+
+        raise ValueError(f"Unsupported export scope '{scope}'.")
 
     def save_analysis_snapshot(
         self,

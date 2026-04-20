@@ -32,6 +32,8 @@ export const state = {
     analysisHasMore: false,
     transformedLoading: false,
     analysisLoading: false,
+    dataExportMenuOpen: false,
+    dataExportRunning: false,
     selectedAnalysisColumn: "",
     selectedAnalysisModel: "bertopic",
     analysisResult: null,

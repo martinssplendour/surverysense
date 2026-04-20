@@ -185,6 +185,7 @@ function resetStoredResultState() {
     state.analysisResult = null;
     state.analysisRows = [];
     state.transformedRows = [];
+    resetDataExportState();
     resetAnalysisExportState();
     resetAnalysisGroupModalState();
 }
@@ -193,6 +194,11 @@ function resetAnalysisExportState() {
     state.analysisExportFormat = "pdf";
     state.analysisExportMenuOpen = false;
     state.analysisExportRunning = false;
+}
+
+function resetDataExportState() {
+    state.dataExportMenuOpen = false;
+    state.dataExportRunning = false;
 }
 
 function resetAnalysisGroupModalState() {

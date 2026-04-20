@@ -3,6 +3,7 @@ import {
     elements,
     state,
 } from "./shared.js";
+import { renderDataExportControls } from "./dataExport.js";
 import { displayColumnLabel, escapeHtml, formatCell } from "./utils.js";
 import {
     buildPreviewEmptyMessage,
@@ -16,6 +17,7 @@ import {
 import { renderFilterBar } from "./workspaceFilterBar.js";
 
 export function renderPreviewTable(preserveScroll) {
+    renderDataExportControls();
     renderFilterBar();
 
     const dataset = currentPreviewDataset();

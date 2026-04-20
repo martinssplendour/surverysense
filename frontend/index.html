@@ -155,11 +155,34 @@
                             <h3>Clean Data</h3>
                         </div>
                         <div class="workspace-actions">
+                            <div class="data-export-dropdown">
+                                <button
+                                    type="button"
+                                    class="button button-ghost data-export-toggle-button"
+                                    id="data-export-toggle-btn"
+                                    aria-haspopup="menu"
+                                    aria-expanded="false"
+                                    aria-label="Download cleaned data"
+                                    title="Download cleaned data"
+                                >
+                                    <span class="data-export-toggle-icon" aria-hidden="true">&#8681;</span>
+                                </button>
+                                <div class="data-export-menu" id="data-export-menu" role="menu" hidden>
+                                    <button type="button" class="data-export-menu-item" data-data-export-scope="clean_data" role="menuitem">
+                                        Download clean data
+                                    </button>
+                                    <button type="button" class="data-export-menu-item" data-data-export-scope="verbatim_only" role="menuitem">
+                                        Download verbatim columns
+                                    </button>
+                                </div>
+                            </div>
                             <button type="button" class="button button-primary" id="data-analyse-btn">Analyze Data</button>
                             <button type="button" class="button button-ghost" id="edit-columns-btn">Edit Columns</button>
                             <button type="button" class="button button-ghost" id="back-to-dashboard-data-btn">Back To Dashboard</button>
                         </div>
                     </div>
+
+                    <div class="analysis-message" id="data-export-message" hidden></div>
 
                     <section class="filter-bar" id="filter-bar">
                         <div class="filter-chip-row">

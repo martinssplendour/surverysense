@@ -1,5 +1,6 @@
 import { elements, state } from "./shared.js";
 import { downloadAnalysisReport, normalizeAnalysisExportFormat } from "./chartExport.js";
+import { downloadDataExport, renderDataExportControls } from "./dataExport.js";
 import {
     closeAnalysisGroupModal,
     loadAnalysisGroupDocuments,
@@ -48,6 +49,8 @@ export function bindResultsEvents() {
     elements.openDataButton?.addEventListener("click", () => {
         void openWorkspace("data");
     });
+    elements.dataExportToggleButton?.addEventListener("click", handleDataExportToggleClick);
+    elements.dataExportMenu?.addEventListener("click", handleDataExportMenuClick);
     elements.dataAnalyseButton?.addEventListener("click", () => {
         void openWorkspace("analysis");
     });
@@ -148,18 +151,49 @@ function handleExportMenuClick(event) {
 
 
 function handleExportMenuDocumentClick(event) {
-    if (!state.analysisExportMenuOpen) {
-        return;
-    }
     const target = event.target;
     if (!(target instanceof Node)) {
         return;
     }
-    if (elements.analysisExportMenu?.contains(target) || elements.analysisExportToggleButton?.contains(target)) {
+
+    if (state.analysisExportMenuOpen) {
+        if (!(elements.analysisExportMenu?.contains(target) || elements.analysisExportToggleButton?.contains(target))) {
+            state.analysisExportMenuOpen = false;
+            renderAnalysisExportControls();
+        }
+    }
+    if (state.dataExportMenuOpen) {
+        if (!(elements.dataExportMenu?.contains(target) || elements.dataExportToggleButton?.contains(target))) {
+            state.dataExportMenuOpen = false;
+            renderDataExportControls();
+        }
+    }
+}
+
+
+function handleDataExportToggleClick(event) {
+    event.stopPropagation();
+    if (state.dataExportRunning) {
         return;
     }
-    state.analysisExportMenuOpen = false;
-    renderAnalysisExportControls();
+    state.dataExportMenuOpen = !state.dataExportMenuOpen;
+    renderDataExportControls();
+}
+
+
+function handleDataExportMenuClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+    const scopeButton = target.closest("[data-data-export-scope]");
+    if (!(scopeButton instanceof HTMLElement)) {
+        return;
+    }
+    const scope = scopeButton.dataset.dataExportScope;
+    state.dataExportMenuOpen = false;
+    renderDataExportControls();
+    void downloadDataExport(scope);
 }
 
 
