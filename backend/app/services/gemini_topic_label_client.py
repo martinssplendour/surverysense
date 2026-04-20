@@ -4,9 +4,12 @@ import json
 import urllib.request
 from typing import Any
 
+from app.models.enums import AnalysisModelKey
+from app.services.topic_analysis_services.contracts import TopicLabelEvidenceGroup
+
 
 class GeminiTopicLabelClient:
-    def __init__(self, *, api_key: str, model: str, temperature: float, timeout_seconds: int, prompt_builder) -> None:
+    def __init__(self, *, api_key: str, model: str, temperature: float, timeout_seconds: int, prompt_builder: Any) -> None:
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
@@ -15,9 +18,9 @@ class GeminiTopicLabelClient:
 
     def request_labels(
         self,
-        groups: list[dict[str, object]],
+        groups: list[TopicLabelEvidenceGroup],
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
     ) -> dict[str, Any]:
         endpoint = (
@@ -56,4 +59,7 @@ class GeminiTopicLabelClient:
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("Gemini did not return a JSON object.")
+        return payload

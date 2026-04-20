@@ -9,6 +9,7 @@ from app.models.api import (
     ColumnRoleUpdateResponse,
     ResultRowsResponse,
 )
+from app.services.result_store_models import DatasetName
 
 
 def register_result_routes(context: IngestRouteContext) -> None:
@@ -43,7 +44,7 @@ def register_result_routes(context: IngestRouteContext) -> None:
     async def get_result_rows(
         request: Request,
         result_id: str,
-        dataset: str = Query(..., pattern="^(transformed|analysis)$"),
+        dataset: DatasetName = Query(..., pattern="^(transformed|analysis)$"),
         offset: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=1000),
         filters: str | None = Query(None),

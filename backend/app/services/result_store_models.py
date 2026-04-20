@@ -6,7 +6,17 @@ from typing import Literal
 
 import pandas as pd
 
+from app.models.enums import AnalysisModelKey
 from app.services.metadata_filter_service import MetadataFilterDefinition
+from app.services.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+    AnalysisNgramBucketRecord,
+    AnalysisNgramItemRecord,
+    AnalysisRunResult,
+    AnalysisScatterPointRecord,
+)
 
 DatasetName = Literal["transformed", "analysis"]
 
@@ -32,7 +42,7 @@ class ResultRowsPage:
     limit: int
     has_more: bool
     column_names: list[str]
-    rows: list[dict[str, object]]
+    rows: list[dict[str, object | None]]
 
 
 @dataclass(slots=True)
@@ -50,8 +60,13 @@ class StoredAnalysisGroupSnapshot:
     group_id: str
     label: str
     count: int
-    documents: list[dict[str, object]]
-    meta: dict[str, object]
+    documents: list[AnalysisDocumentRecord]
+    source_label: str | None
+    translated: bool
+    ai_generated: bool
+    terms: list[str]
+    examples: list[AnalysisExampleRecord]
+    is_noise: bool
 
 
 @dataclass(slots=True)
@@ -60,7 +75,9 @@ class StoredAnalysisNgramSnapshot:
     source_term: str | None
     ngram_size: int
     hit_count: int
-    documents: list[dict[str, object]]
+    translated: bool
+    document_count: int
+    documents: list[AnalysisDocumentRecord]
 
 
 @dataclass(slots=True)
@@ -68,10 +85,10 @@ class StoredAnalysisSnapshot:
     """Cached output of one analysis run, keyed per result_id, used to serve filter changes without re-running ML."""
 
     text_column_name: str
-    model_key: str
+    model_key: AnalysisModelKey
     groups: dict[str, StoredAnalysisGroupSnapshot]
     ngram_items: dict[str, StoredAnalysisNgramSnapshot]
-    scatter_points: list[dict[str, object]]
+    scatter_points: list[AnalysisScatterPointRecord]
 
 
 @dataclass(slots=True)
@@ -84,7 +101,7 @@ class AnalysisGroupDocumentsPage:
     offset: int
     limit: int
     has_more: bool
-    documents: list[dict[str, object]]
+    documents: list[AnalysisDocumentRecord]
 
 
 @dataclass(slots=True)
@@ -99,4 +116,10 @@ class AnalysisNgramDocumentsPage:
     offset: int
     limit: int
     has_more: bool
-    documents: list[dict[str, object]]
+    documents: list[AnalysisDocumentRecord]
+
+
+StoredAnalysisResult = AnalysisRunResult
+StoredAnalysisGroup = AnalysisGroupRecord
+StoredAnalysisNgramBucket = AnalysisNgramBucketRecord
+StoredAnalysisNgramItem = AnalysisNgramItemRecord

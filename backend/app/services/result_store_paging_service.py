@@ -1,19 +1,31 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pandas as pd
+
+from app.services.result_store_models import (
+    AnalysisGroupDocumentsPage,
+    AnalysisNgramDocumentsPage,
+    DatasetName,
+    ResultRowsPage,
+    StoredAnalysisSnapshot,
+    StoredDatasetSelection,
+    StoredResultDatasets,
+)
 
 
 class ResultStorePagingService:
     def build_group_page(
         self,
         *,
-        snapshot,
+        snapshot: StoredAnalysisSnapshot,
         result_id: str,
         group_id: str,
         offset: int,
         limit: int,
-        page_cls,
-    ):
+        page_cls: type[AnalysisGroupDocumentsPage],
+    ) -> AnalysisGroupDocumentsPage:
         normalized_group_id = str(group_id).strip()
         group = snapshot.groups.get(normalized_group_id)
         if group is None:
@@ -30,21 +42,21 @@ class ResultStorePagingService:
             offset=normalized_offset,
             limit=limit,
             has_more=(normalized_offset + len(documents)) < len(group.documents),
-            documents=[dict(document) for document in documents],
+            documents=list(documents),
         )
 
     def build_ngram_page(
         self,
         *,
-        snapshot,
+        snapshot: StoredAnalysisSnapshot,
         result_id: str,
         ngram_size: int,
         term: str,
         offset: int,
         limit: int,
-        page_cls,
-        build_ngram_lookup_key,
-    ):
+        page_cls: type[AnalysisNgramDocumentsPage],
+        build_ngram_lookup_key: Callable[[int, str], str],
+    ) -> AnalysisNgramDocumentsPage:
         normalized_term = str(term).strip()
         if not normalized_term:
             raise ValueError("term must not be empty.")
@@ -66,20 +78,20 @@ class ResultStorePagingService:
             offset=normalized_offset,
             limit=limit,
             has_more=(normalized_offset + len(documents)) < len(item.documents),
-            documents=[dict(document) for document in documents],
+            documents=list(documents),
         )
 
     def build_rows_page(
         self,
         *,
-        stored,
-        selection,
+        stored: StoredResultDatasets,
+        selection: StoredDatasetSelection,
         result_id: str,
-        dataset,
+        dataset: DatasetName,
         offset: int,
         limit: int,
-        page_cls,
-    ):
+        page_cls: type[ResultRowsPage],
+    ) -> ResultRowsPage:
         unfiltered_df = stored.transformed_df if dataset == "transformed" else stored.analysis_df
         dataframe = selection.dataframe
         total_row_count = int(len(dataframe))

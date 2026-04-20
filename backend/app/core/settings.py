@@ -5,8 +5,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.constants import DEFAULT_SESSION_SECRET
-
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover - optional until dependencies are installed.
@@ -68,7 +66,7 @@ class Settings:
     topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "3"))
     topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
     topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
-    session_secret: str = os.getenv("SESSION_SECRET", DEFAULT_SESSION_SECRET).strip()
+    session_secret: str = os.getenv("SESSION_SECRET", "").strip()
     session_https_only: bool = os.getenv("SESSION_HTTPS_ONLY", "false").strip().casefold() in {"1", "true", "yes", "on"}
     session_idle_timeout_seconds: int = int(os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "1800"))
     google_oauth_client_id: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
@@ -86,13 +84,8 @@ class Settings:
     gemini_timeout_seconds: int = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
 
     @property
-    def is_default_session_secret(self) -> bool:
-        """True when the session secret has not been overridden from the insecure placeholder."""
-        return self.session_secret == DEFAULT_SESSION_SECRET
-
-    @property
     def debug(self) -> bool:
-        """True in any local/test environment; controls security guards such as the session-secret check."""
+        """True in any local/test environment."""
         return self.app_env in {"development", "dev", "local", "test"}
 
 

@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import ColumnRole
+from app.models.enums import AnalysisModelKey, ColumnRole
 from app.models.manifest import TransformationManifest
 
 
@@ -86,7 +86,7 @@ class AnalysisRunRequest(BaseModel):
     """Parameters for a topic-analysis run: which model to use, which column to analyse, and optional row filters."""
 
     model_config = ConfigDict(protected_namespaces=())
-    model_key: Literal["bertopic", "kmeans", "hdbscan", "ngrams"]
+    model_key: AnalysisModelKey
     text_column_name: str
     filters: dict[str, list[str]] = Field(default_factory=dict)
 
@@ -146,12 +146,14 @@ class AnalysisRunResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     ok: bool
     result_id: str
-    model_key: Literal["bertopic", "kmeans", "hdbscan", "ngrams"]
+    model_key: AnalysisModelKey
     model_label: str
     text_column_name: str
     filtered_row_count: int
     valid_document_count: int
     skipped_document_count: int
+    translated_document_count: int = 0
+    warnings: list[str] = Field(default_factory=list)
     error: str | None = None
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)

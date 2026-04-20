@@ -9,3 +9,12 @@ class ColumnRole(StrEnum):
 
     METADATA = "metadata"
     VERBATIM = "verbatim"
+
+
+class AnalysisModelKey(StrEnum):
+    """Supported topic-analysis modes shared across API models and backend services."""
+
+    BERTOPIC = "bertopic"
+    KMEANS = "kmeans"
+    HDBSCAN = "hdbscan"
+    NGRAMS = "ngrams"

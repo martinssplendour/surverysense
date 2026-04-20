@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pandas as pd
 
-from app.models.enums import ColumnRole
+from app.models.enums import AnalysisModelKey, ColumnRole
 from app.services.cleaning_services import AnalysisReadyDatasetService
 from app.services.metadata_filter_service import MetadataFilterDefinition, MetadataFilterService
 from app.services.result_store_models import (
@@ -16,14 +16,13 @@ from app.services.result_store_models import (
     AnalysisNgramDocumentsPage,
     DatasetName,
     ResultRowsPage,
-    StoredAnalysisGroupSnapshot,
-    StoredAnalysisNgramSnapshot,
     StoredAnalysisSnapshot,
     StoredDatasetSelection,
     StoredResultDatasets,
 )
 from app.services.result_store_paging_service import ResultStorePagingService
 from app.services.result_store_snapshot_service import ResultStoreSnapshotService
+from app.services.topic_analysis_services.contracts import AnalysisRunResult
 
 logger = logging.getLogger(__name__)
 
@@ -184,20 +183,17 @@ class ResultStoreService:
         result_id: str,
         *,
         text_column_name: str,
-        model_key: str,
-        analysis_result: dict[str, object],
+        model_key: AnalysisModelKey,
+        analysis_result: AnalysisRunResult,
     ) -> None:
         with self._lock:
             if result_id not in self._results:
                 raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
+            if analysis_result.model_key != model_key:
+                raise ValueError("The cached analysis result model key does not match the snapshot request.")
             snapshot = self.snapshot_service.build_snapshot(
-                result_id=result_id,
                 text_column_name=text_column_name,
-                model_key=model_key,
                 analysis_result=analysis_result,
-                group_snapshot_cls=StoredAnalysisGroupSnapshot,
-                ngram_snapshot_cls=StoredAnalysisNgramSnapshot,
-                snapshot_cls=StoredAnalysisSnapshot,
                 build_ngram_lookup_key=self._build_ngram_lookup_key,
             )
             if snapshot is None:
@@ -210,10 +206,10 @@ class ResultStoreService:
         self,
         result_id: str,
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
         filters: dict[str, list[str]] | None,
-    ) -> dict[str, object] | None:
+    ) -> AnalysisRunResult | None:
         """Return a filtered analysis result from the cached snapshot without re-running ML.
 
         Returns None when the fast path is unavailable (no snapshot, or model/column mismatch).

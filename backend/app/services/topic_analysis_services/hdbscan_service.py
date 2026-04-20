@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+from typing import Any
+
 from app.core.exceptions import TopicAnalysisDependencyError
+from app.services.topic_analysis_services.contracts import TopicModelRunResult
 
 
 class HdbscanAnalysisService:
     def run(
         self,
-        embeddings,
+        embeddings: Any,
         *,
         min_cluster_size: int,
         min_samples: int,
         metric: str,
-    ) -> dict[str, object]:
+    ) -> TopicModelRunResult:
         try:
             import hdbscan
         except Exception as exc:  # pragma: no cover - dependency error path
@@ -20,7 +23,7 @@ class HdbscanAnalysisService:
             ) from exc
 
         if getattr(embeddings, "shape", (0,))[0] == 0:
-            return {"assignments": [], "warnings": []}
+            return TopicModelRunResult(assignments=[], warnings=[])
 
         n_samples = int(embeddings.shape[0])
         cluster_size = max(2, min(min_cluster_size, n_samples))
@@ -38,7 +41,7 @@ class HdbscanAnalysisService:
                 "Natural Groups could not find clear groups in the current filtered sample."
             )
 
-        return {
-            "assignments": [int(value) for value in labels.tolist()],
-            "warnings": warnings,
-        }
+        return TopicModelRunResult(
+            assignments=[int(value) for value in labels.tolist()],
+            warnings=warnings,
+        )

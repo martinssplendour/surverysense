@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from types import SimpleNamespace
 
+from app.models.api import AnalysisExportRequest
+from app.services.service_protocols import ResultStoreReportReaderProtocol
 from app.services.report_export_service._constants import _FILENAME_PATTERN
 from app.services.result_store_service import ResultNotFoundError
+from app.services.topic_analysis_services.contracts import (
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+)
 
 
 @dataclass(slots=True)
@@ -16,10 +21,10 @@ class GroupSummarySection:
 
 
 class ReportContentService:
-    def __init__(self, result_store_service=None) -> None:
+    def __init__(self, result_store_service: ResultStoreReportReaderProtocol | None = None) -> None:
         self.result_store_service = result_store_service
 
-    def build_summary_lines(self, request) -> list[str]:
+    def build_summary_lines(self, request: AnalysisExportRequest) -> list[str]:
         result = request.analysis_result
         if result.ngram_buckets:
             findings: list[str] = []
@@ -40,7 +45,7 @@ class ReportContentService:
 
         return ["The selected analysis completed without exportable topic findings."]
 
-    def build_group_summary_sections(self, request) -> list[GroupSummarySection]:
+    def build_group_summary_sections(self, request: AnalysisExportRequest) -> list[GroupSummarySection]:
         groups = self.get_export_groups(request)
         if not groups:
             return []
@@ -64,11 +69,8 @@ class ReportContentService:
             )
         return sections
 
-    def get_export_groups(self, request):
-        if (
-            self.result_store_service is not None
-            and hasattr(self.result_store_service, "get_fast_filtered_result")
-        ):
+    def get_export_groups(self, request: AnalysisExportRequest) -> list[AnalysisGroupRecord]:
+        if self.result_store_service is not None:
             try:
                 fast_result = self.result_store_service.get_fast_filtered_result(
                     request.analysis_result.result_id,
@@ -78,36 +80,42 @@ class ReportContentService:
                 )
             except (ResultNotFoundError, ValueError):
                 fast_result = None
-            if fast_result and fast_result.get("groups"):
-                return [
-                    SimpleNamespace(
-                        label=str(group.get("label", "")),
-                        count=int(group.get("count", 0) or 0),
-                        share=float(group.get("share", 0) or 0),
-                        terms=list(group.get("terms", [])),
-                        examples=[
-                            SimpleNamespace(
-                                row_number=int(example.get("row_number", 0) or 0),
-                                text=str(example.get("text", "")),
-                            )
-                            for example in group.get("examples", [])
-                            if isinstance(example, dict)
-                        ],
+            if fast_result and fast_result.groups:
+                return list(fast_result.groups)
+        return [
+            AnalysisGroupRecord(
+                group_id=group.group_id,
+                label=group.label,
+                source_label=group.source_label,
+                translated=group.translated,
+                ai_generated=group.ai_generated,
+                comment=group.comment,
+                count=group.count,
+                share=group.share,
+                terms=list(group.terms),
+                examples=[
+                    AnalysisExampleRecord(
+                        row_number=example.row_number,
+                        text=example.text,
+                        source_text=example.source_text,
+                        translated=example.translated,
                     )
-                    for group in fast_result.get("groups", [])
-                    if isinstance(group, dict)
-                ]
-        return request.analysis_result.groups
+                    for example in group.examples
+                ],
+                is_noise=group.is_noise,
+            )
+            for group in request.analysis_result.groups
+        ]
 
     @staticmethod
-    def build_active_filter_lookup(request) -> dict[str, list[str]]:
+    def build_active_filter_lookup(request: AnalysisExportRequest) -> dict[str, list[str]]:
         return {
             item.column_name: list(item.values)
             for item in request.active_filters
             if item.values
         }
 
-    def build_subtitle(self, request) -> str:
+    def build_subtitle(self, request: AnalysisExportRequest) -> str:
         parts = [self.display_column_label(request.analysis_result.text_column_name)]
         filters_text = self.filters_text(request)
         if filters_text:
@@ -120,7 +128,7 @@ class ReportContentService:
         return "Verbatim Analysis Report"
 
     @staticmethod
-    def build_summary_heading(request) -> str:
+    def build_summary_heading(request: AnalysisExportRequest) -> str:
         if request.analysis_result.ngram_buckets:
             return "Phrase summaries"
         return "Topic summaries"
@@ -129,7 +137,7 @@ class ReportContentService:
     def build_representative_heading() -> str:
         return "Representative documents (topics and top 3 responses)"
 
-    def build_representative_sections(self, request) -> list[tuple[str, list[str]]]:
+    def build_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
         if request.analysis_result.ngram_buckets:
             return self.build_ngram_representative_sections(request)
         return [
@@ -138,11 +146,8 @@ class ReportContentService:
             if section.examples
         ]
 
-    def build_ngram_representative_sections(self, request) -> list[tuple[str, list[str]]]:
-        if (
-            self.result_store_service is None
-            or not hasattr(self.result_store_service, "get_analysis_ngram_page")
-        ):
+    def build_ngram_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
+        if self.result_store_service is None:
             return []
 
         sections: list[tuple[str, list[str]]] = []
@@ -168,11 +173,11 @@ class ReportContentService:
                 except (ResultNotFoundError, ValueError):
                     continue
 
-                documents = getattr(page, "documents", []) or []
+                documents = page.documents
                 examples = [
-                    self.truncate_text(" ".join(str(document.get("text", "")).split()), limit=240)
+                    self.truncate_text(" ".join(document.text.split()), limit=240)
                     for document in documents
-                    if str(document.get("text", "")).strip()
+                    if document.text.strip()
                 ]
                 if examples:
                     selected_item = item
@@ -182,13 +187,13 @@ class ReportContentService:
                 sections.append((f"{bucket.label}: {selected_item.term}", examples))
         return sections
 
-    def build_filename_stem(self, request) -> str:
+    def build_filename_stem(self, request: AnalysisExportRequest) -> str:
         source_stem = self.strip_extension(request.source_filename or "analysis")
         method = request.analysis_result.model_label.lower().replace(" ", "-")
         return f"{source_stem}-{method}-report"
 
     @staticmethod
-    def filters_text(request) -> str:
+    def filters_text(request: AnalysisExportRequest) -> str:
         if not request.active_filters:
             return ""
         return " | ".join(
@@ -198,7 +203,7 @@ class ReportContentService:
         )
 
     @staticmethod
-    def row_count_text(request) -> str:
+    def row_count_text(request: AnalysisExportRequest) -> str:
         return f"{int(request.analysis_result.filtered_row_count)} rows"
 
     @staticmethod

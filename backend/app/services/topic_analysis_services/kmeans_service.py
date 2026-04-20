@@ -1,11 +1,14 @@
 """K-means clustering service that automatically selects MiniBatchKMeans for large datasets."""
 from __future__ import annotations
 
+from typing import Any
+
 from app.core.exceptions import TopicAnalysisDependencyError
+from app.services.topic_analysis_services.contracts import TopicModelRunResult
 
 
 class KMeansAnalysisService:
-    def run(self, embeddings, *, requested_clusters: int, random_state: int) -> dict[str, object]:
+    def run(self, embeddings: Any, *, requested_clusters: int, random_state: int) -> TopicModelRunResult:
         try:
             from sklearn.cluster import KMeans, MiniBatchKMeans
         except Exception as exc:  # pragma: no cover - dependency error path
@@ -14,14 +17,14 @@ class KMeansAnalysisService:
             ) from exc
 
         if getattr(embeddings, "shape", (0,))[0] == 0:
-            return {"assignments": [], "warnings": []}
+            return TopicModelRunResult(assignments=[], warnings=[])
 
         n_samples = int(embeddings.shape[0])
         if n_samples == 1:
-            return {
-                "assignments": [0] * n_samples,
-                "warnings": ["All usable responses collapsed into a single group."],
-            }
+            return TopicModelRunResult(
+                assignments=[0] * n_samples,
+                warnings=["All usable responses collapsed into a single group."],
+            )
 
         n_clusters = max(2, min(requested_clusters, n_samples))
         warnings: list[str] = []
@@ -50,7 +53,7 @@ class KMeansAnalysisService:
                 f"Fixed Similarity Groups reduced the number of groups to {n_clusters} because the filtered sample was smaller than the configured target."
             )
 
-        return {
-            "assignments": [int(value) for value in labels.tolist()],
-            "warnings": warnings,
-        }
+        return TopicModelRunResult(
+            assignments=[int(value) for value in labels.tolist()],
+            warnings=warnings,
+        )

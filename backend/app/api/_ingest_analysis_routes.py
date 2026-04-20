@@ -34,7 +34,7 @@ def _register_run_analysis_route(context: IngestRouteContext) -> None:
             filters=analysis_request.filters or {},
         )
         if fast_result is not None:
-            return AnalysisRunResponse.model_validate(fast_result)
+            return AnalysisRunResponse.model_validate(fast_result.to_api_payload())
 
         def _execute() -> AnalysisRunResponse:
             selection = context.result_store_service.get_dataset(
@@ -55,7 +55,7 @@ def _register_run_analysis_route(context: IngestRouteContext) -> None:
                 model_key=analysis_request.model_key,
                 analysis_result=result,
             )
-            return AnalysisRunResponse.model_validate(result)
+            return AnalysisRunResponse.model_validate(result.to_api_payload())
 
         return context.execute_api_action("run_analysis", _execute)
 
@@ -94,7 +94,7 @@ def _register_group_documents_route(context: IngestRouteContext) -> None:
                 offset=page.offset,
                 limit=page.limit,
                 has_more=page.has_more,
-                documents=page.documents,
+                documents=[document.to_api_payload() for document in page.documents],
             )
 
         return context.execute_api_action("get_analysis_group_documents", _execute)
@@ -131,7 +131,7 @@ def _register_ngram_documents_route(context: IngestRouteContext) -> None:
                 offset=page.offset,
                 limit=page.limit,
                 has_more=page.has_more,
-                documents=page.documents,
+                documents=[document.to_api_payload() for document in page.documents],
             )
 
         return context.execute_api_action("get_analysis_ngram_documents", _execute)

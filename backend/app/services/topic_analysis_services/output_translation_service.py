@@ -2,6 +2,17 @@ from __future__ import annotations
 
 import logging
 
+from app.models.enums import AnalysisModelKey
+from app.services.service_protocols import (
+    TopicLabelServiceProtocol,
+    TranslationServiceProtocol,
+)
+from app.services.topic_analysis_services.contracts import (
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+    AnalysisNgramBucketRecord,
+    AnalysisNgramItemRecord,
+)
 from app.services.topic_analysis_services.keyword_service import (
     TopicAnalysisKeywordService,
 )
@@ -18,8 +29,8 @@ class TopicAnalysisOutputTranslationService:
         *,
         keyword_service: TopicAnalysisKeywordService,
         narrative_service: TopicAnalysisNarrativeService,
-        translation_service=None,
-        ai_label_service=None,
+        translation_service: TranslationServiceProtocol | None = None,
+        ai_label_service: TopicLabelServiceProtocol | None = None,
     ) -> None:
         self.keyword_service = keyword_service
         self.narrative_service = narrative_service
@@ -42,9 +53,9 @@ class TopicAnalysisOutputTranslationService:
 
     def apply_ai_labels(
         self,
-        groups: list[dict[str, object]],
+        groups: list[AnalysisGroupRecord],
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
     ) -> tuple[int, list[str]]:
         if self.ai_label_service is None or not groups:
@@ -59,7 +70,7 @@ class TopicAnalysisOutputTranslationService:
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.warning(
                 "AI topic labeling failed unexpectedly for model=%s column=%s (%s: %s).",
-                model_key,
+                model_key.value,
                 text_column_name,
                 type(exc).__name__,
                 exc,
@@ -68,16 +79,16 @@ class TopicAnalysisOutputTranslationService:
 
         relabeled_count = 0
         for group in groups:
-            group_id = str(group.get("group_id", "")).strip()
+            group_id = group.group_id.strip()
             new_label = result.labels_by_group_id.get(group_id, "").strip()
-            current_label = str(group.get("label", "")).strip()
+            current_label = group.label.strip()
             if not new_label or not current_label or new_label == current_label:
                 continue
 
-            group["source_label"] = current_label
-            group["label"] = new_label
-            group["translated"] = False
-            group["ai_generated"] = True
+            group.source_label = current_label
+            group.label = new_label
+            group.translated = False
+            group.ai_generated = True
             relabeled_count += 1
 
         self._refresh_group_comments(groups)
@@ -87,28 +98,29 @@ class TopicAnalysisOutputTranslationService:
             warnings.append(f"AI generated clearer labels for {relabeled_count} group(s).")
         return relabeled_count, warnings
 
-    def translate_group_outputs(self, groups: list[dict[str, object]]) -> tuple[int, list[str]]:
+    def translate_group_outputs(self, groups: list[AnalysisGroupRecord]) -> tuple[int, list[str]]:
         translation_service = self.translation_service
         if translation_service is None or not groups:
             return 0, []
 
         warnings: list[str] = []
-        translated_label_count = sum(1 for group in groups if bool(group.get("translated")))
+        translated_label_count = sum(1 for group in groups if bool(group.translated))
         translated_example_count = 0
         for group in groups:
             warnings.extend(
-                str(message)
-                for message in group.pop("_label_translation_warnings", [])
-                if isinstance(message, str) and message.strip()
+                message
+                for message in group.label_translation_warnings
+                if message.strip()
             )
+            group.label_translation_warnings = []
 
         untranslated_groups = [
             group
             for group in groups
-            if not bool(group.get("translated")) and not bool(group.get("ai_generated"))
+            if not group.translated and not group.ai_generated
         ]
         if untranslated_groups:
-            label_texts = [str(group.get("label", "")).strip() for group in untranslated_groups]
+            label_texts = [group.label.strip() for group in untranslated_groups]
             label_result = translation_service.translate(label_texts)
             warnings.extend(label_result.warnings)
             for group, source_label, translated_label, translated_flag in zip(
@@ -118,21 +130,19 @@ class TopicAnalysisOutputTranslationService:
                 label_result.translated_flags,
             ):
                 if translated_flag and translated_label.strip():
-                    group["source_label"] = source_label
-                    group["label"] = translated_label.strip()
-                    group["translated"] = True
+                    group.source_label = source_label
+                    group.label = translated_label.strip()
+                    group.translated = True
                     translated_label_count += 1
                 else:
-                    group["source_label"] = None
-                    group["translated"] = False
+                    group.source_label = None
+                    group.translated = False
 
-        example_records: list[dict[str, object]] = []
+        example_records: list[AnalysisExampleRecord] = []
         example_texts: list[str] = []
         for group in groups:
-            for example in group.get("examples", []):
-                if not isinstance(example, dict):
-                    continue
-                example_text = str(example.get("text", "")).strip()
+            for example in group.examples:
+                example_text = example.text.strip()
                 if not example_text:
                     continue
                 example_records.append(example)
@@ -148,13 +158,13 @@ class TopicAnalysisOutputTranslationService:
                 example_result.translated_flags,
             ):
                 if translated_flag and translated_text.strip():
-                    example["source_text"] = source_text
-                    example["text"] = translated_text.strip()
-                    example["translated"] = True
+                    example.source_text = source_text
+                    example.text = translated_text.strip()
+                    example.translated = True
                     translated_example_count += 1
                 else:
-                    example["source_text"] = None
-                    example["translated"] = False
+                    example.source_text = None
+                    example.translated = False
 
         self._refresh_group_comments(groups)
 
@@ -165,19 +175,17 @@ class TopicAnalysisOutputTranslationService:
             )
         return translated_count, warnings
 
-    def translate_ngram_buckets(self, buckets: list[dict[str, object]]) -> tuple[int, list[str]]:
+    def translate_ngram_buckets(self, buckets: list[AnalysisNgramBucketRecord]) -> tuple[int, list[str]]:
         translation_service = self.translation_service
         if translation_service is None or not buckets:
             return 0, []
 
         warnings: list[str] = []
-        items: list[dict[str, object]] = []
+        items: list[AnalysisNgramItemRecord] = []
         texts: list[str] = []
         for bucket in buckets:
-            for item in bucket.get("items", []):
-                if not isinstance(item, dict):
-                    continue
-                term = str(item.get("term", "")).strip()
+            for item in bucket.items:
+                term = item.term.strip()
                 if not term:
                     continue
                 items.append(item)
@@ -199,13 +207,13 @@ class TopicAnalysisOutputTranslationService:
             cleaned_translation = self.keyword_service.sanitize_terms([translated_term], top_n=1)
             display_term = cleaned_translation[0] if cleaned_translation else translated_term.strip()
             if translated_flag and display_term:
-                item["source_term"] = source_term
-                item["term"] = display_term
-                item["translated"] = True
+                item.source_term = source_term
+                item.term = display_term
+                item.translated = True
                 translated_count += 1
             else:
-                item["source_term"] = None
-                item["translated"] = False
+                item.source_term = None
+                item.translated = False
 
         if translated_count:
             warnings.append(
@@ -213,17 +221,13 @@ class TopicAnalysisOutputTranslationService:
             )
         return translated_count, warnings
 
-    def _refresh_group_comments(self, groups: list[dict[str, object]]) -> None:
+    def _refresh_group_comments(self, groups: list[AnalysisGroupRecord]) -> None:
         for group in groups:
-            count = int(group.get("count", 0))
-            total_documents = max(1, int(group.get("total_documents", count)))
-            group["comment"] = self.narrative_service.build_comment(
-                label=str(group.get("label", "Group")),
+            count = int(group.count)
+            total_documents = max(1, int(group.total_documents or count))
+            group.comment = self.narrative_service.build_comment(
+                label=group.label or "Group",
                 count=count,
                 total_documents=total_documents,
-                examples=[
-                    example
-                    for example in group.get("examples", [])
-                    if isinstance(example, dict)
-                ],
+                examples=list(group.examples),
             )

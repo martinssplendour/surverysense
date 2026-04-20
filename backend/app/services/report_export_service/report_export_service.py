@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.models.api import AnalysisExportChartModel, AnalysisExportRequest
+from app.services.service_protocols import ResultStoreReportReaderProtocol
 from app.services.report_export_service.chart_image_service import (
     DecodedChartImage,
     ReportChartImageService,
@@ -24,7 +25,7 @@ class ExportedReportArtifact:
 
 
 class AnalysisReportExportService:
-    def __init__(self, result_store_service=None) -> None:
+    def __init__(self, result_store_service: ResultStoreReportReaderProtocol | None = None) -> None:
         self.result_store_service = result_store_service
         self.content_service = ReportContentService(result_store_service=result_store_service)
         self.chart_image_service = ReportChartImageService(

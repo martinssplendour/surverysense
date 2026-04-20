@@ -70,6 +70,8 @@ GOOGLE_OAUTH_CLIENT_ID=...
 GOOGLE_OAUTH_ALLOWED_DOMAINS=twinkl.co.uk,twinkl.com
 ```
 
+`SESSION_SECRET` is required in every environment; the app no longer falls back to an in-code default.
+
 Optional but recommended:
 
 ```bash

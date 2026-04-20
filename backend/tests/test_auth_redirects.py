@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch
 
-from app.core.constants import DEFAULT_SESSION_SECRET
 from app.core.settings import Settings
 from app.main import create_app
 from fastapi.testclient import TestClient
@@ -40,11 +39,8 @@ class AuthRedirectTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
 
-    def test_create_app_rejects_default_session_secret_outside_development(self) -> None:
-        production_settings = Settings(
-            app_env="production",
-            session_secret=DEFAULT_SESSION_SECRET,
-        )
+    def test_create_app_rejects_missing_session_secret(self) -> None:
+        production_settings = Settings(app_env="production", session_secret="")
 
         with patch("app.main.get_settings", return_value=production_settings):
             with self.assertRaises(RuntimeError):

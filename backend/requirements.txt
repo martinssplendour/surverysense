@@ -8,7 +8,7 @@ itsdangerous==2.2.0
 # Data processing
 pandas==2.3.2
 numpy==1.26.4
-chardet==7.4.1
+charset-normalizer==3.4.4
 
 # ML / NLP — pin tightly; frequent breaking changes across these packages
 scikit-learn==1.8.0
@@ -26,7 +26,6 @@ llvmlite==0.45.1
 scipy==1.13.1
 joblib==1.5.2
 tqdm==4.67.1
-accelerate==0.33.0
 
 # Auth & HTTP
 google-auth==2.42.0

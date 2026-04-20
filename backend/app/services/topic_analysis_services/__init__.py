@@ -6,6 +6,18 @@ from app.services.topic_analysis_services.config import (
     PreparedTextDataset,
     TopicAnalysisConfig,
 )
+from app.services.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+    AnalysisNgramBucketRecord,
+    AnalysisNgramItemRecord,
+    AnalysisRunResult,
+    AnalysisScatterPointRecord,
+    TopicLabelEvidenceGroup,
+    TopicModelGroupDefinition,
+    TopicModelRunResult,
+)
 from app.services.topic_analysis_services.embedding_service import (
     SentenceEmbeddingService,
 )
@@ -35,6 +47,16 @@ __all__ = [
     "TopicAnalysisConfig",
     "PreparedDocument",
     "PreparedTextDataset",
+    "AnalysisDocumentRecord",
+    "AnalysisExampleRecord",
+    "AnalysisGroupRecord",
+    "AnalysisNgramItemRecord",
+    "AnalysisNgramBucketRecord",
+    "AnalysisScatterPointRecord",
+    "AnalysisRunResult",
+    "TopicModelGroupDefinition",
+    "TopicModelRunResult",
+    "TopicLabelEvidenceGroup",
     "TopicAnalysisInputValidationService",
     "TopicAnalysisTextPreparationService",
     "TopicAnalysisKeywordService",

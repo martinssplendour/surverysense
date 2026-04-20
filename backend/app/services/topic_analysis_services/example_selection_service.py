@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.services.topic_analysis_services.config import PreparedDocument
+from app.services.topic_analysis_services.contracts import AnalysisExampleRecord
 
 
 class RepresentativeExampleSelectionService:
@@ -10,7 +11,7 @@ class RepresentativeExampleSelectionService:
         *,
         terms: list[str],
         max_examples: int,
-    ) -> list[dict[str, object]]:
+    ) -> list[AnalysisExampleRecord]:
         if not documents:
             return []
 
@@ -24,7 +25,7 @@ class RepresentativeExampleSelectionService:
             scored_documents.append((score, document))
 
         scored_documents.sort(key=lambda item: item[0], reverse=True)
-        examples: list[dict[str, object]] = []
+        examples: list[AnalysisExampleRecord] = []
         seen_texts: set[str] = set()
         for _, document in scored_documents:
             dedupe_key = document.text.casefold()
@@ -32,12 +33,10 @@ class RepresentativeExampleSelectionService:
                 continue
             seen_texts.add(dedupe_key)
             examples.append(
-                {
-                    "row_number": int(document.row_number),
-                    "text": document.text,
-                    "source_text": None,
-                    "translated": False,
-                }
+                AnalysisExampleRecord(
+                    row_number=int(document.row_number),
+                    text=document.text,
+                )
             )
             if len(examples) >= max_examples:
                 break

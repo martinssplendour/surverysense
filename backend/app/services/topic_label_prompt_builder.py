@@ -3,20 +3,23 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.models.enums import AnalysisModelKey
+from app.services.topic_analysis_services.contracts import TopicLabelEvidenceGroup
+
 
 class TopicLabelPromptBuilder:
     @staticmethod
     def build_prompt(
-        groups: list[dict[str, object]],
+        groups: list[TopicLabelEvidenceGroup],
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
     ) -> str:
         evidence_blob = json.dumps(
             {
-                "analysis_mode": model_key,
+                "analysis_mode": model_key.value,
                 "text_column_name": text_column_name,
-                "groups": groups,
+                "groups": [group.to_prompt_payload() for group in groups],
             },
             ensure_ascii=False,
             separators=(",", ":"),

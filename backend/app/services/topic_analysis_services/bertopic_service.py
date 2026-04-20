@@ -1,7 +1,13 @@
 """Runs BERTopic clustering with PCA pre-reduction and optional outlier reassignment."""
 from __future__ import annotations
 
+from typing import Any
+
 from app.core.exceptions import TopicAnalysisDependencyError
+from app.services.topic_analysis_services.contracts import (
+    TopicModelGroupDefinition,
+    TopicModelRunResult,
+)
 from app.services.topic_analysis_services.keyword_service import TopicAnalysisKeywordService
 
 
@@ -11,13 +17,13 @@ class BertopicAnalysisService:
     def run(
         self,
         texts: list[str],
-        embeddings,
+        embeddings: Any,
         *,
         top_terms: int,
         language: str,
         reduce_outliers: bool,
         outlier_threshold: float,
-    ) -> dict[str, object]:
+    ) -> TopicModelRunResult:
         try:
             import numpy as np
             import umap
@@ -92,30 +98,29 @@ class BertopicAnalysisService:
         warnings.extend(reduction_warnings)
         info = topic_model.get_topic_info().copy()
 
-        groups: dict[str, dict[str, object]] = {}
+        groups: dict[str, TopicModelGroupDefinition] = {}
         for _, row in info.iterrows():
             topic_id = int(row["Topic"])
             words = topic_model.get_topic(topic_id) or []
             terms = [word for word, _score in words[:top_terms] if word]
-            groups[str(topic_id)] = {
-                "label": self._format_label(topic_id=topic_id, terms=terms),
-                "terms": terms,
-                "is_noise": topic_id == -1,
-            }
+            groups[str(topic_id)] = TopicModelGroupDefinition(
+                terms=terms,
+                is_noise=topic_id == -1,
+            )
 
-        return {
-            "assignments": [int(value) for value in topics],
-            "groups": groups,
-            "warnings": warnings,
-        }
+        return TopicModelRunResult(
+            assignments=[int(value) for value in topics],
+            groups=groups,
+            warnings=warnings,
+        )
 
     @staticmethod
     def _reduce_topic_outliers(
-        topic_model,
+        topic_model: Any,
         *,
         texts: list[str],
         topics: list[int],
-        embeddings,
+        embeddings: Any,
         enabled: bool,
         threshold: float,
     ) -> tuple[list[int], list[str]]:

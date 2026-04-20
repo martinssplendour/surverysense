@@ -5,6 +5,10 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 
 from app.services.topic_analysis_services.config import PreparedDocument
+from app.services.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisNgramItemRecord,
+)
 
 
 class TopicAnalysisKeywordService:
@@ -25,13 +29,13 @@ class TopicAnalysisKeywordService:
     TOKEN_PATTERN = re.compile(r"[^\W_][^\W_'\-]*", re.UNICODE)
 
     def top_terms(self, texts: list[str], *, top_n: int) -> list[str]:
-        counts = Counter()
+        counts: Counter[str] = Counter()
         for text in texts:
             counts.update(self._tokenize(text))
         return [term for term, count in counts.most_common() if count > 0][:top_n]
 
     def top_ngrams(self, texts: list[str], *, ngram_size: int, top_n: int) -> list[dict[str, int | str]]:
-        counts = Counter()
+        counts: Counter[str] = Counter()
         for text in texts:
             tokens = self._tokenize(text)
             if len(tokens) < ngram_size:
@@ -53,9 +57,9 @@ class TopicAnalysisKeywordService:
         *,
         ngram_size: int,
         top_n: int,
-    ) -> list[dict[str, object]]:
-        counts = Counter()
-        matched_documents: dict[str, list[dict[str, object]]] = defaultdict(list)
+    ) -> list[AnalysisNgramItemRecord]:
+        counts: Counter[str] = Counter()
+        matched_documents: dict[str, list[AnalysisDocumentRecord]] = defaultdict(list)
         for document in documents:
             tokens = self._tokenize(document.text)
             if len(tokens) < ngram_size:
@@ -72,20 +76,20 @@ class TopicAnalysisKeywordService:
                 if term in seen_terms or int(document.row_number) <= 0 or not document.text:
                     continue
                 matched_documents[term].append(
-                    {
-                        "row_number": int(document.row_number),
-                        "text": document.text,
-                    }
+                    AnalysisDocumentRecord(
+                        row_number=int(document.row_number),
+                        text=document.text,
+                    )
                 )
                 seen_terms.add(term)
 
         return [
-            {
-                "term": term,
-                "count": int(count),
-                "document_count": len(matched_documents.get(term, [])),
-                "_documents": matched_documents.get(term, []),
-            }
+            AnalysisNgramItemRecord(
+                term=term,
+                count=int(count),
+                document_count=len(matched_documents.get(term, [])),
+                documents=list(matched_documents.get(term, [])),
+            )
             for term, count in counts.most_common(top_n)
             if count > 0
         ]

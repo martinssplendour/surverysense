@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from app.core.exceptions import CsvDecodeError
 
 try:
+    from charset_normalizer import from_bytes as detect_with_charset_normalizer
+except ImportError:  # pragma: no cover - exercised implicitly in this environment.
+    detect_with_charset_normalizer = None
+
+try:
     import chardet
 except ImportError:  # pragma: no cover - exercised implicitly in this environment.
     chardet = None
@@ -28,6 +33,12 @@ class EncodingDetectionService:
         for encoding in ("utf-8-sig", "utf-8"):
             if self._can_decode(payload, encoding):
                 return EncodingDetectionResult(encoding=encoding, strategy="utf-8-first")
+
+        if detect_with_charset_normalizer is not None:
+            detected = detect_with_charset_normalizer(payload).best()
+            detected_encoding = str(detected.encoding or "").strip() if detected is not None else ""
+            if detected_encoding and self._can_decode(payload, detected_encoding):
+                return EncodingDetectionResult(encoding=detected_encoding, strategy="charset-normalizer")
 
         if chardet is not None:
             detected = chardet.detect(payload)

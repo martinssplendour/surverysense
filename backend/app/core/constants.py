@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-DEFAULT_SESSION_SECRET = "verbatim-app-dev-session-secret-change-me"
+from app.models.enums import AnalysisModelKey
 
-MODEL_LABELS: dict[str, str] = {
-    "bertopic": "Topic Clusters",
-    "kmeans": "Fixed Similarity Groups",
-    "hdbscan": "HDBSCAN",
-    "ngrams": "Repeated Words and Phrases",
+MODEL_LABELS: dict[AnalysisModelKey, str] = {
+    AnalysisModelKey.BERTOPIC: "Topic Clusters",
+    AnalysisModelKey.KMEANS: "Fixed Similarity Groups",
+    AnalysisModelKey.HDBSCAN: "HDBSCAN",
+    AnalysisModelKey.NGRAMS: "Repeated Words and Phrases",
 }

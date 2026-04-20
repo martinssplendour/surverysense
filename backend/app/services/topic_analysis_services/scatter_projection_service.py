@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from typing import Any
+
 from app.core.exceptions import TopicAnalysisDependencyError
 from app.services.topic_analysis_services.config import PreparedDocument
+from app.services.topic_analysis_services.contracts import (
+    AnalysisGroupRecord,
+    AnalysisScatterPointRecord,
+)
 
 
 class TopicScatterProjectionService:
@@ -13,9 +19,9 @@ class TopicScatterProjectionService:
         *,
         documents: list[PreparedDocument],
         assignments: list[int],
-        embeddings,
-        groups: list[dict[str, object]],
-    ) -> list[dict[str, object]]:
+        embeddings: Any,
+        groups: list[AnalysisGroupRecord],
+    ) -> list[AnalysisScatterPointRecord]:
         if not documents or not assignments:
             return []
 
@@ -42,22 +48,19 @@ class TopicScatterProjectionService:
         else:
             projected = np.zeros((embedding_array.shape[0], 2))
 
-        group_labels = {
-            str(group.get("group_id", "")): str(group.get("label", "Unlabelled group"))
-            for group in groups
-        }
+        group_labels = {group.group_id: group.label or "Unlabelled group" for group in groups}
 
-        scatter_points: list[dict[str, object]] = []
+        scatter_points: list[AnalysisScatterPointRecord] = []
         for index, (document, assignment) in enumerate(zip(documents, assignments)):
             group_key = str(int(assignment))
             scatter_points.append(
-                {
-                    "row_number": int(document.row_number),
-                    "text": document.text,
-                    "group_id": group_key,
-                    "group_label": group_labels.get(group_key, "Unlabelled group"),
-                    "x": round(float(projected[index, 0]), 6),
-                    "y": round(float(projected[index, 1]), 6),
-                }
+                AnalysisScatterPointRecord(
+                    row_number=int(document.row_number),
+                    text=document.text,
+                    group_id=group_key,
+                    group_label=group_labels.get(group_key, "Unlabelled group"),
+                    x=round(float(projected[index, 0]), 6),
+                    y=round(float(projected[index, 1]), 6),
+                )
             )
         return scatter_points

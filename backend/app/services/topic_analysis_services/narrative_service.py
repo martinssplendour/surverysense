@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from app.services.topic_analysis_services.contracts import AnalysisExampleRecord
 from app.services.topic_analysis_services.keyword_service import TopicAnalysisKeywordService
 
 
@@ -48,13 +49,13 @@ class TopicAnalysisNarrativeService:
         label: str,
         count: int,
         total_documents: int,
-        examples: list[dict[str, object]],
+        examples: list[AnalysisExampleRecord],
     ) -> str:
         share = 0 if total_documents <= 0 else round((count / total_documents) * 100)
         row_numbers = [
-            int(example["row_number"])
+            int(example.row_number)
             for example in examples
-            if isinstance(example, dict) and isinstance(example.get("row_number"), int)
+            if isinstance(example.row_number, int)
         ]
         if not row_numbers:
             return f"{label} appears in {count} response(s), representing {share}% of the filtered sample."
@@ -98,5 +99,5 @@ class TopicAnalysisNarrativeService:
             scores["negative"] += sum(1 for token in tokens if token in self.NEGATIVE_CUES)
             scores["uncertain"] += sum(1 for token in tokens if token in self.UNCERTAIN_CUES)
 
-        best_intent = max(scores, key=scores.get)
+        best_intent = max(scores, key=lambda key: scores[key])
         return best_intent if scores[best_intent] > 0 else "neutral"

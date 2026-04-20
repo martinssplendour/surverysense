@@ -3,12 +3,18 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 
+from app.models.enums import AnalysisModelKey
 from app.services.gemini_topic_label_client import GeminiTopicLabelClient
 from app.services.topic_label_evidence_builder import TopicLabelEvidenceBuilder
 from app.services.topic_label_prompt_builder import TopicLabelPromptBuilder
 from app.services.topic_label_response_parser import TopicLabelResponseParser
+from app.services.topic_analysis_services.contracts import (
+    AnalysisGroupRecord,
+    TopicLabelEvidenceGroup,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +65,9 @@ class TopicAiLabelService:
 
     def label_groups(
         self,
-        groups: list[dict[str, object]],
+        groups: Sequence[AnalysisGroupRecord],
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
     ) -> TopicAiLabelingBatchResult:
         if not self.is_available() or not groups:
@@ -81,11 +87,16 @@ class TopicAiLabelService:
             if not response_text:
                 raise ValueError("Gemini returned an empty label response.")
             payload = json.loads(response_text)
-            labels_by_group_id = self._parse_labels(payload, allowed_group_ids={item["group_id"] for item in evidence_groups})
+            if not isinstance(payload, dict):
+                raise ValueError("Gemini label response was not a JSON object.")
+            labels_by_group_id = self._parse_labels(
+                payload,
+                allowed_group_ids={item.group_id for item in evidence_groups},
+            )
         except Exception as exc:
             logger.warning(
                 "AI topic labeling was skipped for model=%s column=%s (%s: %s).",
-                model_key,
+                model_key.value,
                 text_column_name,
                 type(exc).__name__,
                 exc,
@@ -102,33 +113,34 @@ class TopicAiLabelService:
             labeled_group_count=len(labels_by_group_id),
         )
 
-    def _build_group_evidence(self, groups: list[dict[str, object]]) -> list[dict[str, object]]:
-        return self.evidence_builder.build_group_evidence(groups)
+    def _build_group_evidence(self, groups: Sequence[AnalysisGroupRecord]) -> list[TopicLabelEvidenceGroup]:
+        return self.evidence_builder.build_group_evidence(list(groups))
 
-    def _collect_examples(self, group: dict[str, object]) -> list[str]:
+    def _collect_examples(self, group: AnalysisGroupRecord) -> list[str]:
         return self.evidence_builder.collect_examples(group)
 
-    def _collect_terms(self, group: dict[str, object]) -> list[str]:
+    def _collect_terms(self, group: AnalysisGroupRecord) -> list[str]:
         return self.evidence_builder.collect_terms(group)
 
     def _request_labels(
         self,
-        groups: list[dict[str, object]],
+        groups: list[TopicLabelEvidenceGroup],
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
     ) -> dict[str, object]:
-        return self.client.request_labels(
+        response = self.client.request_labels(
             groups,
             model_key=model_key,
             text_column_name=text_column_name,
         )
+        return response
 
     def _build_prompt(
         self,
-        groups: list[dict[str, object]],
+        groups: list[TopicLabelEvidenceGroup],
         *,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
     ) -> str:
         return self.prompt_builder.build_prompt(

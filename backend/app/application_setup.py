@@ -77,10 +77,8 @@ class ApplicationServices:
 
 
 def validate_runtime_settings(settings: Settings) -> None:
-    if not settings.debug and settings.is_default_session_secret:
-        raise RuntimeError(
-            "SESSION_SECRET must be set to a non-default value outside development/test environments."
-        )
+    if not settings.session_secret:
+        raise RuntimeError("SESSION_SECRET must be set.")
 
 
 def build_application_services(settings: Settings) -> ApplicationServices:

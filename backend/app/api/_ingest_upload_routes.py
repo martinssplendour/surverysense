@@ -3,12 +3,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+import pandas as pd
 from fastapi import File, Form, HTTPException, Request, UploadFile, status
 
 from app.api._ingest_route_context import IngestRouteContext
 from app.core.auth import register_session_result_id, require_authenticated_user
 from app.models.api import DiagnosticConfigResponse, UploadIngestResponse
+from app.models.manifest import TransformationManifest
 from app.services.architect_service import DiagnosticMode
+from app.services.csv_ingestion_service import IngestedCsv
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +19,10 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class _UploadIngestArtifacts:
     result_id: str
-    ingested: object
-    manifest: object
-    transformed_df: object
-    analysis_df: object
+    ingested: IngestedCsv
+    manifest: TransformationManifest
+    transformed_df: pd.DataFrame
+    analysis_df: pd.DataFrame
     analysis_metadata_columns: list[str]
     analysis_verbatim_columns: list[str]
 
