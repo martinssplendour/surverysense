@@ -1,6 +1,7 @@
 import unittest
 
 import pandas as pd
+from app.models.enums import AnalysisModelKey
 from app.services.cleaning_services import (
     AnalysisReadyDatasetService,
     MetadataColumnSelectionService,
@@ -11,6 +12,13 @@ from app.services.cleaning_services import (
 )
 from app.services.metadata_filter_service import MetadataFilterService
 from app.services.result_store_service import ResultNotFoundError, ResultStoreService
+from app.services.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisGroupRecord,
+    AnalysisNgramBucketRecord,
+    AnalysisNgramItemRecord,
+    AnalysisRunResult,
+)
 
 
 class ResultStoreServiceTests(unittest.TestCase):
@@ -212,20 +220,27 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
-            model_key="bertopic",
-            analysis_result={
-                "groups": [
-                    {
-                        "group_id": "0",
-                        "label": "More Resources",
-                        "count": 2,
-                        "_documents": [
-                            {"row_number": 1, "text": "Need more maths"},
-                            {"row_number": 2, "text": "Need more science"},
+            model_key=AnalysisModelKey.BERTOPIC,
+            analysis_result=AnalysisRunResult(
+                ok=True,
+                result_id=result_id,
+                model_key=AnalysisModelKey.BERTOPIC,
+                model_label="Topic Clusters",
+                text_column_name="verbatim",
+                filtered_row_count=2,
+                valid_document_count=2,
+                groups=[
+                    AnalysisGroupRecord(
+                        group_id="0",
+                        label="More Resources",
+                        count=2,
+                        documents=[
+                            AnalysisDocumentRecord(row_number=1, text="Need more maths"),
+                            AnalysisDocumentRecord(row_number=2, text="Need more science"),
                         ],
-                    }
-                ]
-            },
+                    )
+                ],
+            ),
         )
 
         page = service.get_analysis_group_page(
@@ -260,26 +275,34 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
-            model_key="ngrams",
-            analysis_result={
-                "ngram_buckets": [
-                    {
-                        "label": "Two-Word Phrases",
-                        "ngram_size": 2,
-                        "items": [
-                            {
-                                "term": "more resources",
-                                "source_term": None,
-                                "count": 2,
-                                "_documents": [
-                                    {"row_number": 1, "text": "Need more maths resources"},
-                                    {"row_number": 2, "text": "Need more science resources"},
+            model_key=AnalysisModelKey.NGRAMS,
+            analysis_result=AnalysisRunResult(
+                ok=True,
+                result_id=result_id,
+                model_key=AnalysisModelKey.NGRAMS,
+                model_label="Repeated words and phrases",
+                text_column_name="verbatim",
+                filtered_row_count=2,
+                valid_document_count=2,
+                ngram_buckets=[
+                    AnalysisNgramBucketRecord(
+                        label="Two-Word Phrases",
+                        ngram_size=2,
+                        items=[
+                            AnalysisNgramItemRecord(
+                                term="more resources",
+                                source_term=None,
+                                count=2,
+                                document_count=2,
+                                documents=[
+                                    AnalysisDocumentRecord(row_number=1, text="Need more maths resources"),
+                                    AnalysisDocumentRecord(row_number=2, text="Need more science resources"),
                                 ],
-                            }
+                            )
                         ],
-                    }
-                ]
-            },
+                    )
+                ],
+            ),
         )
 
         page = service.get_analysis_ngram_page(
@@ -316,19 +339,26 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
-            model_key="bertopic",
-            analysis_result={
-                "groups": [
-                    {
-                        "group_id": "0",
-                        "label": "More Resources",
-                        "count": 1,
-                        "_documents": [
-                            {"row_number": 1, "text": "Need more maths"},
+            model_key=AnalysisModelKey.BERTOPIC,
+            analysis_result=AnalysisRunResult(
+                ok=True,
+                result_id=result_id,
+                model_key=AnalysisModelKey.BERTOPIC,
+                model_label="Topic Clusters",
+                text_column_name="verbatim",
+                filtered_row_count=1,
+                valid_document_count=1,
+                groups=[
+                    AnalysisGroupRecord(
+                        group_id="0",
+                        label="More Resources",
+                        count=1,
+                        documents=[
+                            AnalysisDocumentRecord(row_number=1, text="Need more maths"),
                         ],
-                    }
-                ]
-            },
+                    )
+                ],
+            ),
         )
 
         self.assertTrue(service.delete(result_id))

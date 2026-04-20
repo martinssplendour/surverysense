@@ -2,6 +2,8 @@ import json
 import unittest
 from unittest.mock import patch
 
+from app.models.enums import AnalysisModelKey
+from app.services.topic_analysis_services.contracts import AnalysisExampleRecord, AnalysisGroupRecord
 from app.services.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
 
 
@@ -60,27 +62,27 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             )
         )
         groups = [
-            {
-                "group_id": "0",
-                "label": "Requests for curriculum of",
-                "count": 18,
-                "share": 0.45,
-                "terms": ["curriculum", "resources", "planning"],
-                "examples": [
-                    {"row_number": 12, "text": "Need more curriculum resources for maths and science"},
-                    {"row_number": 18, "text": "More curriculum-aligned planning materials would help"},
+            AnalysisGroupRecord(
+                group_id="0",
+                label="Requests for curriculum of",
+                count=18,
+                share=0.45,
+                terms=["curriculum", "resources", "planning"],
+                examples=[
+                    AnalysisExampleRecord(row_number=12, text="Need more curriculum resources for maths and science"),
+                    AnalysisExampleRecord(row_number=18, text="More curriculum-aligned planning materials would help"),
                 ],
-                "is_noise": False,
-            },
-            {
-                "group_id": "1",
-                "label": "Mixed or unclear responses",
-                "count": 4,
-                "share": 0.1,
-                "terms": ["mixed"],
-                "examples": [{"row_number": 21, "text": "not sure"}],
-                "is_noise": True,
-            },
+                is_noise=False,
+            ),
+            AnalysisGroupRecord(
+                group_id="1",
+                label="Mixed or unclear responses",
+                count=4,
+                share=0.1,
+                terms=["mixed"],
+                examples=[AnalysisExampleRecord(row_number=21, text="not sure")],
+                is_noise=True,
+            ),
         ]
 
         def _fake_urlopen(request, timeout):
@@ -114,7 +116,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
             result = service.label_groups(
                 groups,
-                model_key="kmeans",
+                model_key=AnalysisModelKey.KMEANS,
                 text_column_name="verbatim",
             )
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+from app.models.enums import AnalysisModelKey
 from app.services.language_normalization_service import EnglishTranslationBatchResult
 from app.services.topic_analysis_services import (
     BertopicAnalysisService,
@@ -21,6 +22,8 @@ from app.services.topic_analysis_services import (
     TopicAnalysisNarrativeService,
     TopicAnalysisService,
     TopicAnalysisTextPreparationService,
+    TopicModelGroupDefinition,
+    TopicModelRunResult,
 )
 from app.services.topic_label_ai_service import TopicAiLabelingBatchResult
 
@@ -34,11 +37,11 @@ class _FakeEmbeddingService:
 
 
 class _FakeKMeansService:
-    def run(self, embeddings, *, requested_clusters: int, random_state: int) -> dict[str, object]:
-        return {
-            "assignments": [0, 0, 1],
-            "warnings": ["KMeans test warning."],
-        }
+    def run(self, embeddings, *, requested_clusters: int, random_state: int) -> TopicModelRunResult:
+        return TopicModelRunResult(
+            assignments=[0, 0, 1],
+            warnings=["KMeans test warning."],
+        )
 
 
 class _FakeBertopicService:
@@ -51,21 +54,15 @@ class _FakeBertopicService:
         language: str,
         reduce_outliers: bool,
         outlier_threshold: float,
-    ) -> dict[str, object]:
-        return {
-            "assignments": [0, 0, 1],
-            "groups": {
-                "0": {
-                    "terms": ["mai", "multe", "materiale"],
-                    "is_noise": False,
-                },
-                "1": {
-                    "terms": ["great", "website"],
-                    "is_noise": False,
-                },
+    ) -> TopicModelRunResult:
+        return TopicModelRunResult(
+            assignments=[0, 0, 1],
+            groups={
+                "0": TopicModelGroupDefinition(terms=["mai", "multe", "materiale"], is_noise=False),
+                "1": TopicModelGroupDefinition(terms=["great", "website"], is_noise=False),
             },
-            "warnings": [],
-        }
+            warnings=[],
+        )
 
 
 class _UnusedService:
@@ -109,7 +106,7 @@ class _FakeAiLabelService:
         self.labels_by_group_id = labels_by_group_id
         self.warnings = list(warnings or [])
 
-    def label_groups(self, groups: list[dict[str, object]], *, model_key: str, text_column_name: str) -> TopicAiLabelingBatchResult:
+    def label_groups(self, groups, *, model_key, text_column_name) -> TopicAiLabelingBatchResult:
         return TopicAiLabelingBatchResult(
             labels_by_group_id=dict(self.labels_by_group_id),
             warnings=list(self.warnings),
@@ -118,7 +115,7 @@ class _FakeAiLabelService:
 
 
 class _FailingAiLabelService:
-    def label_groups(self, groups: list[dict[str, object]], *, model_key: str, text_column_name: str) -> TopicAiLabelingBatchResult:
+    def label_groups(self, groups, *, model_key, text_column_name) -> TopicAiLabelingBatchResult:
         raise TimeoutError("label timeout")
 
 
@@ -297,9 +294,9 @@ class BertopicAnalysisServiceTests(unittest.TestCase):
                 outlier_threshold=0.0,
             )
 
-        self.assertEqual(result["assignments"], [0, 0, 1])
-        self.assertEqual(sorted(result["groups"].keys()), ["0", "1"])
-        self.assertIn("BERTopic reassigned 1 response(s)", " ".join(result["warnings"]))
+        self.assertEqual(result.assignments, [0, 0, 1])
+        self.assertEqual(sorted(result.groups.keys()), ["0", "1"])
+        self.assertIn("BERTopic reassigned 1 response(s)", " ".join(result.warnings))
         self.assertEqual(_InspectableFakeBERTopic.last_instance.reduce_kwargs["strategy"], "embeddings")
         self.assertEqual(_InspectableFakeBERTopic.last_instance.reduce_kwargs["threshold"], 0.0)
         self.assertIsNotNone(_InspectableFakeBERTopic.last_instance.reduce_kwargs["embeddings"])
@@ -411,21 +408,21 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="ngrams",
+            model_key=AnalysisModelKey.NGRAMS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["valid_document_count"], 2)
-        self.assertEqual(result["skipped_document_count"], 1)
-        self.assertGreaterEqual(result["translated_document_count"], 1)
-        self.assertIsNone(result["error"])
-        self.assertEqual(len(result["ngram_buckets"]), 3)
-        self.assertEqual(result["ngram_buckets"][0]["label"], "Single Words")
-        self.assertGreaterEqual(len(result["ngram_buckets"][0]["items"]), 1)
-        self.assertTrue(any(item.get("translated") for item in result["ngram_buckets"][0]["items"]))
-        self.assertIn("Translated", " ".join(result["warnings"]))
+        self.assertTrue(result.ok)
+        self.assertEqual(result.valid_document_count, 2)
+        self.assertEqual(result.skipped_document_count, 1)
+        self.assertGreaterEqual(result.translated_document_count, 1)
+        self.assertIsNone(result.error)
+        self.assertEqual(len(result.ngram_buckets), 3)
+        self.assertEqual(result.ngram_buckets[0].label, "Single Words")
+        self.assertGreaterEqual(len(result.ngram_buckets[0].items), 1)
+        self.assertTrue(any(item.translated for item in result.ngram_buckets[0].items))
+        self.assertIn("Translated", " ".join(result.warnings))
 
     def test_run_ngrams_keeps_translated_display_terms_stopword_free(self) -> None:
         service = TopicAnalysisService(
@@ -461,13 +458,13 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="ngrams",
+            model_key=AnalysisModelKey.NGRAMS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["ngram_buckets"][0]["items"][0]["term"], "classroom")
+        self.assertTrue(result.ok)
+        self.assertEqual(result.ngram_buckets[0].items[0].term, "classroom")
 
     def test_run_ngrams_includes_matching_documents_for_each_item(self) -> None:
         service = TopicAnalysisService(
@@ -496,17 +493,17 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="ngrams",
+            model_key=AnalysisModelKey.NGRAMS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        bigram_items = result["ngram_buckets"][1]["items"]
-        matching_item = next(item for item in bigram_items if item["term"] == "science resources")
-        self.assertEqual(matching_item["count"], 2)
-        self.assertEqual(matching_item["document_count"], 2)
+        bigram_items = result.ngram_buckets[1].items
+        matching_item = next(item for item in bigram_items if item.term == "science resources")
+        self.assertEqual(matching_item.count, 2)
+        self.assertEqual(matching_item.document_count, 2)
         self.assertEqual(
-            matching_item["_documents"],
+            [{"row_number": d.row_number, "text": d.text} for d in matching_item.documents],
             [
                 {"row_number": 1, "text": "Need more science resources"},
                 {"row_number": 2, "text": "More science resources help"},
@@ -548,24 +545,24 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="kmeans",
+            model_key=AnalysisModelKey.KMEANS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["model_label"], "Fixed Similarity Groups")
-        self.assertEqual(len(result["groups"]), 2)
-        self.assertEqual(result["groups"][0]["count"], 2)
-        self.assertEqual(result["groups"][0]["label"], "Responses about teaching support")
-        self.assertEqual(result["groups"][0]["source_label"], "Responses about ayuda docente")
-        self.assertTrue(result["groups"][0]["translated"])
-        self.assertGreaterEqual(len(result["groups"][0]["examples"]), 1)
-        self.assertTrue(result["groups"][0]["examples"][0]["translated"])
-        self.assertEqual(result["groups"][0]["examples"][0]["source_text"], "ayuda docente")
-        self.assertIn("Representative document", result["groups"][0]["comment"])
-        self.assertIn("KMeans test warning.", result["warnings"])
-        self.assertGreaterEqual(result["translated_document_count"], 2)
+        self.assertTrue(result.ok)
+        self.assertEqual(result.model_label, "Fixed Similarity Groups")
+        self.assertEqual(len(result.groups), 2)
+        self.assertEqual(result.groups[0].count, 2)
+        self.assertEqual(result.groups[0].label, "Responses about teaching support")
+        self.assertEqual(result.groups[0].source_label, "Responses about ayuda docente")
+        self.assertTrue(result.groups[0].translated)
+        self.assertGreaterEqual(len(result.groups[0].examples), 1)
+        self.assertTrue(result.groups[0].examples[0].translated)
+        self.assertEqual(result.groups[0].examples[0].source_text, "ayuda docente")
+        self.assertIn("Representative document", result.groups[0].comment)
+        self.assertIn("KMeans test warning.", result.warnings)
+        self.assertGreaterEqual(result.translated_document_count, 2)
 
     def test_run_kmeans_can_replace_heuristic_labels_with_ai_labels_without_retranslating_them(self) -> None:
         translation_service = _FakeEnglishTranslationService(
@@ -603,18 +600,18 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="kmeans",
+            model_key=AnalysisModelKey.KMEANS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["groups"][0]["label"], "Teaching Support")
-        self.assertEqual(result["groups"][0]["source_label"], "Responses about ayuda docente")
-        self.assertTrue(result["groups"][0]["ai_generated"])
-        self.assertFalse(result["groups"][0]["translated"])
+        self.assertTrue(result.ok)
+        self.assertEqual(result.groups[0].label, "Teaching Support")
+        self.assertEqual(result.groups[0].source_label, "Responses about ayuda docente")
+        self.assertTrue(result.groups[0].ai_generated)
+        self.assertFalse(result.groups[0].translated)
         self.assertTrue(all("Teaching Support" not in batch for batch in translation_service.calls))
-        self.assertIn("AI generated clearer labels", " ".join(result["warnings"]))
+        self.assertIn("AI generated clearer labels", " ".join(result.warnings))
 
     def test_run_bertopic_translates_mixed_language_theme_names_before_display(self) -> None:
         service = TopicAnalysisService(
@@ -654,18 +651,18 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="bertopic",
+            model_key=AnalysisModelKey.BERTOPIC,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["groups"][0]["label"], "more / materials")
-        self.assertEqual(result["groups"][0]["source_label"], "Responses about mai multe")
-        self.assertTrue(result["groups"][0]["translated"])
-        self.assertIn("materials", result["groups"][0]["terms"])
-        self.assertIn("more", result["groups"][0]["terms"])
-        self.assertNotIn("mai", result["groups"][0]["label"])
+        self.assertTrue(result.ok)
+        self.assertEqual(result.groups[0].label, "more / materials")
+        self.assertEqual(result.groups[0].source_label, "Responses about mai multe")
+        self.assertTrue(result.groups[0].translated)
+        self.assertIn("materials", result.groups[0].terms)
+        self.assertIn("more", result.groups[0].terms)
+        self.assertNotIn("mai", result.groups[0].label)
 
     def test_run_embeds_original_cleaned_text_but_keeps_filtered_topic_terms(self) -> None:
         service = TopicAnalysisService(
@@ -694,12 +691,12 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="kmeans",
+            model_key=AnalysisModelKey.KMEANS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
+        self.assertTrue(result.ok)
         self.assertEqual(
             _FakeEmbeddingService.last_texts,
             [
@@ -709,7 +706,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             ],
         )
         self.assertIn(
-            result["groups"][0]["examples"][0]["text"],
+            result.groups[0].examples[0].text,
             {
                 "What I need is more support in the classroom",
                 "Need more maths challenge activities",
@@ -744,15 +741,15 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="kmeans",
+            model_key=AnalysisModelKey.KMEANS,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertTrue(result["ok"])
-        self.assertFalse(result["groups"][0]["ai_generated"])
-        self.assertEqual(result["groups"][0]["label"], "Requests for classroom materials")
-        self.assertIn("AI topic labeling was skipped", " ".join(result["warnings"]))
+        self.assertTrue(result.ok)
+        self.assertFalse(result.groups[0].ai_generated)
+        self.assertEqual(result.groups[0].label, "Requests for classroom materials")
+        self.assertIn("AI topic labeling was skipped", " ".join(result.warnings))
 
     def test_invalid_column_returns_structured_error_response(self) -> None:
         service = TopicAnalysisService(
@@ -773,14 +770,14 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key="ngrams",
+            model_key=AnalysisModelKey.NGRAMS,
             text_column_name="wrong_column",
             available_verbatim_columns=["verbatim"],
         )
 
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["valid_document_count"], 0)
-        self.assertIn("Choose one of the detected verbatim columns", result["error"])
+        self.assertFalse(result.ok)
+        self.assertEqual(result.valid_document_count, 0)
+        self.assertIn("Choose one of the detected verbatim columns", result.error)
 
 
 if __name__ == "__main__":

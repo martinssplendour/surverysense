@@ -16,7 +16,13 @@ from app.models.api import (
     AnalysisNgramItemModel,
     AnalysisRunResponse,
 )
+from app.models.enums import AnalysisModelKey
 from app.services.report_export_service import AnalysisReportExportService, DecodedChartImage
+from app.services.topic_analysis_services.contracts import (
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+    AnalysisRunResult,
+)
 from PIL import Image
 
 
@@ -133,6 +139,9 @@ class AnalysisReportExportServiceTests(TestCase):
 
     def test_export_report_builds_ngram_representative_sections_when_store_available(self) -> None:
         class FakeResultStoreService:
+            def get_fast_filtered_result(self, result_id, *, model_key, text_column_name, filters):
+                return None
+
             def get_analysis_ngram_page(self, result_id, *, ngram_size, term, offset, limit):
                 documents_by_term = {
                     "resources": [
@@ -218,22 +227,29 @@ class AnalysisReportExportServiceTests(TestCase):
     def test_export_report_hydrates_group_examples_from_store_when_request_groups_are_thin(self) -> None:
         class FakeResultStoreService:
             def get_fast_filtered_result(self, result_id, *, model_key, text_column_name, filters):
-                return {
-                    "groups": [
-                        {
-                            "group_id": "1",
-                            "label": "Requests for resources",
-                            "count": 40,
-                            "share": 0.4,
-                            "terms": ["resources", "support", "materials"],
-                            "examples": [
-                                {"row_number": 4, "text": "Give us clearer guidance and more classroom resources."},
-                                {"row_number": 11, "text": "More practical support materials would build confidence."},
-                                {"row_number": 18, "text": "Access to better planning resources would help a lot."},
+                return AnalysisRunResult(
+                    ok=True,
+                    result_id=result_id,
+                    model_key=AnalysisModelKey.BERTOPIC,
+                    model_label="Topic Clusters",
+                    text_column_name=text_column_name,
+                    filtered_row_count=120,
+                    valid_document_count=100,
+                    groups=[
+                        AnalysisGroupRecord(
+                            group_id="1",
+                            label="Requests for resources",
+                            count=40,
+                            share=0.4,
+                            terms=["resources", "support", "materials"],
+                            examples=[
+                                AnalysisExampleRecord(row_number=4, text="Give us clearer guidance and more classroom resources."),
+                                AnalysisExampleRecord(row_number=11, text="More practical support materials would build confidence."),
+                                AnalysisExampleRecord(row_number=18, text="Access to better planning resources would help a lot."),
                             ],
-                        }
-                    ]
-                }
+                        )
+                    ],
+                )
 
         request = self.request.model_copy(deep=True)
         request.format = "pptx"
