@@ -254,7 +254,10 @@ class ResultStoreServiceTests(unittest.TestCase):
         self.assertEqual(page.text_column_name, "verbatim")
         self.assertEqual(page.total_count, 2)
         self.assertTrue(page.has_more)
-        self.assertEqual(page.documents, [{"row_number": 1, "text": "Need more maths"}])
+        self.assertEqual(
+            [document.to_api_payload() for document in page.documents],
+            [{"row_number": 1, "text": "Need more maths"}],
+        )
 
     def test_get_analysis_ngram_page_returns_paged_matching_documents(self) -> None:
         service = self.build_service()
@@ -319,7 +322,10 @@ class ResultStoreServiceTests(unittest.TestCase):
         self.assertEqual(page.total_count, 2)
         self.assertEqual(page.hit_count, 2)
         self.assertTrue(page.has_more)
-        self.assertEqual(page.documents, [{"row_number": 1, "text": "Need more maths resources"}])
+        self.assertEqual(
+            [document.to_api_payload() for document in page.documents],
+            [{"row_number": 1, "text": "Need more maths resources"}],
+        )
 
     def test_delete_removes_saved_result_and_analysis_snapshot(self) -> None:
         service = self.build_service()

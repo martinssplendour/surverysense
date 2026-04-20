@@ -7,6 +7,12 @@ from app.application_setup import build_application_services
 from app.core.auth import AuthenticatedUser
 from app.core.settings import Settings
 from app.main import create_app
+from app.models.enums import AnalysisModelKey
+from app.services.topic_analysis_services.contracts import (
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+    AnalysisRunResult,
+)
 from fastapi.testclient import TestClient
 
 _SMALL_PNG_DATA_URL = (
@@ -24,47 +30,47 @@ class _FakeTopicAnalysisService:
         *,
         result_id: str,
         dataframe,
-        model_key: str,
+        model_key: AnalysisModelKey,
         text_column_name: str,
         available_verbatim_columns,
-    ) -> dict[str, object]:
+    ) -> AnalysisRunResult:
         texts = [
             str(value).strip()
             for value in dataframe[text_column_name].tolist()
             if str(value).strip()
         ]
         examples = [
-            {"row_number": index + 1, "text": text}
+            AnalysisExampleRecord(row_number=index + 1, text=text)
             for index, text in enumerate(texts[:3])
         ]
-        return {
-            "ok": True,
-            "result_id": result_id,
-            "model_key": model_key,
-            "model_label": "Topic Clusters",
-            "text_column_name": text_column_name,
-            "filtered_row_count": int(len(dataframe)),
-            "valid_document_count": len(texts),
-            "skipped_document_count": max(0, int(len(dataframe)) - len(texts)),
-            "error": None,
-            "groups": [
-                {
-                    "group_id": "support",
-                    "label": "Need more support",
-                    "source_label": None,
-                    "translated": False,
-                    "ai_generated": False,
-                    "comment": "Need more support appears in the current filtered responses.",
-                    "count": len(texts),
-                    "share": 1.0 if texts else 0.0,
-                    "terms": ["support", "resources", "guidance"],
-                    "examples": examples,
-                    "is_noise": False,
-                }
+        return AnalysisRunResult(
+            ok=True,
+            result_id=result_id,
+            model_key=model_key,
+            model_label="Topic Clusters",
+            text_column_name=text_column_name,
+            filtered_row_count=int(len(dataframe)),
+            valid_document_count=len(texts),
+            skipped_document_count=max(0, int(len(dataframe)) - len(texts)),
+            error=None,
+            groups=[
+                AnalysisGroupRecord(
+                    group_id="support",
+                    label="Need more support",
+                    source_label=None,
+                    translated=False,
+                    ai_generated=False,
+                    comment="Need more support appears in the current filtered responses.",
+                    count=len(texts),
+                    share=1.0 if texts else 0.0,
+                    terms=["support", "resources", "guidance"],
+                    examples=examples,
+                    is_noise=False,
+                )
             ],
-            "ngram_buckets": [],
-            "scatter_points": [],
-        }
+            ngram_buckets=[],
+            scatter_points=[],
+        )
 
 
 class IngestAnalysisExportIntegrationTests(unittest.TestCase):

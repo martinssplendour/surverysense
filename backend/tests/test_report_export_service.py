@@ -19,6 +19,7 @@ from app.models.api import (
 from app.models.enums import AnalysisModelKey
 from app.services.report_export_service import AnalysisReportExportService, DecodedChartImage
 from app.services.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
     AnalysisExampleRecord,
     AnalysisGroupRecord,
     AnalysisRunResult,
@@ -145,19 +146,19 @@ class AnalysisReportExportServiceTests(TestCase):
             def get_analysis_ngram_page(self, result_id, *, ngram_size, term, offset, limit):
                 documents_by_term = {
                     "resources": [
-                        {"row_number": 4, "text": "Give us clearer guidance and more classroom resources."},
-                        {"row_number": 11, "text": "More practical support materials would build confidence."},
-                        {"row_number": 18, "text": "Access to better planning resources would help a lot."},
+                        AnalysisDocumentRecord(row_number=4, text="Give us clearer guidance and more classroom resources."),
+                        AnalysisDocumentRecord(row_number=11, text="More practical support materials would build confidence."),
+                        AnalysisDocumentRecord(row_number=18, text="Access to better planning resources would help a lot."),
                     ],
                     "lesson plans": [
-                        {"row_number": 21, "text": "Lesson plans should be simpler and quicker to adapt."},
-                        {"row_number": 27, "text": "More lesson plans for mixed ability groups would help."},
-                        {"row_number": 33, "text": "Detailed lesson plans would improve confidence."},
+                        AnalysisDocumentRecord(row_number=21, text="Lesson plans should be simpler and quicker to adapt."),
+                        AnalysisDocumentRecord(row_number=27, text="More lesson plans for mixed ability groups would help."),
+                        AnalysisDocumentRecord(row_number=33, text="Detailed lesson plans would improve confidence."),
                     ],
                     "materials": [
-                        {"row_number": 42, "text": "More printable materials would save time."},
-                        {"row_number": 48, "text": "Updated materials are needed for SEND learners."},
-                        {"row_number": 54, "text": "High quality materials build teacher confidence."},
+                        AnalysisDocumentRecord(row_number=42, text="More printable materials would save time."),
+                        AnalysisDocumentRecord(row_number=48, text="Updated materials are needed for SEND learners."),
+                        AnalysisDocumentRecord(row_number=54, text="High quality materials build teacher confidence."),
                     ],
                 }
                 return SimpleNamespace(documents=documents_by_term.get(term, [])[:limit])
