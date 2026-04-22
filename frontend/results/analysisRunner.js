@@ -2,6 +2,7 @@ import { RESULT_STORAGE_KEY, state } from "./shared.js";
 import { displayAnalysisMode } from "./utils.js";
 import { parseJson } from "./rows.js";
 import { callbacks } from "./analysisCallbacks.js";
+import { resetDatasetRows } from "./rowsDatasetState.js";
 import {
     renderAnalysisControls,
     renderAnalysisMessage,
@@ -30,7 +31,7 @@ export function handleAnalysisMethodClick(event) {
     if (!(methodButton instanceof HTMLElement)) {
         return;
     }
-    const modelKey = methodButton.dataset.modelKey || "bertopic";
+    const modelKey = methodButton.dataset.modelKey || "community";
     if (modelKey === state.selectedAnalysisModel) {
         return;
     }
@@ -158,12 +159,20 @@ function finishSuccessfulAnalysis({
     state.analysisResult = payload;
     state.selectedAnalysisColumn = payload.text_column_name || textColumnName;
     state.selectedAnalysisModel = payload.model_key || modelKey;
+    invalidateRowDatasetsAfterAnalysis();
     state.currentWorkspace = "analysis-results";
     callbacks.updateWorkspaceVisibility();
     renderAnalysisOutput();
     if (scrollIntoView) {
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
+}
+
+function invalidateRowDatasetsAfterAnalysis() {
+    resetDatasetRows("transformed");
+    resetDatasetRows("analysis");
+    state.transformedHasMore = Boolean(state.resultId);
+    state.analysisHasMore = Boolean(state.resultId);
 }
 
 function finishFailedAnalysis({ error, textColumnName, modelKey }) {
@@ -183,6 +192,7 @@ function finishFailedAnalysis({ error, textColumnName, modelKey }) {
         groups: [],
         ngram_buckets: [],
         scatter_points: [],
+        network_edges: [],
     };
     state.currentWorkspace = "analysis-results";
     callbacks.updateWorkspaceVisibility();

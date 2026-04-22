@@ -3,8 +3,13 @@ import unittest
 from unittest.mock import patch
 
 from app.models.enums import AnalysisModelKey
-from app.services.topic_analysis_services.contracts import AnalysisExampleRecord, AnalysisGroupRecord
+from app.services.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+)
 from app.services.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
+from app.services.topic_label_evidence_builder import TopicLabelEvidenceBuilder
 
 
 class _FakeHttpResponse:
@@ -39,7 +44,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
 
         result = service.label_groups(
             [{"group_id": "0", "label": "Requests for curriculum", "count": 12, "share": 0.4, "terms": [], "examples": []}],
-            model_key="kmeans",
+            model_key="community",
             text_column_name="verbatim",
         )
 
@@ -94,6 +99,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             prompt = payload["contents"][0]["parts"][0]["text"]
             self.assertIn('"group_id":"0"', prompt)
             self.assertNotIn('"group_id":"1"', prompt)
+            self.assertIn('"context_phrases"', prompt)
             self.assertIn("Need more curriculum resources for mat", prompt)
             return _FakeHttpResponse(
                 {
@@ -116,13 +122,42 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
             result = service.label_groups(
                 groups,
-                model_key=AnalysisModelKey.KMEANS,
+                model_key=AnalysisModelKey.COMMUNITY,
                 text_column_name="verbatim",
             )
 
         self.assertEqual(result.labels_by_group_id, {"0": "Curriculum Resources"})
         self.assertEqual(result.labeled_group_count, 1)
         self.assertEqual(result.warnings, [])
+
+    def test_evidence_builder_keeps_context_around_top_terms(self) -> None:
+        builder = TopicLabelEvidenceBuilder(
+            max_groups=10,
+            max_examples_per_group=2,
+            max_terms_per_group=4,
+            max_chars_per_example=220,
+        )
+        group = AnalysisGroupRecord(
+            group_id="0",
+            label="Responses about expensive",
+            count=3,
+            share=1.0,
+            terms=["subscription"],
+            examples=[
+                AnalysisExampleRecord(row_number=1, text="It is too expensive for schools"),
+            ],
+            documents=[
+                AnalysisDocumentRecord(row_number=1, text="It is too expensive for schools"),
+                AnalysisDocumentRecord(row_number=2, text="The subscription is too expensive"),
+                AnalysisDocumentRecord(row_number=3, text="Expensive renewal costs are a worry"),
+            ],
+        )
+
+        evidence = builder.build_group_evidence([group])
+
+        self.assertEqual(evidence[0].terms, ["subscription"])
+        self.assertIn("too expensive", evidence[0].context_phrases)
+        self.assertIn("too expensive", str(evidence[0].to_prompt_payload()))
 
 
 if __name__ == "__main__":

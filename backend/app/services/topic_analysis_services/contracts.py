@@ -42,6 +42,8 @@ class TopicModelRunResult:
     assignments: list[int]
     warnings: list[str] = field(default_factory=list)
     groups: dict[str, TopicModelGroupDefinition] = field(default_factory=dict)
+    network_edges: list[tuple[int, int, float]] = field(default_factory=list)
+    layout_positions: dict[int, tuple[float, float]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -152,6 +154,20 @@ class AnalysisScatterPointRecord:
 
 
 @dataclass(slots=True)
+class AnalysisNetworkEdgeRecord:
+    source_row_number: int
+    target_row_number: int
+    weight: float
+
+    def to_api_payload(self) -> dict[str, object]:
+        return {
+            "source_row_number": int(self.source_row_number),
+            "target_row_number": int(self.target_row_number),
+            "weight": float(self.weight),
+        }
+
+
+@dataclass(slots=True)
 class AnalysisRunResult:
     ok: bool
     result_id: str
@@ -167,6 +183,7 @@ class AnalysisRunResult:
     groups: list[AnalysisGroupRecord] = field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketRecord] = field(default_factory=list)
     scatter_points: list[AnalysisScatterPointRecord] = field(default_factory=list)
+    network_edges: list[AnalysisNetworkEdgeRecord] = field(default_factory=list)
 
     @classmethod
     def empty(
@@ -202,6 +219,7 @@ class AnalysisRunResult:
             "groups": [group.to_api_payload() for group in self.groups],
             "ngram_buckets": [bucket.to_api_payload() for bucket in self.ngram_buckets],
             "scatter_points": [point.to_api_payload() for point in self.scatter_points],
+            "network_edges": [edge.to_api_payload() for edge in self.network_edges],
         }
 
     def to_snapshot_payload(self) -> dict[str, Any]:
@@ -218,6 +236,7 @@ class TopicLabelEvidenceGroup:
     count: int
     share_percent: float
     terms: list[str] = field(default_factory=list)
+    context_phrases: list[str] = field(default_factory=list)
     examples: list[str] = field(default_factory=list)
 
     def to_prompt_payload(self) -> dict[str, object]:
@@ -227,5 +246,6 @@ class TopicLabelEvidenceGroup:
             "count": int(self.count),
             "share_percent": float(self.share_percent),
             "terms": list(self.terms),
+            "context_phrases": list(self.context_phrases),
             "examples": list(self.examples),
         }

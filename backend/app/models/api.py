@@ -140,8 +140,14 @@ class AnalysisScatterPointModel(BaseModel):
     y: float
 
 
+class AnalysisNetworkEdgeModel(BaseModel):
+    source_row_number: int
+    target_row_number: int
+    weight: float
+
+
 class AnalysisRunResponse(BaseModel):
-    """Complete result from a topic-analysis run, including groups, n-gram buckets, and scatter coordinates."""
+    """Complete result from a topic-analysis run, including groups, n-gram buckets, and plot data."""
 
     model_config = ConfigDict(protected_namespaces=())
     ok: bool
@@ -158,6 +164,7 @@ class AnalysisRunResponse(BaseModel):
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)
     scatter_points: list[AnalysisScatterPointModel] = Field(default_factory=list)
+    network_edges: list[AnalysisNetworkEdgeModel] = Field(default_factory=list)
 
 
 class AnalysisGroupDocumentsResponse(BaseModel):

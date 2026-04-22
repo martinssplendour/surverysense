@@ -32,6 +32,8 @@ class TopicLabelPromptBuilder:
             "- Title case.\n"
             "- Plain English.\n"
             "- Prefer specific topic headings such as Curriculum Resources or Search Function Issues.\n"
+            "- Use examples and context_phrases as the main evidence.\n"
+            "- Preserve useful qualifiers from context_phrases, such as Too Expensive instead of Expensive.\n"
             "- Do not use quotes, numbering, or explanations.\n"
             "- Current labels are weak hints only.\n"
             "- If a group is genuinely noisy, use Mixed or Unclear Responses.\n\n"

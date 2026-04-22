@@ -1,6 +1,7 @@
 import unittest
 
 import pandas as pd
+from app.core.constants import COMMUNITY_GROUP_COLUMN_NAME
 from app.models.enums import AnalysisModelKey
 from app.services.cleaning_services import (
     AnalysisReadyDatasetService,
@@ -15,6 +16,7 @@ from app.services.result_store_service import ResultNotFoundError, ResultStoreSe
 from app.services.topic_analysis_services.contracts import (
     AnalysisDocumentRecord,
     AnalysisGroupRecord,
+    AnalysisNetworkEdgeRecord,
     AnalysisNgramBucketRecord,
     AnalysisNgramItemRecord,
     AnalysisRunResult,
@@ -220,12 +222,12 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
-            model_key=AnalysisModelKey.BERTOPIC,
+            model_key=AnalysisModelKey.COMMUNITY,
             analysis_result=AnalysisRunResult(
                 ok=True,
                 result_id=result_id,
-                model_key=AnalysisModelKey.BERTOPIC,
-                model_label="Topic Clusters",
+                model_key=AnalysisModelKey.COMMUNITY,
+                model_label="Community Detection",
                 text_column_name="verbatim",
                 filtered_row_count=2,
                 valid_document_count=2,
@@ -239,6 +241,9 @@ class ResultStoreServiceTests(unittest.TestCase):
                             AnalysisDocumentRecord(row_number=2, text="Need more science"),
                         ],
                     )
+                ],
+                network_edges=[
+                    AnalysisNetworkEdgeRecord(source_row_number=1, target_row_number=2, weight=0.95),
                 ],
             ),
         )
@@ -258,6 +263,20 @@ class ResultStoreServiceTests(unittest.TestCase):
             [document.to_api_payload() for document in page.documents],
             [{"row_number": 1, "text": "Need more maths"}],
         )
+        data_page = service.get_page(result_id, dataset="transformed", offset=0, limit=10)
+        self.assertIn(COMMUNITY_GROUP_COLUMN_NAME, data_page.column_names)
+        self.assertEqual(
+            [row[COMMUNITY_GROUP_COLUMN_NAME] for row in data_page.rows],
+            ["More Resources", "More Resources"],
+        )
+        fast_result = service.get_fast_filtered_result(
+            result_id,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            filters={"country__idx_1": ["UK"]},
+        )
+        self.assertIsNotNone(fast_result)
+        self.assertEqual(fast_result.network_edges, [])
 
     def test_get_analysis_ngram_page_returns_paged_matching_documents(self) -> None:
         service = self.build_service()
@@ -345,12 +364,12 @@ class ResultStoreServiceTests(unittest.TestCase):
         service.save_analysis_snapshot(
             result_id,
             text_column_name="verbatim",
-            model_key=AnalysisModelKey.BERTOPIC,
+            model_key=AnalysisModelKey.COMMUNITY,
             analysis_result=AnalysisRunResult(
                 ok=True,
                 result_id=result_id,
-                model_key=AnalysisModelKey.BERTOPIC,
-                model_label="Topic Clusters",
+                model_key=AnalysisModelKey.COMMUNITY,
+                model_label="Community Detection",
                 text_column_name="verbatim",
                 filtered_row_count=1,
                 valid_document_count=1,

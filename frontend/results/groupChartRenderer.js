@@ -9,12 +9,13 @@ import {
 import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
 
 
-export function renderGroupDistributionChart(groups, { chartTitle, chartCaption, yAxisLabel, openAnalysisGroupModalByIndex }) {
+export function renderGroupDistributionChart(groups, { chartTitle, chartCaption, yAxisLabel, openAnalysisGroupModalByIndex, controlsHtml = "" }) {
     elements.analysisChart.hidden = false;
     elements.analysisChart.innerHTML = `
         <div class="analysis-chart-copy">
             <h4 class="analysis-chart-title">${escapeHtml(chartTitle)}</h4>
             <p class="analysis-chart-caption">${escapeHtml(chartCaption)}</p>
+            ${controlsHtml}
         </div>
         <div class="analysis-plot-shell">
             <div class="analysis-plot-surface" id="analysis-group-plot"></div>
@@ -43,7 +44,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
     const sortedGroups = groups
         .map((group, index) => ({ group, index }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
-    const subjectLabel = yAxisLabel === "Topic name" ? "topic" : "group";
+    const subjectLabel = yAxisLabel === "Community" ? "community" : "group";
     const wrappedLabels = sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group", 20));
     const longestLabelLineLength = wrappedLabels.reduce(
         (maximum, label) => Math.max(

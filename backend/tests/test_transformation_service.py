@@ -445,6 +445,46 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
             ["What more could Twinkl do to save you time?"],
         )
 
+    def test_rejects_date_time_columns_as_verbatim_even_when_values_are_unique_text(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        rows = []
+        for idx in range(30):
+            rows.append(
+                {
+                    "response_id__idx_0": str(idx + 1),
+                    "Date & Time__idx_1": f"February {10 + (idx // 24)}, 2025 {idx % 24:02d}:{idx % 60:02d}:47",
+                    "What more could Twinkl do to save you time?": f"Open answer number {idx} with varied wording.",
+                }
+            )
+        df = pd.DataFrame(rows)
+
+        selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
+
+        self.assertEqual(
+            selected_columns,
+            ["What more could Twinkl do to save you time?"],
+        )
+
+    def test_rejects_numeric_heavy_mixed_content_columns_as_verbatim(self) -> None:
+        service = VerbatimQuestionSelectionService()
+        rows = []
+        for idx in range(30):
+            rows.append(
+                {
+                    "response_id__idx_0": str(idx + 1),
+                    "Submission marker__idx_1": f"Ref {20250210000000 + idx} code {10000 + idx}",
+                    "What more could Twinkl do to save you time?": f"Open answer number {idx} with varied wording.",
+                }
+            )
+        df = pd.DataFrame(rows)
+
+        selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
+
+        self.assertEqual(
+            selected_columns,
+            ["What more could Twinkl do to save you time?"],
+        )
+
     def test_selects_columns_with_short_headers_when_answers_are_text(self) -> None:
         service = VerbatimQuestionSelectionService()
         df = pd.DataFrame(
@@ -669,6 +709,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "simplified_career__idx_8",
                 "country__idx_9",
                 "county__idx_10",
+                "Date & Time__idx_11",
                 "What more could Twinkl do to save you time?",
                 "Which of the following best describes your role?",
             ]
@@ -688,6 +729,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "simplified_career__idx_8",
                 "country__idx_9",
                 "county__idx_10",
+                "Date & Time__idx_11",
             ],
         )
 

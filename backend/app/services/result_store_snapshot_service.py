@@ -70,6 +70,7 @@ class ResultStoreSnapshotService:
             groups=groups,
             ngram_items=ngram_items,
             scatter_points=list(analysis_result.scatter_points),
+            network_edges=list(analysis_result.network_edges),
         )
 
     def build_fast_filtered_result(
@@ -132,6 +133,11 @@ class ResultStoreSnapshotService:
             for point in snapshot.scatter_points
             if point.row_number in filtered_row_numbers
         ]
+        filtered_network_edges = [
+            edge
+            for edge in snapshot.network_edges
+            if edge.source_row_number in filtered_row_numbers and edge.target_row_number in filtered_row_numbers
+        ]
 
         buckets_by_size: dict[int, list[AnalysisNgramItemRecord]] = defaultdict(list)
         for item in snapshot.ngram_items.values():
@@ -180,4 +186,5 @@ class ResultStoreSnapshotService:
             groups=rebuilt_groups,
             ngram_buckets=rebuilt_buckets,
             scatter_points=filtered_scatter,
+            network_edges=filtered_network_edges,
         )

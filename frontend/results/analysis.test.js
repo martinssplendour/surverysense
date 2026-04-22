@@ -142,7 +142,7 @@ describe("results/analysis", () => {
         const payload = {
             ok: true,
             result_id: "result-123",
-            model_key: "kmeans",
+            model_key: "community",
             text_column_name: "comment",
             filtered_row_count: 3,
             valid_document_count: 3,
@@ -157,7 +157,7 @@ describe("results/analysis", () => {
         harness.state.resultId = "result-123";
         harness.state.analysisVerbatimColumns = ["comment"];
         harness.state.selectedAnalysisColumn = "comment";
-        harness.state.selectedAnalysisModel = "kmeans";
+        harness.state.selectedAnalysisModel = "community";
         harness.state.activeFilters = { country: ["UK"] };
         harness.state.currentWorkspace = "analysis";
 
@@ -166,7 +166,7 @@ describe("results/analysis", () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock.mock.calls[0][0]).toBe("/run-analysis/result-123");
         expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-            model_key: "kmeans",
+            model_key: "community",
             text_column_name: "comment",
             filters: { country: ["UK"] },
         });
@@ -188,7 +188,7 @@ describe("results/analysis", () => {
         harness.state.resultId = "result-123";
         harness.state.analysisVerbatimColumns = ["comment"];
         harness.state.selectedAnalysisColumn = "comment";
-        harness.state.selectedAnalysisModel = "bertopic";
+        harness.state.selectedAnalysisModel = "community";
 
         await harness.analysis.runAnalysis();
 

@@ -100,7 +100,8 @@
                         <div class="workspace-actions analysis-results-actions">
                             <div class="analysis-results-action-stack">
                                 <button type="button" class="button button-ghost analysis-results-change-button" id="back-to-analysis-setup-btn">Change Question or Method</button>
-                                <div class="analysis-export-split">
+                                <div class="analysis-export-split" aria-label="Report actions">
+                                    <button type="button" class="button button-primary analysis-export-preview-button" id="preview-analysis-report-btn">Preview</button>
                                     <button type="button" class="button button-primary analysis-export-main-button" id="download-analysis-report-btn">Download Report</button>
                                     <button
                                         type="button"
@@ -123,10 +124,11 @@
                     </div>
 
                     <section class="filter-bar analysis-results-filter-bar" id="analysis-results-filter-bar" hidden>
-                        <div class="filter-chip-row">
+                        <div class="filter-chip-row analysis-results-filter-row">
                             <span class="filter-chip-row-label">Filters:</span>
                             <div class="active-filters" id="analysis-results-active-filters" hidden></div>
                             <button type="button" class="button button-ghost filter-open-button" id="open-analysis-results-filter-modal-btn">+ Add Filter</button>
+                            <button type="button" class="dashboard-data-link analysis-results-data-link" id="analysis-view-data-btn">View data <span aria-hidden="true">&rarr;</span></button>
                         </div>
                         <p class="filter-active-note" id="analysis-results-filter-note">Metadata filters update the current analysis results and plots.</p>
                     </section>

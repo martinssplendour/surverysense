@@ -1,4 +1,4 @@
-"""Orchestrates the full topic-analysis pipeline: validation, text prep, clustering, labelling, and translation."""
+"""Orchestrates the full topic-analysis pipeline: validation, text prep, community detection, labelling, and translation."""
 from __future__ import annotations
 
 import logging
@@ -10,20 +10,26 @@ import pandas as pd
 from app.core.exceptions import TopicAnalysisError, TopicAnalysisInputError
 from app.models.enums import AnalysisModelKey
 from app.services.service_protocols import TopicLabelServiceProtocol
-from app.services.topic_analysis_services.bertopic_service import BertopicAnalysisService
+from app.services.topic_analysis_services.community_detection_service import (
+    CommunityDetectionAnalysisService,
+)
 from app.services.topic_analysis_services.config import (
+    PreparedDocument,
     PreparedTextDataset,
     TopicAnalysisConfig,
 )
-from app.services.topic_analysis_services.contracts import AnalysisRunResult
+from app.services.topic_analysis_services.contracts import (
+    AnalysisGroupRecord,
+    AnalysisNetworkEdgeRecord,
+    AnalysisRunResult,
+    AnalysisScatterPointRecord,
+)
 from app.services.topic_analysis_services.embedding_service import SentenceEmbeddingService
 from app.services.topic_analysis_services.example_selection_service import RepresentativeExampleSelectionService
 from app.services.topic_analysis_services.group_assembly_service import (
     TopicGroupAssemblyService,
 )
-from app.services.topic_analysis_services.hdbscan_service import HdbscanAnalysisService
 from app.services.topic_analysis_services.keyword_service import TopicAnalysisKeywordService
-from app.services.topic_analysis_services.kmeans_service import KMeansAnalysisService
 from app.services.topic_analysis_services.model_execution_service import (
     TopicModelExecutionService,
 )
@@ -31,9 +37,6 @@ from app.services.topic_analysis_services.narrative_service import TopicAnalysis
 from app.services.topic_analysis_services.ngram_service import NgramAnalysisService
 from app.services.topic_analysis_services.output_translation_service import (
     TopicAnalysisOutputTranslationService,
-)
-from app.services.topic_analysis_services.scatter_projection_service import (
-    TopicScatterProjectionService,
 )
 from app.services.topic_analysis_services.text_preparation_service import TopicAnalysisTextPreparationService
 from app.services.topic_analysis_services.validation_service import TopicAnalysisInputValidationService
@@ -48,7 +51,7 @@ class _PreparedAnalysisRun:
 
 
 class TopicAnalysisService:
-    """End-to-end topic analysis service that routes to the appropriate model (BERTopic, K-means, HDBSCAN, n-grams)."""
+    """End-to-end topic analysis service that routes to community detection or n-grams."""
 
     def __init__(
         self,
@@ -61,9 +64,7 @@ class TopicAnalysisService:
         representative_example_service: RepresentativeExampleSelectionService,
         embedding_service: SentenceEmbeddingService,
         ngram_service: NgramAnalysisService,
-        kmeans_service: KMeansAnalysisService,
-        hdbscan_service: HdbscanAnalysisService,
-        bertopic_service: BertopicAnalysisService,
+        community_detection_service: CommunityDetectionAnalysisService,
         ai_label_service: TopicLabelServiceProtocol | None = None,
     ) -> None:
         self.config = config
@@ -73,9 +74,7 @@ class TopicAnalysisService:
         self.model_execution_service = TopicModelExecutionService(
             config=config,
             embedding_service=embedding_service,
-            kmeans_service=kmeans_service,
-            hdbscan_service=hdbscan_service,
-            bertopic_service=bertopic_service,
+            community_detection_service=community_detection_service,
         )
         self.group_assembly_service = TopicGroupAssemblyService(
             config=config,
@@ -89,9 +88,6 @@ class TopicAnalysisService:
             narrative_service=narrative_service,
             translation_service=text_preparation_service.translation_service,
             ai_label_service=ai_label_service,
-        )
-        self.scatter_projection_service = TopicScatterProjectionService(
-            random_state=config.kmeans_random_state,
         )
 
     def warm_up(self) -> None:
@@ -215,6 +211,7 @@ class TopicAnalysisService:
             texts=list(prepared_run.prepared.texts),
         )
         warnings = list(prepared_run.result.warnings)
+        warnings.extend(execution.warnings or [])
         warnings.extend(execution.result.warnings)
 
         groups = self.group_assembly_service.build_groups(
@@ -231,15 +228,13 @@ class TopicAnalysisService:
         warnings.extend(ai_warnings)
         translated_group_count, translation_warnings = self.output_translation_service.translate_group_outputs(groups)
         warnings.extend(translation_warnings)
-
-        scatter_points = []
-        if model_key == AnalysisModelKey.KMEANS and execution.scatter_embeddings is not None:
-            scatter_points = self.scatter_projection_service.build_scatter_points(
-                documents=prepared_run.prepared.documents,
-                assignments=execution.result.assignments,
-                embeddings=execution.scatter_embeddings,
-                groups=groups,
-            )
+        scatter_points, network_edges = self._build_community_plot_records(
+            documents=prepared_run.prepared.documents,
+            assignments=execution.result.assignments,
+            groups=groups,
+            layout_positions=execution.result.layout_positions,
+            network_edges=execution.result.network_edges,
+        )
 
         return replace(
             prepared_run.result,
@@ -248,8 +243,56 @@ class TopicAnalysisService:
             warnings=warnings,
             groups=groups,
             scatter_points=scatter_points,
+            network_edges=network_edges,
         )
 
     @staticmethod
     def _build_error_response(base_result: AnalysisRunResult, message: str) -> AnalysisRunResult:
         return replace(base_result, error=message)
+
+    @staticmethod
+    def _build_community_plot_records(
+        *,
+        documents: list[PreparedDocument],
+        assignments: list[int],
+        groups: list[AnalysisGroupRecord],
+        layout_positions: dict[int, tuple[float, float]],
+        network_edges: list[tuple[int, int, float]],
+    ) -> tuple[list[AnalysisScatterPointRecord], list[AnalysisNetworkEdgeRecord]]:
+        group_labels = {str(group.group_id): group.label for group in groups}
+        scatter_points: list[AnalysisScatterPointRecord] = []
+        row_numbers_by_node: dict[int, int] = {}
+        for node_index, (document, assignment) in enumerate(zip(documents, assignments)):
+            row_number = int(document.row_number)
+            if row_number <= 0:
+                continue
+            row_numbers_by_node[node_index] = row_number
+            position = layout_positions.get(node_index)
+            if position is None:
+                continue
+            group_id = str(int(assignment))
+            scatter_points.append(
+                AnalysisScatterPointRecord(
+                    row_number=row_number,
+                    text=document.text,
+                    group_id=group_id,
+                    group_label=group_labels.get(group_id, f"Community {group_id}"),
+                    x=float(position[0]),
+                    y=float(position[1]),
+                )
+            )
+
+        edge_records: list[AnalysisNetworkEdgeRecord] = []
+        for source_node, target_node, weight in network_edges:
+            source_row_number = row_numbers_by_node.get(int(source_node))
+            target_row_number = row_numbers_by_node.get(int(target_node))
+            if source_row_number is None or target_row_number is None:
+                continue
+            edge_records.append(
+                AnalysisNetworkEdgeRecord(
+                    source_row_number=source_row_number,
+                    target_row_number=target_row_number,
+                    weight=float(weight),
+                )
+            )
+        return scatter_points, edge_records

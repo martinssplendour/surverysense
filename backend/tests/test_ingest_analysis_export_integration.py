@@ -47,7 +47,7 @@ class _FakeTopicAnalysisService:
             ok=True,
             result_id=result_id,
             model_key=model_key,
-            model_label="Topic Clusters",
+            model_label="Community Detection",
             text_column_name=text_column_name,
             filtered_row_count=int(len(dataframe)),
             valid_document_count=len(texts),
@@ -120,7 +120,7 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
         analysis_response = self.client.post(
             f"/run-analysis/{result_id}",
             json={
-                "model_key": "bertopic",
+                "model_key": "community",
                 "text_column_name": text_column_name,
                 "filters": {},
             },
@@ -129,7 +129,7 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
         self.assertEqual(analysis_response.status_code, 200)
         analysis_payload = analysis_response.json()
         self.assertTrue(analysis_payload["ok"])
-        self.assertEqual(analysis_payload["model_key"], "bertopic")
+        self.assertEqual(analysis_payload["model_key"], "community")
         self.assertEqual(analysis_payload["text_column_name"], text_column_name)
         self.assertEqual(analysis_payload["groups"][0]["label"], "Need more support")
 
@@ -139,7 +139,7 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
                 "format": "pdf",
                 "report_title": "Support themes report",
                 "source_filename": "sample.csv",
-                "subtitle": f"Topic Clusters | {text_column_name} | {analysis_payload['filtered_row_count']} rows",
+                "subtitle": f"Community Detection | {text_column_name} | {analysis_payload['filtered_row_count']} rows",
                 "active_filters": [],
                 "charts": [
                     {

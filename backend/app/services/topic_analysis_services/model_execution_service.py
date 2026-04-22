@@ -3,20 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.exceptions import TopicAnalysisDependencyError
 from app.models.enums import AnalysisModelKey
-from app.services.topic_analysis_services.bertopic_service import BertopicAnalysisService
+from app.services.topic_analysis_services.community_detection_service import (
+    CommunityDetectionAnalysisService,
+)
 from app.services.topic_analysis_services.config import TopicAnalysisConfig
 from app.services.topic_analysis_services.contracts import TopicModelRunResult
 from app.services.topic_analysis_services.embedding_service import SentenceEmbeddingService
-from app.services.topic_analysis_services.hdbscan_service import HdbscanAnalysisService
-from app.services.topic_analysis_services.kmeans_service import KMeansAnalysisService
 
 
 @dataclass(slots=True)
 class TopicModelExecution:
     result: TopicModelRunResult
     embeddings: Any
-    scatter_embeddings: Any | None = None
+    warnings: list[str] | None = None
 
 
 class TopicModelExecutionService:
@@ -25,88 +26,86 @@ class TopicModelExecutionService:
         *,
         config: TopicAnalysisConfig,
         embedding_service: SentenceEmbeddingService,
-        kmeans_service: KMeansAnalysisService,
-        hdbscan_service: HdbscanAnalysisService,
-        bertopic_service: BertopicAnalysisService,
+        community_detection_service: CommunityDetectionAnalysisService,
     ) -> None:
         self.config = config
         self.embedding_service = embedding_service
-        self.kmeans_service = kmeans_service
-        self.hdbscan_service = hdbscan_service
-        self.bertopic_service = bertopic_service
+        self.community_detection_service = community_detection_service
 
     def warm_up(self) -> None:
         self.embedding_service.warm_up(
+            provider=self.config.embedding_provider,
             model_name=self.config.embedding_model,
-            local_model_path=self.config.embedding_local_path,
         )
-        try:
-            import numpy as _np
-            import umap as _umap
-
-            dummy_embeddings = _np.random.default_rng(0).random((50, 50))
-            _umap.UMAP(n_neighbors=10, n_components=5, random_state=42).fit_transform(dummy_embeddings)
-        except Exception:
-            pass
 
     def execute(self, *, model_key: AnalysisModelKey, texts: list[str]) -> TopicModelExecution:
-        embeddings = self.embedding_service.encode(
-            texts,
-            model_name=self.config.embedding_model,
-            local_model_path=self.config.embedding_local_path,
+        if model_key != AnalysisModelKey.COMMUNITY:
+            raise ValueError(f"Unsupported analysis mode '{model_key.value}'.")
+
+        embeddings, embedding_warnings = self._encode_texts(texts)
+        return TopicModelExecution(
+            result=self.community_detection_service.run(
+                embeddings,
+                similarity_threshold=self.config.community_similarity_threshold,
+                max_neighbors=self.config.community_max_neighbors,
+                resolution=self.config.community_resolution,
+                mutual_neighbors=self.config.community_mutual_neighbors,
+            ),
+            embeddings=embeddings,
+            warnings=embedding_warnings,
         )
-        if model_key == AnalysisModelKey.BERTOPIC:
-            return TopicModelExecution(
-                result=self.bertopic_service.run(
+
+    def _encode_texts(self, texts: list[str]) -> tuple[Any, list[str]]:
+        try:
+            embeddings = self.embedding_service.encode(
+                texts,
+                provider=self.config.embedding_provider,
+                model_name=self.config.embedding_model,
+                api_key=self.config.embedding_api_key,
+                dimensions=self.config.embedding_dimensions,
+                batch_size=self.config.embedding_batch_size,
+                timeout_seconds=self.config.embedding_timeout_seconds,
+            )
+            return embeddings, []
+        except TopicAnalysisDependencyError as primary_error:
+            if not self._has_embedding_fallback():
+                raise
+
+            try:
+                embeddings = self.embedding_service.encode(
                     texts,
-                    embeddings,
-                    top_terms=self.config.top_terms_per_group,
-                    language=self.config.bertopic_language,
-                    reduce_outliers=self.config.bertopic_reduce_outliers,
-                    outlier_threshold=self.config.bertopic_outlier_threshold,
-                ),
-                embeddings=embeddings,
-            )
-        if model_key == AnalysisModelKey.KMEANS:
-            scatter_embeddings = self._reduce_kmeans_embeddings(embeddings)
-            return TopicModelExecution(
-                result=self.kmeans_service.run(
-                    scatter_embeddings,
-                    requested_clusters=self.config.kmeans_clusters,
-                    random_state=self.config.kmeans_random_state,
-                ),
-                embeddings=embeddings,
-                scatter_embeddings=scatter_embeddings,
-            )
-        if model_key == AnalysisModelKey.HDBSCAN:
-            return TopicModelExecution(
-                result=self.hdbscan_service.run(
-                    embeddings,
-                    min_cluster_size=self.config.hdbscan_min_cluster_size,
-                    min_samples=self.config.hdbscan_min_samples,
-                    metric=self.config.hdbscan_metric,
-                ),
-                embeddings=embeddings,
-            )
-        raise ValueError(f"Unsupported analysis mode '{model_key.value}'.")
+                    provider=self.config.embedding_fallback_provider,
+                    model_name=self.config.embedding_fallback_model,
+                    api_key=self.config.embedding_fallback_api_key,
+                    dimensions=self.config.embedding_dimensions,
+                    batch_size=self.config.embedding_batch_size,
+                    timeout_seconds=self.config.embedding_timeout_seconds,
+                )
+            except TopicAnalysisDependencyError as fallback_error:
+                raise TopicAnalysisDependencyError(
+                    f"{primary_error} Fallback embeddings also failed: {fallback_error}"
+                ) from fallback_error
+
+            return embeddings, [
+                (
+                    f"{self._display_provider(self.config.embedding_provider)} embeddings failed, "
+                    f"so {self._display_provider(self.config.embedding_fallback_provider)} embeddings were used for this run."
+                )
+            ]
+
+    def _has_embedding_fallback(self) -> bool:
+        provider = (self.config.embedding_fallback_provider or "").strip().casefold()
+        if not provider:
+            return False
+        if provider == (self.config.embedding_provider or "").strip().casefold():
+            return False
+        return bool(self.config.embedding_fallback_model and self.config.embedding_fallback_api_key)
 
     @staticmethod
-    def _reduce_kmeans_embeddings(embeddings: Any) -> Any:
-        try:
-            import numpy as np
-            from sklearn.decomposition import PCA
-        except ImportError:
-            return embeddings
-
-        embedding_array = np.asarray(embeddings)
-        if (
-            embedding_array.ndim != 2
-            or embedding_array.shape[0] < 10
-            or embedding_array.shape[1] <= 50
-        ):
-            return embeddings
-
-        n_pca = min(50, embedding_array.shape[1], embedding_array.shape[0] - 1)
-        if n_pca < 2:
-            return embeddings
-        return PCA(n_components=n_pca, random_state=42).fit_transform(embedding_array)
+    def _display_provider(provider: str) -> str:
+        normalized = (provider or "").strip().casefold()
+        if normalized == "openai":
+            return "OpenAI"
+        if normalized == "gemini":
+            return "Gemini"
+        return normalized or "Fallback"

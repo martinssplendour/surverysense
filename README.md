@@ -10,9 +10,7 @@ The app is designed for small-team internal use. It runs on a single Render web 
 - detects likely metadata and verbatim columns
 - lets users reassign columns when detection is wrong
 - runs analysis with:
-  - `BERTopic`
-  - `K-means`
-  - `Natural Groups` (`HDBSCAN`)
+  - `Community Detection`
   - `N-grams`
 - supports metadata filtering
 - shows interactive charts
@@ -47,7 +45,6 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-python download_topic_model.py
 python -m uvicorn app.main:app --reload
 ```
 
@@ -79,18 +76,26 @@ GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-flash
 GEMINI_TEMPERATURE=0.1
 GEMINI_TIMEOUT_SECONDS=60
-TOPIC_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
-TOPIC_EMBEDDING_LOCAL_PATH=models/paraphrase-multilingual-MiniLM-L12-v2
+TOPIC_EMBEDDING_PROVIDER=gemini
+TOPIC_EMBEDDING_MODEL=gemini-embedding-001
+TOPIC_EMBEDDING_DIMENSIONS=768
+TOPIC_EMBEDDING_BATCH_SIZE=128
+TOPIC_EMBEDDING_TIMEOUT_SECONDS=60
+TOPIC_EMBEDDING_MAX_RETRIES=1
+TOPIC_EMBEDDING_CACHE_SIZE=4096
+TOPIC_EMBEDDING_FALLBACK_PROVIDER=openai
+OPENAI_API_KEY=...
 TOPIC_TRANSLATION_ENABLED=true
 TOPIC_TRANSLATION_SOURCE_LANGUAGE=auto
 TOPIC_TRANSLATION_TARGET_LANGUAGE=en
 TOPIC_TRANSLATION_BATCH_SIZE=8
-TOPIC_BERTOPIC_LANGUAGE=multilingual
-TOPIC_BERTOPIC_REDUCE_OUTLIERS=true
-TOPIC_BERTOPIC_OUTLIER_THRESHOLD=0.0
+TOPIC_COMMUNITY_SIMILARITY_THRESHOLD=0.62
+TOPIC_COMMUNITY_MAX_NEIGHBORS=12
 TOPIC_AI_LABELING_ENABLED=true
 TOPIC_AI_LABELING_TIMEOUT_SECONDS=30
 ```
+
+To use OpenAI embeddings as the primary provider, set `TOPIC_EMBEDDING_PROVIDER=openai`, `OPENAI_API_KEY=...`, and optionally `TOPIC_EMBEDDING_MODEL=text-embedding-3-small`. If Gemini is primary and `OPENAI_API_KEY` is present, OpenAI can be used as the fallback when Gemini returns quota/rate errors.
 
 Useful session settings:
 
@@ -123,17 +128,9 @@ This means the app is close to stateless in product behavior, but it is not stri
 
 ## Analysis Modes
 
-### BERTopic
+### Community Detection
 
-Best when you want natural themes without preselecting the number of groups.
-
-### K-means
-
-Best when you already know roughly how many groups you expect.
-
-### Natural Groups
-
-Best when you want tighter similarity groups and can tolerate some unassigned outliers.
+Builds a similarity network from response embeddings, detects natural communities, and adds a `community_group` column to the clean data after analysis.
 
 ### N-grams
 
@@ -164,14 +161,14 @@ The repo includes `render.yaml`.
 Render build/start behavior:
 
 ```bash
-build: cd backend && pip install -r requirements.txt && python download_topic_model.py
+build: cd backend && pip install -r requirements.txt
 start: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
 Important:
 
 - Python is pinned via `.python-version`
-- the sentence-transformer model is downloaded during build
+- topic embeddings use Gemini/OpenAI API providers by default, avoiding large model downloads during build
 - frontend assets are served by FastAPI from the top-level `frontend/` directory
 
 ## Testing
@@ -195,7 +192,7 @@ node --check ../frontend/upload.js
 
 ## Known Constraints
 
-- BERTopic can still be slower than the other analysis modes on larger datasets
+- very large files can still take time because embeddings are generated through hosted APIs before community detection runs
 - uploaded results are not durable across app restarts
 - the app is intended for a small internal user group, not large-scale concurrent analysis
 

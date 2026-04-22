@@ -108,7 +108,8 @@ function applyPayloadRows(payload) {
 
 function resetInteractiveWorkspaceState() {
     state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
-    state.selectedAnalysisModel = "bertopic";
+    state.selectedAnalysisModel = "community";
+    state.communityChartView = "bar";
     state.analysisResult = null;
     state.analysisRunning = false;
     resetAnalysisExportState();
@@ -183,6 +184,7 @@ function resetStoredResultState() {
     state.response = null;
     state.resultId = null;
     state.analysisResult = null;
+    state.communityChartView = "bar";
     state.analysisRows = [];
     state.transformedRows = [];
     resetDataExportState();

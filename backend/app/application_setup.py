@@ -42,9 +42,7 @@ from app.services.metadata_filter_service import MetadataFilterService
 from app.services.report_export_service import AnalysisReportExportService
 from app.services.result_store_service import ResultStoreService
 from app.services.topic_analysis_services import (
-    BertopicAnalysisService,
-    HdbscanAnalysisService,
-    KMeansAnalysisService,
+    CommunityDetectionAnalysisService,
     NgramAnalysisService,
     RepresentativeExampleSelectionService,
     SentenceEmbeddingService,
@@ -245,16 +243,19 @@ def _build_topic_analysis_service(
     narrative_service = TopicAnalysisNarrativeService(keyword_service)
     return TopicAnalysisService(
         config=TopicAnalysisConfig(
-            embedding_model=settings.topic_embedding_model,
-            embedding_local_path=settings.topic_embedding_local_path,
-            kmeans_clusters=settings.topic_kmeans_clusters,
-            kmeans_random_state=settings.topic_kmeans_random_state,
-            hdbscan_min_cluster_size=settings.topic_hdbscan_min_cluster_size,
-            hdbscan_min_samples=settings.topic_hdbscan_min_samples,
-            hdbscan_metric=settings.topic_hdbscan_metric,
-            bertopic_language=settings.topic_bertopic_language,
-            bertopic_reduce_outliers=settings.topic_bertopic_reduce_outliers,
-            bertopic_outlier_threshold=settings.topic_bertopic_outlier_threshold,
+            embedding_provider=settings.topic_embedding_provider,
+            embedding_model=settings.resolved_topic_embedding_model,
+            embedding_api_key=settings.resolved_topic_embedding_api_key,
+            embedding_dimensions=settings.topic_embedding_dimensions,
+            embedding_batch_size=settings.topic_embedding_batch_size,
+            embedding_timeout_seconds=settings.topic_embedding_timeout_seconds,
+            embedding_fallback_provider=settings.resolved_topic_embedding_fallback_provider,
+            embedding_fallback_model=settings.resolved_topic_embedding_fallback_model,
+            embedding_fallback_api_key=settings.resolved_topic_embedding_fallback_api_key,
+            community_similarity_threshold=settings.topic_community_similarity_threshold,
+            community_max_neighbors=settings.topic_community_max_neighbors,
+            community_resolution=settings.topic_community_resolution,
+            community_mutual_neighbors=settings.topic_community_mutual_neighbors,
             top_terms_per_group=settings.topic_top_terms,
             top_ngrams_per_bucket=settings.topic_top_ngrams,
             representative_examples_per_group=settings.topic_representative_examples,
@@ -268,11 +269,13 @@ def _build_topic_analysis_service(
         keyword_service=keyword_service,
         narrative_service=narrative_service,
         representative_example_service=RepresentativeExampleSelectionService(),
-        embedding_service=SentenceEmbeddingService(),
+        embedding_service=SentenceEmbeddingService(
+            cache_size=settings.topic_embedding_cache_size,
+            max_retries=settings.topic_embedding_max_retries,
+            retry_base_seconds=settings.topic_embedding_retry_base_seconds,
+        ),
         ngram_service=NgramAnalysisService(keyword_service),
-        kmeans_service=KMeansAnalysisService(),
-        hdbscan_service=HdbscanAnalysisService(),
-        bertopic_service=BertopicAnalysisService(),
+        community_detection_service=CommunityDetectionAnalysisService(),
         ai_label_service=TopicAiLabelService(
             config=TopicAiLabelingConfig(
                 enabled=settings.topic_ai_labeling_enabled,

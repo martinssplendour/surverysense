@@ -12,6 +12,7 @@ from app.services.topic_analysis_services.contracts import (
     AnalysisDocumentRecord,
     AnalysisExampleRecord,
     AnalysisGroupRecord,
+    AnalysisNetworkEdgeRecord,
     AnalysisNgramBucketRecord,
     AnalysisNgramItemRecord,
     AnalysisRunResult,
@@ -89,6 +90,7 @@ class StoredAnalysisSnapshot:
     groups: dict[str, StoredAnalysisGroupSnapshot]
     ngram_items: dict[str, StoredAnalysisNgramSnapshot]
     scatter_points: list[AnalysisScatterPointRecord]
+    network_edges: list[AnalysisNetworkEdgeRecord]
 
 
 @dataclass(slots=True)

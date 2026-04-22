@@ -1,5 +1,5 @@
 import { elements, state } from "./shared.js";
-import { downloadAnalysisReport, normalizeAnalysisExportFormat } from "./chartExport.js";
+import { downloadAnalysisReport, normalizeAnalysisExportFormat, previewAnalysisReport } from "./chartExport.js";
 import { downloadDataExport, renderDataExportControls } from "./dataExport.js";
 import {
     closeAnalysisGroupModal,
@@ -42,6 +42,7 @@ import { resizeAnalysisPlots } from "./charts.js";
 
 
 export function bindResultsEvents() {
+    normalizeAnalysisResultsActionLayout();
     elements.uploadDataButton?.addEventListener("click", resetToUploadState);
     elements.openAnalysisButton?.addEventListener("click", () => {
         void openWorkspace("analysis");
@@ -63,11 +64,18 @@ export function bindResultsEvents() {
     elements.backToAnalysisSetupButton?.addEventListener("click", () => {
         void openWorkspace("analysis");
     });
+    elements.analysisViewDataButton?.addEventListener("click", () => {
+        state.showOnlyVerbatim = false;
+        void openWorkspace("data");
+    });
     elements.backToDashboardResultsButton?.addEventListener("click", () => {
         void openWorkspace("dashboard");
     });
     elements.downloadAnalysisReportButton?.addEventListener("click", () => {
         void downloadAnalysisReport();
+    });
+    elements.previewAnalysisReportButton?.addEventListener("click", () => {
+        void previewAnalysisReport();
     });
     elements.analysisExportToggleButton?.addEventListener("click", handleExportToggleClick);
     elements.analysisExportMenu?.addEventListener("click", handleExportMenuClick);
@@ -122,6 +130,36 @@ export function bindResultsEvents() {
     elements.runAnalysisButton?.addEventListener("click", handleRunAnalysis);
     window.addEventListener("resize", syncSliderRange);
     window.addEventListener("resize", resizeAnalysisPlots);
+}
+
+
+function normalizeAnalysisResultsActionLayout() {
+    const exportSplit = document.querySelector(".analysis-export-split");
+    const filterRow = document.querySelector("#analysis-results-filter-bar .filter-chip-row");
+
+    if (filterRow instanceof HTMLElement) {
+        filterRow.classList.add("analysis-results-filter-row");
+    }
+
+    if (elements.previewAnalysisReportButton instanceof HTMLButtonElement && exportSplit instanceof HTMLElement) {
+        elements.previewAnalysisReportButton.className = "button button-primary analysis-export-preview-button";
+        elements.previewAnalysisReportButton.textContent = "Preview";
+        if (elements.previewAnalysisReportButton.parentElement !== exportSplit) {
+            const downloadButton = elements.downloadAnalysisReportButton;
+            const referenceNode = downloadButton instanceof Node && exportSplit.contains(downloadButton)
+                ? downloadButton
+                : exportSplit.firstChild;
+            exportSplit.insertBefore(elements.previewAnalysisReportButton, referenceNode);
+        }
+    }
+
+    if (elements.analysisViewDataButton instanceof HTMLButtonElement && filterRow instanceof HTMLElement) {
+        elements.analysisViewDataButton.className = "dashboard-data-link analysis-results-data-link";
+        elements.analysisViewDataButton.innerHTML = 'View data <span aria-hidden="true">&rarr;</span>';
+        if (elements.analysisViewDataButton.parentElement !== filterRow) {
+            filterRow.appendChild(elements.analysisViewDataButton);
+        }
+    }
 }
 
 

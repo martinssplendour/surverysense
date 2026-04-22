@@ -5,20 +5,23 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class TopicAnalysisConfig:
+    embedding_provider: str
     embedding_model: str
-    embedding_local_path: str
-    kmeans_clusters: int
-    kmeans_random_state: int
-    hdbscan_min_cluster_size: int
-    hdbscan_min_samples: int
-    hdbscan_metric: str
-    bertopic_language: str
-    bertopic_reduce_outliers: bool
-    bertopic_outlier_threshold: float
+    embedding_api_key: str
+    embedding_dimensions: int
+    embedding_batch_size: int
+    embedding_timeout_seconds: int
+    community_similarity_threshold: float
+    community_max_neighbors: int
     top_terms_per_group: int
     top_ngrams_per_bucket: int
     representative_examples_per_group: int
     max_document_chars: int
+    embedding_fallback_provider: str = ""
+    embedding_fallback_model: str = ""
+    embedding_fallback_api_key: str = ""
+    community_resolution: float = 1.0
+    community_mutual_neighbors: bool = True
 
 
 @dataclass(slots=True)

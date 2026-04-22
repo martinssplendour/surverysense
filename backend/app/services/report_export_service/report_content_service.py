@@ -131,11 +131,13 @@ class ReportContentService:
     def build_summary_heading(request: AnalysisExportRequest) -> str:
         if request.analysis_result.ngram_buckets:
             return "Phrase summaries"
+        if request.analysis_result.model_key == "community":
+            return "Community summaries"
         return "Topic summaries"
 
     @staticmethod
     def build_representative_heading() -> str:
-        return "Representative documents (topics and top 3 responses)"
+        return "Representative documents (groups and top 3 responses)"
 
     def build_representative_sections(self, request: AnalysisExportRequest) -> list[tuple[str, list[str]]]:
         if request.analysis_result.ngram_buckets:

@@ -1,18 +1,14 @@
-import shutil
 import sys
-import tempfile
 import types
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+from app.core.exceptions import TopicAnalysisDependencyError
 from app.models.enums import AnalysisModelKey
 from app.services.language_normalization_service import EnglishTranslationBatchResult
 from app.services.topic_analysis_services import (
-    BertopicAnalysisService,
-    HdbscanAnalysisService,
-    KMeansAnalysisService,
+    CommunityDetectionAnalysisService,
     NgramAnalysisService,
     RepresentativeExampleSelectionService,
     SentenceEmbeddingService,
@@ -22,47 +18,66 @@ from app.services.topic_analysis_services import (
     TopicAnalysisNarrativeService,
     TopicAnalysisService,
     TopicAnalysisTextPreparationService,
-    TopicModelGroupDefinition,
     TopicModelRunResult,
 )
+from app.services.topic_analysis_services.model_execution_service import TopicModelExecutionService
 from app.services.topic_label_ai_service import TopicAiLabelingBatchResult
 
 
 class _FakeEmbeddingService:
     last_texts: list[str] = []
 
-    def encode(self, texts: list[str], *, model_name: str, local_model_path: str = ""):
+    def encode(self, texts: list[str], **kwargs):
         type(self).last_texts = list(texts)
         return [[float(index), float(index + 1)] for index, _text in enumerate(texts)]
 
-
-class _FakeKMeansService:
-    def run(self, embeddings, *, requested_clusters: int, random_state: int) -> TopicModelRunResult:
-        return TopicModelRunResult(
-            assignments=[0, 0, 1],
-            warnings=["KMeans test warning."],
-        )
+    def warm_up(self, *args, **kwargs) -> None:
+        return
 
 
-class _FakeBertopicService:
+class _FakeCommunityDetectionService:
     def run(
         self,
-        texts: list[str],
         embeddings,
         *,
-        top_terms: int,
-        language: str,
-        reduce_outliers: bool,
-        outlier_threshold: float,
+        similarity_threshold: float,
+        max_neighbors: int,
+        resolution: float = 1.0,
+        mutual_neighbors: bool = True,
     ) -> TopicModelRunResult:
         return TopicModelRunResult(
             assignments=[0, 0, 1],
-            groups={
-                "0": TopicModelGroupDefinition(terms=["mai", "multe", "materiale"], is_noise=False),
-                "1": TopicModelGroupDefinition(terms=["great", "website"], is_noise=False),
-            },
-            warnings=[],
+            warnings=["Community detection test warning."],
+            network_edges=[(0, 1, 0.95)],
+            layout_positions={0: (0.0, 0.0), 1: (0.2, 0.1), 2: (1.0, 1.0)},
         )
+
+
+class _EmbeddingPassthroughCommunityService:
+    def run(
+        self,
+        embeddings,
+        *,
+        similarity_threshold: float,
+        max_neighbors: int,
+        resolution: float = 1.0,
+        mutual_neighbors: bool = True,
+    ) -> TopicModelRunResult:
+        return TopicModelRunResult(assignments=[0 for _embedding in embeddings], warnings=[])
+
+
+class _FakeFallbackEmbeddingService:
+    calls: list[str] = []
+
+    def encode(self, texts: list[str], **kwargs):
+        provider = kwargs.get("provider", "")
+        type(self).calls.append(str(provider))
+        if provider == "gemini":
+            raise TopicAnalysisDependencyError("Gemini embeddings request failed (429): Resource exhausted.")
+        return [[1.0, 0.0] for _text in texts]
+
+    def warm_up(self, *args, **kwargs) -> None:
+        return
 
 
 class _UnusedService:
@@ -119,55 +134,14 @@ class _FailingAiLabelService:
         raise TimeoutError("label timeout")
 
 
-class _InspectableFakeBERTopic:
-    last_instance = None
+class _FakeEmbeddingResponse:
+    def __init__(self, payload: dict[str, object], status_code: int = 200) -> None:
+        self._payload = payload
+        self.status_code = status_code
+        self.text = ""
 
-    def __init__(self, *args, **kwargs) -> None:
-        type(self).last_instance = self
-        self.updated_topics: list[int] | None = None
-        self.reduce_kwargs: dict[str, object] = {}
-
-    def fit_transform(self, texts: list[str], embeddings):
-        return [-1, 0, 1], None
-
-    def reduce_outliers(self, texts: list[str], topics: list[int], **kwargs):
-        self.reduce_kwargs = dict(kwargs)
-        return [0, 0, 1]
-
-    def update_topics(self, texts: list[str], *, topics: list[int]) -> None:
-        self.updated_topics = list(topics)
-
-    def get_topic_info(self):
-        if self.updated_topics == [0, 0, 1]:
-            return pd.DataFrame([{"Topic": 0}, {"Topic": 1}])
-        return pd.DataFrame([{"Topic": -1}, {"Topic": 0}, {"Topic": 1}])
-
-    def get_topic(self, topic_id: int):
-        if topic_id == 0:
-            return [("confidence", 0.6), ("resources", 0.4)]
-        if topic_id == 1:
-            return [("website", 0.7), ("support", 0.3)]
-        return [("confidence", 0.5)]
-
-
-class _FakeClassTfidfTransformer:
-    def __init__(self, *args, **kwargs) -> None:
-        return
-
-
-class _FakeUMAP:
-    def __init__(self, *args, **kwargs) -> None:
-        return
-
-
-class _FakeSentenceTransformer:
-    init_calls: list[tuple[str, dict[str, object]]] = []
-
-    def __init__(self, model_name: str, **kwargs) -> None:
-        type(self).init_calls.append((model_name, dict(kwargs)))
-
-    def encode(self, texts: list[str], **kwargs):
-        return [[1.0] for _ in texts]
+    def json(self):
+        return self._payload
 
 
 class TopicAnalysisTextPreparationServiceTests(unittest.TestCase):
@@ -267,81 +241,390 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
         self.assertEqual(terms, ["support", "schools", "class"])
 
 
-class BertopicAnalysisServiceTests(unittest.TestCase):
-    def test_run_reassigns_outliers_to_nearest_existing_theme(self) -> None:
-        fake_bertopic_module = types.ModuleType("bertopic")
-        fake_bertopic_module.BERTopic = _InspectableFakeBERTopic
-        fake_vectorizers_module = types.ModuleType("bertopic.vectorizers")
-        fake_vectorizers_module.ClassTfidfTransformer = _FakeClassTfidfTransformer
-        fake_umap_module = types.ModuleType("umap")
-        fake_umap_module.UMAP = _FakeUMAP
+class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
+    def test_run_uses_leiden_when_available(self) -> None:
+        class _FakeEdgeSequence:
+            def __init__(self, graph) -> None:
+                self.graph = graph
 
-        service = BertopicAnalysisService()
-        with patch.dict(
-            sys.modules,
-            {
-                "bertopic": fake_bertopic_module,
-                "bertopic.vectorizers": fake_vectorizers_module,
-                "umap": fake_umap_module,
-            },
-        ):
+            def __setitem__(self, key, value) -> None:
+                if key == "weight":
+                    self.graph.weights = list(value)
+
+        class _FakeGraph:
+            last_instance = None
+
+            def __init__(self) -> None:
+                type(self).last_instance = self
+                self.vertex_count = 0
+                self.edges: list[tuple[int, int]] = []
+                self.weights: list[float] = []
+                self.es = _FakeEdgeSequence(self)
+
+            def add_vertices(self, count: int) -> None:
+                self.vertex_count = int(count)
+
+            def add_edges(self, edges) -> None:
+                self.edges = list(edges)
+
+        class _FakePartition:
+            membership = [0, 0, 1, 1]
+
+        calls: list[dict[str, object]] = []
+
+        def find_partition(graph, partition_type, **kwargs):
+            calls.append(
+                {
+                    "graph": graph,
+                    "partition_type": partition_type,
+                    **kwargs,
+                }
+            )
+            return _FakePartition()
+
+        fake_igraph = types.ModuleType("igraph")
+        fake_igraph.Graph = _FakeGraph
+        fake_leidenalg = types.ModuleType("leidenalg")
+        fake_leidenalg.RBConfigurationVertexPartition = object()
+        fake_leidenalg.find_partition = find_partition
+        service = CommunityDetectionAnalysisService()
+
+        with patch.dict(sys.modules, {"igraph": fake_igraph, "leidenalg": fake_leidenalg}):
             result = service.run(
-                ["clear confidence response", "curriculum confidence", "website support"],
-                [[0.1, 0.2], [0.2, 0.3], [0.8, 0.9]],
-                top_terms=3,
-                language="multilingual",
-                reduce_outliers=True,
-                outlier_threshold=0.0,
+                [
+                    [1.0, 0.0],
+                    [0.99, 0.01],
+                    [-1.0, 0.0],
+                    [-0.99, -0.01],
+                ],
+                similarity_threshold=0.8,
+                max_neighbors=2,
+                resolution=1.35,
             )
 
-        self.assertEqual(result.assignments, [0, 0, 1])
-        self.assertEqual(sorted(result.groups.keys()), ["0", "1"])
-        self.assertIn("BERTopic reassigned 1 response(s)", " ".join(result.warnings))
-        self.assertEqual(_InspectableFakeBERTopic.last_instance.reduce_kwargs["strategy"], "embeddings")
-        self.assertEqual(_InspectableFakeBERTopic.last_instance.reduce_kwargs["threshold"], 0.0)
-        self.assertIsNotNone(_InspectableFakeBERTopic.last_instance.reduce_kwargs["embeddings"])
+        self.assertEqual(result.assignments, [0, 0, 1, 1])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["weights"], "weight")
+        self.assertEqual(calls[0]["resolution_parameter"], 1.35)
+        self.assertEqual(calls[0]["seed"], 42)
+        self.assertEqual(_FakeGraph.last_instance.vertex_count, 4)
+        self.assertTrue(_FakeGraph.last_instance.edges)
+        self.assertTrue(_FakeGraph.last_instance.weights)
+        self.assertNotIn("greedy modularity", " ".join(result.warnings))
+
+    def test_run_groups_similar_embedding_neighborhoods_into_communities(self) -> None:
+        service = CommunityDetectionAnalysisService()
+
+        result = service.run(
+            [
+                [1.0, 0.0],
+                [0.99, 0.01],
+                [-1.0, 0.0],
+                [-0.99, -0.01],
+            ],
+            similarity_threshold=0.8,
+            max_neighbors=2,
+        )
+
+        self.assertEqual(len(result.assignments), 4)
+        self.assertEqual(result.assignments[0], result.assignments[1])
+        self.assertEqual(result.assignments[2], result.assignments[3])
+        self.assertNotEqual(result.assignments[0], result.assignments[2])
+        self.assertEqual(set(result.layout_positions.keys()), {0, 1, 2, 3})
+        self.assertTrue(result.network_edges)
+
+    def test_run_requires_mutual_neighbors_by_default(self) -> None:
+        service = CommunityDetectionAnalysisService()
+        embeddings = [
+            [1.0, 0.0],
+            [0.9, 0.4358898944],
+            [0.8, 0.6],
+        ]
+
+        strict_result = service.run(
+            embeddings,
+            similarity_threshold=0.75,
+            max_neighbors=1,
+        )
+        loose_result = service.run(
+            embeddings,
+            similarity_threshold=0.75,
+            max_neighbors=1,
+            mutual_neighbors=False,
+        )
+
+        strict_edges = {(source, target) for source, target, _weight in strict_result.network_edges}
+        loose_edges = {(source, target) for source, target, _weight in loose_result.network_edges}
+        self.assertEqual(strict_edges, {(1, 2)})
+        self.assertEqual(loose_edges, {(0, 1), (1, 2)})
+
+    def test_run_falls_back_to_singleton_communities_when_no_edges_match_threshold(self) -> None:
+        service = CommunityDetectionAnalysisService()
+
+        result = service.run(
+            [
+                [1.0, 0.0],
+                [0.0, 1.0],
+                [-1.0, 0.0],
+            ],
+            similarity_threshold=0.99,
+            max_neighbors=2,
+        )
+
+        self.assertEqual(result.assignments, [0, 1, 2])
+        self.assertIn("each response is shown as its own community", " ".join(result.warnings))
+
+    def test_run_falls_back_to_raw_embeddings_when_umap_reduction_fails(self) -> None:
+        class _FailingReducer:
+            def __init__(self, **kwargs) -> None:
+                pass
+
+            def fit_transform(self, embeddings):
+                raise TypeError("check_array() got an unexpected keyword argument 'force_all_finite'")
+
+        fake_umap = types.ModuleType("umap")
+        fake_umap.UMAP = _FailingReducer
+        service = CommunityDetectionAnalysisService()
+        embeddings = [[1.0, *([0.0] * 15)] for _index in range(10)]
+
+        with (
+            patch.object(CommunityDetectionAnalysisService, "_has_incompatible_umap_runtime", return_value=False),
+            patch.dict(sys.modules, {"umap": fake_umap}),
+        ):
+            result = service.run(
+                embeddings,
+                similarity_threshold=0.8,
+                max_neighbors=3,
+            )
+
+        self.assertEqual(len(result.assignments), 10)
+        self.assertIn("UMAP clustering reduction was skipped", " ".join(result.warnings))
 
 
 class SentenceEmbeddingServiceTests(unittest.TestCase):
-    def test_get_model_prefers_local_folder_with_local_files_only(self) -> None:
-        fake_sentence_transformers = types.ModuleType("sentence_transformers")
-        fake_sentence_transformers.SentenceTransformer = _FakeSentenceTransformer
-        _FakeSentenceTransformer.init_calls = []
-
-        temp_dir = Path(__file__).resolve().parent / "_tmp_local_model"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            service = SentenceEmbeddingService()
-            with patch.dict(sys.modules, {"sentence_transformers": fake_sentence_transformers}):
-                service._get_model(
-                    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                    local_model_path=str(temp_dir),
-                )
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-
-        self.assertEqual(len(_FakeSentenceTransformer.init_calls), 1)
-        model_name, kwargs = _FakeSentenceTransformer.init_calls[0]
-        self.assertEqual(model_name, str(temp_dir))
-        self.assertTrue(kwargs["local_files_only"])
-
-    def test_get_model_falls_back_to_remote_name_when_local_folder_missing(self) -> None:
-        fake_sentence_transformers = types.ModuleType("sentence_transformers")
-        fake_sentence_transformers.SentenceTransformer = _FakeSentenceTransformer
-        _FakeSentenceTransformer.init_calls = []
-
-        missing_dir = Path(tempfile.gettempdir()) / "verbatim-app-missing-model-dir"
+    def test_warm_up_is_noop_for_hosted_embedding_providers(self) -> None:
         service = SentenceEmbeddingService()
-        with patch.dict(sys.modules, {"sentence_transformers": fake_sentence_transformers}):
-            service._get_model(
-                "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                local_model_path=str(missing_dir),
+
+        with patch("requests.post") as post:
+            service.warm_up(provider="gemini", model_name="gemini-embedding-001")
+
+        post.assert_not_called()
+
+    def test_encode_uses_gemini_batch_embeddings_and_normalises_vectors(self) -> None:
+        calls = []
+
+        def fake_post(*args, **kwargs):
+            calls.append({"args": args, "kwargs": kwargs})
+            return _FakeEmbeddingResponse(
+                {
+                    "embeddings": [
+                        {"values": [3.0, 4.0]},
+                        {"values": [0.0, 5.0]},
+                    ]
+                }
             )
 
-        self.assertEqual(len(_FakeSentenceTransformer.init_calls), 1)
-        model_name, kwargs = _FakeSentenceTransformer.init_calls[0]
-        self.assertEqual(model_name, "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-        self.assertNotIn("local_files_only", kwargs)
+        service = SentenceEmbeddingService()
+        with patch("requests.post", side_effect=fake_post):
+            embeddings = service.encode(
+                ["first", "second"],
+                provider="gemini",
+                model_name="gemini-embedding-001",
+                api_key="test-key",
+                dimensions=2,
+                batch_size=2,
+                timeout_seconds=9,
+            )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            calls[0]["args"][0],
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents",
+        )
+        self.assertEqual(calls[0]["kwargs"]["headers"]["x-goog-api-key"], "test-key")
+        self.assertEqual(calls[0]["kwargs"]["timeout"], 9)
+        request_payload = calls[0]["kwargs"]["json"]["requests"][0]
+        self.assertEqual(request_payload["taskType"], "CLUSTERING")
+        self.assertEqual(request_payload["outputDimensionality"], 2)
+        self.assertAlmostEqual(float(embeddings[0][0]), 0.6)
+        self.assertAlmostEqual(float(embeddings[0][1]), 0.8)
+        self.assertAlmostEqual(float(embeddings[1][1]), 1.0)
+
+    def test_encode_uses_openai_embeddings_and_preserves_response_order(self) -> None:
+        def fake_post(*args, **kwargs):
+            return _FakeEmbeddingResponse(
+                {
+                    "data": [
+                        {"index": 1, "embedding": [0.0, 6.0]},
+                        {"index": 0, "embedding": [8.0, 6.0]},
+                    ]
+                }
+            )
+
+        service = SentenceEmbeddingService()
+        with patch("requests.post", side_effect=fake_post) as post:
+            embeddings = service.encode(
+                ["first", "second"],
+                provider="openai",
+                model_name="text-embedding-3-small",
+                api_key="test-key",
+                dimensions=2,
+                batch_size=128,
+                timeout_seconds=11,
+            )
+
+        call = post.call_args
+        self.assertEqual(call.args[0], "https://api.openai.com/v1/embeddings")
+        self.assertEqual(call.kwargs["headers"]["Authorization"], "Bearer test-key")
+        self.assertEqual(call.kwargs["json"]["dimensions"], 2)
+        self.assertEqual(call.kwargs["timeout"], 11)
+        self.assertAlmostEqual(float(embeddings[0][0]), 0.8)
+        self.assertAlmostEqual(float(embeddings[0][1]), 0.6)
+        self.assertAlmostEqual(float(embeddings[1][1]), 1.0)
+
+    def test_encode_batches_openai_requests_at_128_by_default(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_post(*args, **kwargs):
+            batch = list(kwargs["json"]["input"])
+            calls.append(batch)
+            return _FakeEmbeddingResponse(
+                {
+                    "data": [
+                        {"index": index, "embedding": [1.0, 0.0]}
+                        for index, _text in enumerate(batch)
+                    ]
+                }
+            )
+
+        service = SentenceEmbeddingService()
+        with patch("requests.post", side_effect=fake_post):
+            embeddings = service.encode(
+                [f"text {index}" for index in range(129)],
+                provider="openai",
+                model_name="text-embedding-3-small",
+                api_key="test-key",
+            )
+
+        self.assertEqual([len(batch) for batch in calls], [128, 1])
+        self.assertEqual(embeddings.shape[0], 129)
+
+    def test_encode_caps_gemini_batches_at_provider_limit(self) -> None:
+        calls: list[list[dict[str, object]]] = []
+
+        def fake_post(*args, **kwargs):
+            batch = list(kwargs["json"]["requests"])
+            calls.append(batch)
+            return _FakeEmbeddingResponse(
+                {
+                    "embeddings": [
+                        {"values": [1.0, 0.0]}
+                        for _request in batch
+                    ]
+                }
+            )
+
+        service = SentenceEmbeddingService()
+        with patch("requests.post", side_effect=fake_post):
+            embeddings = service.encode(
+                [f"text {index}" for index in range(128)],
+                provider="gemini",
+                model_name="gemini-embedding-001",
+                api_key="test-key",
+                batch_size=128,
+            )
+
+        self.assertEqual([len(batch) for batch in calls], [100, 28])
+        self.assertEqual(embeddings.shape[0], 128)
+
+    def test_encode_retries_retryable_provider_errors(self) -> None:
+        responses = [
+            _FakeEmbeddingResponse({"error": {"message": "Resource exhausted."}}, status_code=429),
+            _FakeEmbeddingResponse({"embeddings": [{"values": [1.0, 0.0]}]}),
+        ]
+
+        def fake_post(*args, **kwargs):
+            return responses.pop(0)
+
+        service = SentenceEmbeddingService(cache_size=0, max_retries=1, retry_base_seconds=0)
+        with patch("requests.post", side_effect=fake_post) as post:
+            embeddings = service.encode(
+                ["first"],
+                provider="gemini",
+                model_name="gemini-embedding-001",
+                api_key="test-key",
+            )
+
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(embeddings.shape[0], 1)
+
+    def test_encode_caches_duplicate_texts_and_reuses_cached_vectors(self) -> None:
+        calls: list[list[dict[str, object]]] = []
+
+        def fake_post(*args, **kwargs):
+            batch = list(kwargs["json"]["requests"])
+            calls.append(batch)
+            return _FakeEmbeddingResponse(
+                {
+                    "embeddings": [
+                        {"values": [1.0, 0.0]}
+                        for _request in batch
+                    ]
+                }
+            )
+
+        service = SentenceEmbeddingService(cache_size=10, max_retries=0)
+        with patch("requests.post", side_effect=fake_post):
+            first_embeddings = service.encode(
+                ["same text", "same text"],
+                provider="gemini",
+                model_name="gemini-embedding-001",
+                api_key="test-key",
+            )
+            second_embeddings = service.encode(
+                ["same text"],
+                provider="gemini",
+                model_name="gemini-embedding-001",
+                api_key="test-key",
+            )
+
+        self.assertEqual([len(batch) for batch in calls], [1])
+        self.assertEqual(first_embeddings.shape[0], 2)
+        self.assertEqual(second_embeddings.shape[0], 1)
+
+    def test_model_execution_uses_fallback_embeddings_when_primary_provider_fails(self) -> None:
+        _FakeFallbackEmbeddingService.calls = []
+        config = TopicAnalysisConfig(
+            embedding_provider="gemini",
+            embedding_model="gemini-embedding-001",
+            embedding_api_key="gemini-key",
+            embedding_dimensions=768,
+            embedding_batch_size=128,
+            embedding_timeout_seconds=60,
+            community_similarity_threshold=0.62,
+            community_max_neighbors=12,
+            top_terms_per_group=5,
+            top_ngrams_per_bucket=6,
+            representative_examples_per_group=2,
+            max_document_chars=300,
+            embedding_fallback_provider="openai",
+            embedding_fallback_model="text-embedding-3-small",
+            embedding_fallback_api_key="openai-key",
+        )
+        service = TopicModelExecutionService(
+            config=config,
+            embedding_service=_FakeFallbackEmbeddingService(),
+            community_detection_service=_EmbeddingPassthroughCommunityService(),
+        )
+
+        execution = service.execute(
+            model_key=AnalysisModelKey.COMMUNITY,
+            texts=["first", "second"],
+        )
+
+        self.assertEqual(_FakeFallbackEmbeddingService.calls, ["gemini", "openai"])
+        self.assertEqual(execution.result.assignments, [0, 0])
+        self.assertIn("OpenAI embeddings were used", " ".join(execution.warnings or []))
 
 
 class TopicAnalysisServiceTests(unittest.TestCase):
@@ -349,16 +632,14 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         _FakeEmbeddingService.last_texts = []
         keyword_service = TopicAnalysisKeywordService()
         self.config = TopicAnalysisConfig(
-            embedding_model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-            embedding_local_path="models/paraphrase-multilingual-MiniLM-L12-v2",
-            kmeans_clusters=4,
-            kmeans_random_state=42,
-            hdbscan_min_cluster_size=5,
-            hdbscan_min_samples=3,
-            hdbscan_metric="euclidean",
-            bertopic_language="multilingual",
-            bertopic_reduce_outliers=True,
-            bertopic_outlier_threshold=0.0,
+            embedding_provider="gemini",
+            embedding_model="gemini-embedding-001",
+            embedding_api_key="test-key",
+            embedding_dimensions=768,
+            embedding_batch_size=128,
+            embedding_timeout_seconds=60,
+            community_similarity_threshold=0.62,
+            community_max_neighbors=12,
             top_terms_per_group=5,
             top_ngrams_per_bucket=6,
             representative_examples_per_group=2,
@@ -371,10 +652,29 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.example_service = RepresentativeExampleSelectionService()
         self.ngram_service = NgramAnalysisService(keyword_service)
 
-    def test_run_ngrams_translates_output_terms_only(self) -> None:
-        service = TopicAnalysisService(
+    def _build_service(
+        self,
+        *,
+        text_preparation_service: TopicAnalysisTextPreparationService | None = None,
+        embedding_service=None,
+        community_detection_service=None,
+        ai_label_service=None,
+    ) -> TopicAnalysisService:
+        return TopicAnalysisService(
             config=self.config,
             input_validation_service=self.validation_service,
+            text_preparation_service=text_preparation_service or self.text_preparation_service,
+            keyword_service=self.keyword_service,
+            narrative_service=self.narrative_service,
+            representative_example_service=self.example_service,
+            embedding_service=embedding_service or _FakeEmbeddingService(),
+            ngram_service=self.ngram_service,
+            community_detection_service=community_detection_service or _UnusedService(),
+            ai_label_service=ai_label_service,
+        )
+
+    def test_run_ngrams_translates_output_terms_only(self) -> None:
+        service = self._build_service(
             text_preparation_service=TopicAnalysisTextPreparationService(
                 max_document_chars=300,
                 translation_service=_FakeEnglishTranslationService(
@@ -384,15 +684,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                         "matematicas": "maths",
                     }
                 ),
-            ),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
+            )
         )
         dataframe = pd.DataFrame(
             {
@@ -425,9 +717,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertIn("Translated", " ".join(result.warnings))
 
     def test_run_ngrams_keeps_translated_display_terms_stopword_free(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
+        service = self._build_service(
             text_preparation_service=TopicAnalysisTextPreparationService(
                 max_document_chars=300,
                 translation_service=_FakeEnglishTranslationService(
@@ -435,15 +725,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                         "aula": "in the classroom",
                     }
                 ),
-            ),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
+            )
         )
         dataframe = pd.DataFrame(
             {
@@ -467,19 +749,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.ngram_buckets[0].items[0].term, "classroom")
 
     def test_run_ngrams_includes_matching_documents_for_each_item(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
-            text_preparation_service=self.text_preparation_service,
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
-        )
+        service = self._build_service()
         dataframe = pd.DataFrame(
             {
                 "verbatim": [
@@ -510,10 +780,8 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             ],
         )
 
-    def test_run_kmeans_translates_group_outputs_after_grouping(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
+    def test_run_community_translates_group_outputs_after_grouping(self) -> None:
+        service = self._build_service(
             text_preparation_service=TopicAnalysisTextPreparationService(
                 max_document_chars=300,
                 translation_service=_FakeEnglishTranslationService(
@@ -523,14 +791,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                     }
                 ),
             ),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
+            community_detection_service=_FakeCommunityDetectionService(),
         )
         dataframe = pd.DataFrame(
             {
@@ -545,13 +806,13 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key=AnalysisModelKey.KMEANS,
+            model_key=AnalysisModelKey.COMMUNITY,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.model_label, "Fixed Similarity Groups")
+        self.assertEqual(result.model_label, "Community Detection")
         self.assertEqual(len(result.groups), 2)
         self.assertEqual(result.groups[0].count, 2)
         self.assertEqual(result.groups[0].label, "Responses about teaching support")
@@ -561,30 +822,25 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.groups[0].examples[0].translated)
         self.assertEqual(result.groups[0].examples[0].source_text, "ayuda docente")
         self.assertIn("Representative document", result.groups[0].comment)
-        self.assertIn("KMeans test warning.", result.warnings)
+        self.assertIn("Community detection test warning.", result.warnings)
         self.assertGreaterEqual(result.translated_document_count, 2)
+        self.assertEqual(len(result.scatter_points), 3)
+        self.assertEqual(len(result.network_edges), 1)
+        self.assertEqual(result.network_edges[0].source_row_number, 1)
+        self.assertEqual(result.network_edges[0].target_row_number, 2)
 
-    def test_run_kmeans_can_replace_heuristic_labels_with_ai_labels_without_retranslating_them(self) -> None:
+    def test_run_community_can_replace_heuristic_labels_with_ai_labels_without_retranslating_them(self) -> None:
         translation_service = _FakeEnglishTranslationService(
             {
                 "ayuda docente": "teaching support",
             }
         )
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
+        service = self._build_service(
             text_preparation_service=TopicAnalysisTextPreparationService(
                 max_document_chars=300,
                 translation_service=translation_service,
             ),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
+            community_detection_service=_FakeCommunityDetectionService(),
             ai_label_service=_FakeAiLabelService({"0": "Teaching Support"}),
         )
         dataframe = pd.DataFrame(
@@ -600,7 +856,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key=AnalysisModelKey.KMEANS,
+            model_key=AnalysisModelKey.COMMUNITY,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
@@ -613,71 +869,8 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(all("Teaching Support" not in batch for batch in translation_service.calls))
         self.assertIn("AI generated clearer labels", " ".join(result.warnings))
 
-    def test_run_bertopic_translates_mixed_language_theme_names_before_display(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
-            text_preparation_service=TopicAnalysisTextPreparationService(
-                max_document_chars=300,
-                translation_service=_FakeEnglishTranslationService(
-                    {
-                        "am nevoie de mai multe materiale": "I need more materials",
-                        "mai multe materiale": "more materials",
-                        "mai": "more",
-                        "multe": "more",
-                        "materiale": "materials",
-                    }
-                ),
-            ),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_UnusedService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_FakeBertopicService(),
-        )
-        dataframe = pd.DataFrame(
-            {
-                "verbatim": [
-                    "am nevoie de mai multe materiale",
-                    "mai multe materiale",
-                    "great website",
-                ]
-            }
-        )
-
-        result = service.run(
-            result_id="abc123",
-            dataframe=dataframe,
-            model_key=AnalysisModelKey.BERTOPIC,
-            text_column_name="verbatim",
-            available_verbatim_columns=["verbatim"],
-        )
-
-        self.assertTrue(result.ok)
-        self.assertEqual(result.groups[0].label, "more / materials")
-        self.assertEqual(result.groups[0].source_label, "Responses about mai multe")
-        self.assertTrue(result.groups[0].translated)
-        self.assertIn("materials", result.groups[0].terms)
-        self.assertIn("more", result.groups[0].terms)
-        self.assertNotIn("mai", result.groups[0].label)
-
     def test_run_embeds_original_cleaned_text_but_keeps_filtered_topic_terms(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
-            text_preparation_service=TopicAnalysisTextPreparationService(max_document_chars=300),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
-        )
+        service = self._build_service(community_detection_service=_FakeCommunityDetectionService())
         dataframe = pd.DataFrame(
             {
                 "verbatim": [
@@ -691,7 +884,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key=AnalysisModelKey.KMEANS,
+            model_key=AnalysisModelKey.COMMUNITY,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
@@ -714,18 +907,8 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         )
 
     def test_run_keeps_heuristic_labels_when_ai_labeling_fails(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
-            text_preparation_service=TopicAnalysisTextPreparationService(max_document_chars=300),
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
-            embedding_service=_FakeEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=_FakeKMeansService(),
-            hdbscan_service=_UnusedService(),
-            bertopic_service=_UnusedService(),
+        service = self._build_service(
+            community_detection_service=_FakeCommunityDetectionService(),
             ai_label_service=_FailingAiLabelService(),
         )
         dataframe = pd.DataFrame(
@@ -741,7 +924,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         result = service.run(
             result_id="abc123",
             dataframe=dataframe,
-            model_key=AnalysisModelKey.KMEANS,
+            model_key=AnalysisModelKey.COMMUNITY,
             text_column_name="verbatim",
             available_verbatim_columns=["verbatim"],
         )
@@ -752,18 +935,9 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertIn("AI topic labeling was skipped", " ".join(result.warnings))
 
     def test_invalid_column_returns_structured_error_response(self) -> None:
-        service = TopicAnalysisService(
-            config=self.config,
-            input_validation_service=self.validation_service,
-            text_preparation_service=self.text_preparation_service,
-            keyword_service=self.keyword_service,
-            narrative_service=self.narrative_service,
-            representative_example_service=self.example_service,
+        service = self._build_service(
             embedding_service=SentenceEmbeddingService(),
-            ngram_service=self.ngram_service,
-            kmeans_service=KMeansAnalysisService(),
-            hdbscan_service=HdbscanAnalysisService(),
-            bertopic_service=BertopicAnalysisService(),
+            community_detection_service=CommunityDetectionAnalysisService(),
         )
         dataframe = pd.DataFrame({"verbatim": ["Need more resources"]})
 

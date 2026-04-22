@@ -67,16 +67,6 @@ export function buildAnalysisChartDefinitions(surfaceCount) {
         }));
     }
 
-    if (result.model_key === "kmeans") {
-        return [
-            {
-                title: "Response map",
-                caption: "Spatial view of the clustered responses currently shown on screen.",
-                kind: "scatter",
-            },
-        ];
-    }
-
     return [
         {
             title: chartTitle || `${displayAnalysisMode(result.model_key)} distribution`,

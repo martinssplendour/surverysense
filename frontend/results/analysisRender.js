@@ -19,7 +19,7 @@ export function renderAnalysisPanel() {
         state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
     }
     if (!ANALYSIS_MODE_OPTIONS.some((option) => option.key === state.selectedAnalysisModel)) {
-        state.selectedAnalysisModel = "bertopic";
+        state.selectedAnalysisModel = "community";
     }
 
     renderAnalysisControls();
@@ -109,7 +109,11 @@ export function renderAnalysisOutput() {
                 <p class="analysis-sample">The analysis completed, but it did not produce any usable topics or groups for the current filtered sample.</p>
             </div>
         `;
-    renderAnalysisChart(groups, Array.isArray(result.scatter_points) ? result.scatter_points : []);
+    renderAnalysisChart(
+        groups,
+        Array.isArray(result.scatter_points) ? result.scatter_points : [],
+        Array.isArray(result.network_edges) ? result.network_edges : [],
+    );
 }
 
 export function renderAnalysisExportControls() {
@@ -120,10 +124,17 @@ export function renderAnalysisExportControls() {
         state.analysisExportMenuOpen = false;
     }
     const isMenuOpen = hasReadyAnalysis && !state.analysisExportRunning && Boolean(state.analysisExportMenuOpen);
+    if (elements.previewAnalysisReportButton) {
+        elements.previewAnalysisReportButton.disabled = !hasReadyAnalysis || state.analysisExportRunning;
+        elements.previewAnalysisReportButton.textContent = "Preview";
+        elements.previewAnalysisReportButton.title = hasReadyAnalysis
+            ? `Open a preview page for the generated ${selectedFormatLabel} report`
+            : "Run an analysis to enable report preview";
+    }
     if (elements.downloadAnalysisReportButton) {
         elements.downloadAnalysisReportButton.disabled = !hasReadyAnalysis || state.analysisExportRunning;
         elements.downloadAnalysisReportButton.textContent = state.analysisExportRunning
-            ? "Preparing Report..."
+            ? "Preparing..."
             : `Download ${selectedFormatLabel}`;
         elements.downloadAnalysisReportButton.title = hasReadyAnalysis
             ? `Download report as ${selectedFormatLabel}`
@@ -174,7 +185,7 @@ export function renderAnalysisResultsHeader() {
         `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
         `${formatNumber(result.valid_document_count || 0)} usable responses`,
     ];
-    elements.analysisResultsSubtitle.textContent = details.join(" · ");
+    elements.analysisResultsSubtitle.textContent = details.join(" | ");
 }
 
 export function renderAnalysisMessage(kind, message) {

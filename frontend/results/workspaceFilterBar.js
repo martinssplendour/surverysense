@@ -13,9 +13,26 @@ export function renderFilterBar() {
         elements.filterBar.hidden = filters.length === 0;
     }
     if (elements.analysisResultsFilterBar) {
-        elements.analysisResultsFilterBar.hidden = filters.length === 0;
+        elements.analysisResultsFilterBar.hidden = false;
     }
     if (!filters.length) {
+        if (elements.openFilterModalButton) {
+            elements.openFilterModalButton.disabled = true;
+        }
+        if (elements.openAnalysisResultsFilterModalButton) {
+            elements.openAnalysisResultsFilterModalButton.disabled = true;
+        }
+        if (elements.activeFilters) {
+            elements.activeFilters.hidden = true;
+            elements.activeFilters.innerHTML = "";
+        }
+        if (elements.analysisResultsActiveFilters) {
+            elements.analysisResultsActiveFilters.hidden = true;
+            elements.analysisResultsActiveFilters.innerHTML = "";
+        }
+        if (elements.analysisResultsFilterNote) {
+            elements.analysisResultsFilterNote.textContent = "No metadata filters are available for this analysis.";
+        }
         return;
     }
 

@@ -129,8 +129,8 @@ class EnglishTranslationService:
                 try:
                     translated_batch = self._translate_batch(translator, batch)
                 except DeepTranslatorError as exc:
-                    logger.warning(
-                        "Batch translation failed for source_language=%s batch_size=%s (%s). Falling back to single-item translation.",
+                    logger.debug(
+                        "Batch translation fallback for source_language=%s batch_size=%s (%s).",
                         source_language,
                         len(batch),
                         type(exc).__name__,

@@ -58,7 +58,7 @@ class TopicGroupAssemblyService:
             key=lambda group_id: (-len(grouped_documents[group_id]), group_id),
         )
 
-        fallback_prefix = "Topic" if model_key == "bertopic" else "Group"
+        fallback_prefix = "Community" if model_key == "community" else "Group"
         for group_id in ordered_group_ids:
             group_key = str(group_id)
             grouped_rows = grouped_documents[group_id]
@@ -76,7 +76,7 @@ class TopicGroupAssemblyService:
                 is_noise=is_noise,
                 fallback_prefix=fallback_prefix,
                 fallback_id=group_key,
-                prefer_terms=model_key == "bertopic",
+                prefer_terms=False,
             )
             examples = self.representative_example_service.select(
                 grouped_rows,
@@ -111,88 +111,4 @@ class TopicGroupAssemblyService:
                 )
             )
 
-        if model_key == "bertopic":
-            groups = self.translate_and_merge_bertopic_groups(groups)
-
         return groups
-
-    def translate_and_merge_bertopic_groups(
-        self, groups: list[AnalysisGroupRecord]
-    ) -> list[AnalysisGroupRecord]:
-        translation_service = self.translation_service
-
-        all_terms: list[str] = []
-        seen_terms: set[str] = set()
-        for group in groups:
-            if group.is_noise:
-                continue
-            for term in group.terms:
-                if term and term not in seen_terms:
-                    seen_terms.add(term)
-                    all_terms.append(term)
-
-        term_to_english: dict[str, str] = {t: t for t in all_terms}
-        if translation_service and all_terms:
-            result = translation_service.translate(all_terms)
-            for source, translated, was_translated in zip(all_terms, result.texts, result.translated_flags):
-                if was_translated and translated.strip():
-                    term_to_english[source] = translated.strip()
-
-        for group in groups:
-            if group.is_noise:
-                continue
-            raw_terms = list(group.terms)
-            translated_terms: list[str] = []
-            seen: set[str] = set()
-            for t in raw_terms:
-                english = term_to_english.get(t, t)
-                key = english.casefold()
-                if key not in seen:
-                    seen.add(key)
-                    translated_terms.append(english)
-            group.terms = translated_terms
-            if translated_terms:
-                new_label = " / ".join(t.replace("_", " ") for t in translated_terms[:2])
-                if new_label != group.label:
-                    group.source_label = group.label
-                    group.translated = True
-                    group.label = new_label
-
-        merge_into: dict[str, str] = {}
-        first_term_index: dict[str, str] = {}
-        for group in groups:
-            if group.is_noise:
-                continue
-            terms = group.terms
-            if not terms:
-                continue
-            key = terms[0].casefold().strip().rstrip("s")
-            gid = group.group_id
-            if key in first_term_index:
-                merge_into[gid] = first_term_index[key]
-            else:
-                first_term_index[key] = gid
-
-        if merge_into:
-            group_by_id = {group.group_id: group for group in groups}
-            for src_id, tgt_id in merge_into.items():
-                src = group_by_id[src_id]
-                tgt = group_by_id[tgt_id]
-                tgt.documents.extend(src.documents)
-                tgt.count = int(tgt.count) + int(src.count)
-            merged_ids = set(merge_into.keys())
-            groups = [group for group in groups if group.group_id not in merged_ids]
-
-        grand_total = max(1, sum(int(group.count) for group in groups))
-        for group in groups:
-            count = int(group.count)
-            group.share = round(count / grand_total, 4)
-            group.total_documents = grand_total
-            group.comment = self.narrative_service.build_comment(
-                label=group.label,
-                count=count,
-                total_documents=grand_total,
-                examples=group.examples,
-            )
-
-        return sorted(groups, key=lambda group: (-int(group.count), group.group_id))

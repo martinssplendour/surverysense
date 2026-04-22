@@ -1,5 +1,5 @@
-from app.services.topic_analysis_services.bertopic_service import (
-    BertopicAnalysisService,
+from app.services.topic_analysis_services.community_detection_service import (
+    CommunityDetectionAnalysisService,
 )
 from app.services.topic_analysis_services.config import (
     PreparedDocument,
@@ -10,6 +10,7 @@ from app.services.topic_analysis_services.contracts import (
     AnalysisDocumentRecord,
     AnalysisExampleRecord,
     AnalysisGroupRecord,
+    AnalysisNetworkEdgeRecord,
     AnalysisNgramBucketRecord,
     AnalysisNgramItemRecord,
     AnalysisRunResult,
@@ -24,11 +25,9 @@ from app.services.topic_analysis_services.embedding_service import (
 from app.services.topic_analysis_services.example_selection_service import (
     RepresentativeExampleSelectionService,
 )
-from app.services.topic_analysis_services.hdbscan_service import HdbscanAnalysisService
 from app.services.topic_analysis_services.keyword_service import (
     TopicAnalysisKeywordService,
 )
-from app.services.topic_analysis_services.kmeans_service import KMeansAnalysisService
 from app.services.topic_analysis_services.narrative_service import (
     TopicAnalysisNarrativeService,
 )
@@ -50,6 +49,7 @@ __all__ = [
     "AnalysisDocumentRecord",
     "AnalysisExampleRecord",
     "AnalysisGroupRecord",
+    "AnalysisNetworkEdgeRecord",
     "AnalysisNgramItemRecord",
     "AnalysisNgramBucketRecord",
     "AnalysisScatterPointRecord",
@@ -64,8 +64,6 @@ __all__ = [
     "RepresentativeExampleSelectionService",
     "SentenceEmbeddingService",
     "NgramAnalysisService",
-    "KMeansAnalysisService",
-    "HdbscanAnalysisService",
-    "BertopicAnalysisService",
+    "CommunityDetectionAnalysisService",
     "TopicAnalysisService",
 ]

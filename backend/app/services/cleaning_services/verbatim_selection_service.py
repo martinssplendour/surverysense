@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 
 import pandas as pd
@@ -78,6 +79,16 @@ class VerbatimQuestionSelectionService:
         "i have heard of this",
         "i have used this",
     )
+    DATETIME_HEADER_TOKENS = {
+        "completed",
+        "date",
+        "submitted",
+        "time",
+        "timestamp",
+    }
+    DATETIME_PARSE_RATIO_MIN = 0.9
+    NUMERIC_CONTENT_SAMPLE_SIZE = 25
+    NUMERIC_CONTENT_RATIO_MAX = 0.5
 
     def score_columns(
         self,
@@ -151,6 +162,8 @@ class VerbatimQuestionSelectionService:
         numeric_ratio = float(pd.to_numeric(non_blank, errors="coerce").notna().mean())
         # Regex matches any Unicode letter — values with no letters at all are not text.
         text_value_ratio = float(non_blank.str.contains(r"[^\W\d_]", regex=True).mean())
+        datetime_ratio = self._datetime_value_ratio(non_blank)
+        numeric_content_ratio = self._numeric_content_ratio(non_blank)
         value_distribution = non_blank.value_counts(normalize=True, dropna=True)
         top5_coverage = float(value_distribution.head(5).sum())
         top10_coverage = float(value_distribution.head(10).sum())
@@ -206,6 +219,32 @@ class VerbatimQuestionSelectionService:
                 score=-999.0,
                 is_selected=False,
                 reasons=["column does not contain text responses"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
+
+        if numeric_content_ratio >= self.NUMERIC_CONTENT_RATIO_MAX:
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["column content is mostly numeric"],
+                non_blank_count=int(len(non_blank)),
+                unique_ratio=unique_ratio,
+                avg_length=avg_length,
+                long_text_ratio=long_text_ratio,
+                numeric_ratio=numeric_ratio,
+            )
+
+        if self._looks_like_datetime_header(normalized_header) and datetime_ratio >= self.DATETIME_PARSE_RATIO_MIN:
+            return VerbatimQuestionCandidate(
+                column_name=column_name,
+                score=-999.0,
+                is_selected=False,
+                reasons=["column contains date/time values"],
                 non_blank_count=int(len(non_blank)),
                 unique_ratio=unique_ratio,
                 avg_length=avg_length,
@@ -395,6 +434,25 @@ class VerbatimQuestionSelectionService:
 
     def _looks_like_closed_question_header(self, normalized_header: str) -> bool:
         return any(phrase in normalized_header for phrase in self.CLOSED_QUESTION_HEADER_PHRASES)
+
+    def _looks_like_datetime_header(self, normalized_header: str) -> bool:
+        tokens = set(normalized_header.split())
+        return bool(tokens & self.DATETIME_HEADER_TOKENS)
+
+    @staticmethod
+    def _datetime_value_ratio(non_blank: pd.Series) -> float:
+        sample = non_blank.head(500)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            parsed = pd.to_datetime(sample, errors="coerce")
+        return float(parsed.notna().mean()) if len(sample) else 0.0
+
+    def _numeric_content_ratio(self, non_blank: pd.Series) -> float:
+        sample = non_blank.head(self.NUMERIC_CONTENT_SAMPLE_SIZE).astype(str)
+        digit_count = int(sample.str.count(r"\d").sum())
+        letter_count = int(sample.str.count(r"[^\W\d_]").sum())
+        denominator = digit_count + letter_count
+        return digit_count / denominator if denominator else 0.0
 
     def _looks_like_short_text_label_set(
         self,

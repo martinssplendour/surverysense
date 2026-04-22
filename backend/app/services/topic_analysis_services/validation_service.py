@@ -48,16 +48,8 @@ class TopicAnalysisInputValidationService:
                     "This analysis mode needs at least two unique responses after cleaning."
                 )
 
-        if model_key == AnalysisModelKey.HDBSCAN and valid_count < 5:
+        if model_key == AnalysisModelKey.COMMUNITY and valid_count < 5:
             warnings.append(
-                "Natural Groups works best with at least 5 usable responses. Smaller samples may not form clear groups."
-            )
-        if model_key == AnalysisModelKey.BERTOPIC and valid_count < 5:
-            warnings.append(
-                "Topic Clusters works best with a larger sample. Smaller samples can produce unstable topics."
-            )
-        if model_key == AnalysisModelKey.KMEANS and valid_count < 5:
-            warnings.append(
-                "Fixed Similarity Groups is running on a small sample, so the groups may be weak."
+                "Community detection works best with at least 5 usable responses. Smaller samples may produce weak communities."
             )
         return warnings

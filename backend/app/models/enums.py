@@ -14,7 +14,5 @@ class ColumnRole(StrEnum):
 class AnalysisModelKey(StrEnum):
     """Supported topic-analysis modes shared across API models and backend services."""
 
-    BERTOPIC = "bertopic"
-    KMEANS = "kmeans"
-    HDBSCAN = "hdbscan"
+    COMMUNITY = "community"
     NGRAMS = "ngrams"

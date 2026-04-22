@@ -36,22 +36,22 @@ class Settings:
     ingest_sample_size: int = int(os.getenv("INGEST_SAMPLE_SIZE", "25"))
     architect_sample_size: int = int(os.getenv("ARCHITECT_SAMPLE_SIZE", "25"))
     row_limit: int = int(os.getenv("TRANSFORM_ROW_LIMIT", "5000"))
-    topic_embedding_model: str = os.getenv(
-        "TOPIC_EMBEDDING_MODEL",
-        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    ).strip()
-    topic_embedding_local_path: str = os.getenv(
-        "TOPIC_EMBEDDING_LOCAL_PATH",
-        "models/paraphrase-multilingual-MiniLM-L12-v2",
-    ).strip()
-    topic_kmeans_clusters: int = int(os.getenv("TOPIC_KMEANS_CLUSTERS", "8"))
-    topic_kmeans_random_state: int = int(os.getenv("TOPIC_KMEANS_RANDOM_STATE", "42"))
-    topic_hdbscan_min_cluster_size: int = int(os.getenv("TOPIC_HDBSCAN_MIN_CLUSTER_SIZE", "5"))
-    topic_hdbscan_min_samples: int = int(os.getenv("TOPIC_HDBSCAN_MIN_SAMPLES", "3"))
-    topic_hdbscan_metric: str = os.getenv("TOPIC_HDBSCAN_METRIC", "euclidean").strip()
-    topic_bertopic_language: str = os.getenv("TOPIC_BERTOPIC_LANGUAGE", "multilingual").strip()
-    topic_bertopic_reduce_outliers: bool = os.getenv("TOPIC_BERTOPIC_REDUCE_OUTLIERS", "true").strip().casefold() in {"1", "true", "yes", "on"}
-    topic_bertopic_outlier_threshold: float = float(os.getenv("TOPIC_BERTOPIC_OUTLIER_THRESHOLD", "0.0"))
+    topic_embedding_provider: str = os.getenv("TOPIC_EMBEDDING_PROVIDER", "gemini").strip().casefold() or "gemini"
+    topic_embedding_model: str = os.getenv("TOPIC_EMBEDDING_MODEL", "").strip()
+    topic_embedding_api_key: str = os.getenv("TOPIC_EMBEDDING_API_KEY", "").strip()
+    topic_embedding_dimensions: int = int(os.getenv("TOPIC_EMBEDDING_DIMENSIONS", "768"))
+    topic_embedding_batch_size: int = int(os.getenv("TOPIC_EMBEDDING_BATCH_SIZE", "128"))
+    topic_embedding_timeout_seconds: int = int(os.getenv("TOPIC_EMBEDDING_TIMEOUT_SECONDS", "60"))
+    topic_embedding_max_retries: int = int(os.getenv("TOPIC_EMBEDDING_MAX_RETRIES", "1"))
+    topic_embedding_retry_base_seconds: float = float(os.getenv("TOPIC_EMBEDDING_RETRY_BASE_SECONDS", "0.75"))
+    topic_embedding_cache_size: int = int(os.getenv("TOPIC_EMBEDDING_CACHE_SIZE", "4096"))
+    topic_embedding_fallback_provider: str = os.getenv("TOPIC_EMBEDDING_FALLBACK_PROVIDER", "openai").strip().casefold()
+    topic_embedding_fallback_model: str = os.getenv("TOPIC_EMBEDDING_FALLBACK_MODEL", "").strip()
+    topic_embedding_fallback_api_key: str = os.getenv("TOPIC_EMBEDDING_FALLBACK_API_KEY", "").strip()
+    topic_community_similarity_threshold: float = float(os.getenv("TOPIC_COMMUNITY_SIMILARITY_THRESHOLD", "0.66"))
+    topic_community_max_neighbors: int = int(os.getenv("TOPIC_COMMUNITY_MAX_NEIGHBORS", "16"))
+    topic_community_resolution: float = float(os.getenv("TOPIC_COMMUNITY_RESOLUTION", "0.9"))
+    topic_community_mutual_neighbors: bool = os.getenv("TOPIC_COMMUNITY_MUTUAL_NEIGHBORS", "false").strip().casefold() in {"1", "true", "yes", "on"}
     topic_top_terms: int = int(os.getenv("TOPIC_TOP_TERMS", "6"))
     topic_top_ngrams: int = int(os.getenv("TOPIC_TOP_NGRAMS", "12"))
     topic_representative_examples: int = int(os.getenv("TOPIC_REPRESENTATIVE_EXAMPLES", "3"))
@@ -62,7 +62,7 @@ class Settings:
     topic_translation_batch_size: int = int(os.getenv("TOPIC_TRANSLATION_BATCH_SIZE", "8"))
     topic_ai_labeling_enabled: bool = os.getenv("TOPIC_AI_LABELING_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
     topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "30"))
-    topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "10"))
+    topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "30"))
     topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "3"))
     topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
     topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
@@ -82,11 +82,69 @@ class Settings:
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
     gemini_temperature: float = float(os.getenv("GEMINI_TEMPERATURE", "0.1"))
     gemini_timeout_seconds: int = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
 
     @property
     def debug(self) -> bool:
         """True in any local/test environment."""
         return self.app_env in {"development", "dev", "local", "test"}
+
+    @property
+    def resolved_topic_embedding_model(self) -> str:
+        """Provider-aware embedding model default."""
+        if self.topic_embedding_model:
+            return self.topic_embedding_model
+        return self._default_topic_embedding_model(self.topic_embedding_provider)
+
+    @property
+    def resolved_topic_embedding_api_key(self) -> str:
+        if self.topic_embedding_api_key:
+            return self.topic_embedding_api_key
+        return self._topic_embedding_api_key_for_provider(self.topic_embedding_provider)
+
+    @property
+    def resolved_topic_embedding_fallback_provider(self) -> str:
+        provider = (self.topic_embedding_fallback_provider or "").strip().casefold()
+        if provider in {"", "none", "off", "false", "disabled"}:
+            return ""
+        if provider == self.topic_embedding_provider:
+            return ""
+        if provider not in {"gemini", "openai"}:
+            return ""
+        if not self.resolved_topic_embedding_fallback_api_key:
+            return ""
+        return provider
+
+    @property
+    def resolved_topic_embedding_fallback_model(self) -> str:
+        provider = (self.topic_embedding_fallback_provider or "").strip().casefold()
+        if not self.resolved_topic_embedding_fallback_provider:
+            return ""
+        if self.topic_embedding_fallback_model:
+            return self.topic_embedding_fallback_model
+        return self._default_topic_embedding_model(provider)
+
+    @property
+    def resolved_topic_embedding_fallback_api_key(self) -> str:
+        provider = (self.topic_embedding_fallback_provider or "").strip().casefold()
+        if provider in {"", "none", "off", "false", "disabled"}:
+            return ""
+        if self.topic_embedding_fallback_api_key:
+            return self.topic_embedding_fallback_api_key
+        return self._topic_embedding_api_key_for_provider(provider)
+
+    @staticmethod
+    def _default_topic_embedding_model(provider: str) -> str:
+        if provider == "openai":
+            return "text-embedding-3-small"
+        return "gemini-embedding-001"
+
+    def _topic_embedding_api_key_for_provider(self, provider: str) -> str:
+        if provider == "openai":
+            return self.openai_api_key
+        if provider == "gemini":
+            return self.gemini_api_key
+        return ""
 
 
 def get_settings() -> Settings:

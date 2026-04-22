@@ -2,8 +2,30 @@ services:
   - type: web
     name: verbatim-app
     env: python
-    buildCommand: cd backend && pip install -r requirements.txt && python download_topic_model.py
+    buildCommand: cd backend && pip install -r requirements.txt
     startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
+      - key: TOPIC_EMBEDDING_PROVIDER
+        value: gemini
+      - key: TOPIC_EMBEDDING_MODEL
+        value: gemini-embedding-001
+      - key: TOPIC_EMBEDDING_DIMENSIONS
+        value: "768"
+      - key: TOPIC_EMBEDDING_BATCH_SIZE
+        value: "128"
+      - key: TOPIC_EMBEDDING_MAX_RETRIES
+        value: "1"
+      - key: TOPIC_EMBEDDING_RETRY_BASE_SECONDS
+        value: "0.75"
+      - key: TOPIC_EMBEDDING_CACHE_SIZE
+        value: "4096"
+      - key: TOPIC_EMBEDDING_FALLBACK_PROVIDER
+        value: openai
+      - key: TOPIC_EMBEDDING_FALLBACK_MODEL
+        value: text-embedding-3-small
+      - key: TOPIC_COMMUNITY_SIMILARITY_THRESHOLD
+        value: "0.62"
+      - key: TOPIC_COMMUNITY_MAX_NEIGHBORS
+        value: "12"
