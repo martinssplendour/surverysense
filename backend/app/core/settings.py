@@ -39,7 +39,7 @@ class Settings:
     topic_embedding_provider: str = os.getenv("TOPIC_EMBEDDING_PROVIDER", "gemini").strip().casefold() or "gemini"
     topic_embedding_model: str = os.getenv("TOPIC_EMBEDDING_MODEL", "").strip()
     topic_embedding_api_key: str = os.getenv("TOPIC_EMBEDDING_API_KEY", "").strip()
-    topic_embedding_dimensions: int = int(os.getenv("TOPIC_EMBEDDING_DIMENSIONS", "768"))
+    topic_embedding_dimensions: int = int(os.getenv("TOPIC_EMBEDDING_DIMENSIONS", "3072"))
     topic_embedding_batch_size: int = int(os.getenv("TOPIC_EMBEDDING_BATCH_SIZE", "128"))
     topic_embedding_timeout_seconds: int = int(os.getenv("TOPIC_EMBEDDING_TIMEOUT_SECONDS", "60"))
     topic_embedding_max_retries: int = int(os.getenv("TOPIC_EMBEDDING_MAX_RETRIES", "1"))
