@@ -80,8 +80,12 @@ body.analysis-setup-workspace-active {
 body.analysis-setup-workspace-active .app-shell {
     width: min(700px, calc(100vw - 32px));
     margin: 0 auto;
-    padding: 14px;
-    border-radius: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
 }
 
 body.analysis-setup-workspace-active .topbar {
@@ -1168,6 +1172,10 @@ body.analysis-setup-workspace-active .section-heading h3 {
     font-size: 1.38rem;
 }
 
+body.analysis-setup-workspace-active .analysis-back-dashboard-link {
+    font-size: 0.72rem;
+}
+
 body.analysis-setup-workspace-active .button {
     padding: 9px 16px;
     font-size: 0.72rem;
@@ -1487,6 +1495,11 @@ body.data-workspace-active .filter-bar {
 
 body.data-workspace-active .filter-chip-row {
     gap: 6px;
+}
+
+body.data-workspace-active .filter-chip-row .data-back-to-analysis-link {
+    margin-left: auto;
+    font-size: 0.68rem;
 }
 
 body.data-workspace-active .filter-chip-row-label {

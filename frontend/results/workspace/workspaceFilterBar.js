@@ -7,6 +7,7 @@ export function renderFilterBar() {
     if (!elements.filterBar && !elements.analysisResultsFilterBar) {
         return;
     }
+    normalizeDataFilterBackToAnalysisButton();
 
     const filters = Array.isArray(state.availableFilters) ? state.availableFilters : [];
     if (elements.filterBar) {
@@ -118,6 +119,21 @@ export function renderFilterBar() {
         elements.analysisResultsFilterNote.textContent = hasFilters
             ? "Active metadata filters are updating the current analysis results and plots."
             : "Metadata filters update the current analysis results and plots.";
+    }
+}
+
+function normalizeDataFilterBackToAnalysisButton() {
+    if (!(elements.backToAnalysisResultsDataButton instanceof HTMLButtonElement)) {
+        return;
+    }
+    const filterRow = document.querySelector("#filter-bar .filter-chip-row");
+    if (!(filterRow instanceof HTMLElement)) {
+        return;
+    }
+    elements.backToAnalysisResultsDataButton.className = "dashboard-data-link data-back-to-analysis-link";
+    elements.backToAnalysisResultsDataButton.innerHTML = 'Back to analysis <span aria-hidden="true">&rarr;</span>';
+    if (elements.backToAnalysisResultsDataButton.parentElement !== filterRow) {
+        filterRow.appendChild(elements.backToAnalysisResultsDataButton);
     }
 }
 

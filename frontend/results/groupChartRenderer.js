@@ -44,7 +44,7 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
     const sortedGroups = groups
         .map((group, index) => ({ group, index }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
-    const subjectLabel = yAxisLabel === "Community" ? "community" : "group";
+    const subjectLabel = yAxisLabel === "Topics" ? "topics" : "group";
     const wrappedLabels = sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group", 20));
     const longestLabelLineLength = wrappedLabels.reduce(
         (maximum, label) => Math.max(
@@ -86,14 +86,9 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
             },
         ],
         {
-            title: {
-                text: chartTitle,
-                x: 0,
-                xanchor: "left",
-            },
             height: figureHeight,
             margin: {
-                t: 28,
+                t: 12,
                 r: 12,
                 b: 36,
                 l: leftMargin,

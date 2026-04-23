@@ -1,5 +1,5 @@
 import { ANALYSIS_MODE_OPTIONS, elements, state } from "../shared.js";
-import { displayAnalysisMode, displayColumnLabel, escapeHtml, formatNumber } from "../shared/utils.js";
+import { displayColumnLabel, escapeHtml, formatNumber } from "../shared/utils.js";
 import {
     clearAnalysisChart,
     renderAnalysisChart,
@@ -180,7 +180,6 @@ export function renderAnalysisResultsHeader() {
 
     const result = state.analysisResult;
     const details = [
-        displayAnalysisMode(result.model_key),
         displayColumnLabel(result.text_column_name || ""),
         `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
         `${formatNumber(result.valid_document_count || 0)} usable responses`,

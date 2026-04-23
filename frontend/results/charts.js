@@ -54,7 +54,7 @@ export function renderAnalysisChart(groups, plotPoints = [], networkEdges = []) 
             ? "How responses are spread across communities"
             : "How responses are spread across groups",
         chartCaption: `Hover to see the number of responses in each ${subjectLabel}. Click a bar to open the matching ${subjectLabel} responses.`,
-        yAxisLabel: isCommunityView ? "Community" : "Group name",
+        yAxisLabel: isCommunityView ? "Topics" : "Group name",
         openAnalysisGroupModalByIndex: callbacks.openAnalysisGroupModalByIndex,
         controlsHtml,
     });
