@@ -58,7 +58,7 @@ class UploadIngestResponse(BaseModel):
 
 class ResultRowsResponse(BaseModel):
     result_id: str
-    dataset: Literal["transformed", "analysis"]
+    dataset: Literal["transformed", "analysis", "community_analysis"]
     total_row_count: int
     unfiltered_row_count: int
     offset: int

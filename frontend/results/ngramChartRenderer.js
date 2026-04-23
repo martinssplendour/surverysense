@@ -1,5 +1,5 @@
 import { elements } from "./shared.js";
-import { wrapPlotLabel } from "./utils.js";
+import { wrapPlotLabel } from "./shared/utils.js";
 import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
 
 

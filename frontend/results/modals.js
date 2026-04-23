@@ -5,9 +5,9 @@ import {
     elements,
     state,
 } from "./shared.js";
-import { escapeHtml, formatNumber, normalizeValue } from "./utils.js";
+import { escapeHtml, formatNumber, normalizeValue } from "./shared/utils.js";
 import { hideAnalysisGroupModalMessage, showAnalysisGroupModalMessage } from "./filters.js";
-import { parseJson } from "./rows.js";
+import { parseJson } from "./data/rows.js";
 
 export function openAnalysisGroupModalByIndex(groupIndex) {
     const groups = Array.isArray(state.analysisResult?.groups) ? state.analysisResult.groups : [];

@@ -94,11 +94,11 @@ async function loadAnalysisHarness({ fetchImpl }) {
         renderAnalysisChart: vi.fn(),
         renderNgramCharts: vi.fn(),
     }));
-    vi.doMock("./chartExport.js", () => ({
+    vi.doMock("./charts/export.js", () => ({
         displayAnalysisExportFormat: (value) => String(value || "").toUpperCase(),
         normalizeAnalysisExportFormat: (value) => value || "pdf",
     }));
-    vi.doMock("./rows.js", () => ({
+    vi.doMock("./data/rows.js", () => ({
         parseJson: async (response) => response.json(),
     }));
 

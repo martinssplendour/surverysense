@@ -9,11 +9,11 @@ export {
     renderAnalysisOutput,
     renderAnalysisPanel,
     renderAnalysisResultsHeader,
-} from "./analysisRender.js";
+} from "./analysis/render.js";
 export {
     getActiveAnalysisRequest,
     handleAnalysisColumnChange,
     handleAnalysisMethodClick,
     handleRunAnalysis,
     runAnalysis,
-} from "./analysisRunner.js";
+} from "./analysis/runner.js";

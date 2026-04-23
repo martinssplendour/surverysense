@@ -1,5 +1,5 @@
 import { RESULT_STORAGE_KEY, elements, state } from "./shared.js";
-import { parseDownloadFilename, slugify, stripFilenameExtension } from "./utils.js";
+import { parseDownloadFilename, slugify, stripFilenameExtension } from "./shared/utils.js";
 
 const callbacks = {
     handleMissingResultState: () => {},

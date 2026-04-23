@@ -22,7 +22,7 @@ beforeAll(async () => {
         parseDownloadFilename,
         wrapPlotLabel,
         wrapPlotLabelTwoLines,
-    } = await import("./utils.js"));
+    } = await import("./shared/utils.js"));
 });
 
 describe("results/utils", () => {

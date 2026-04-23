@@ -5,7 +5,7 @@ import {
     escapeHtml,
     normalizeValue,
     wrapPlotLabelTwoLines,
-} from "./utils.js";
+} from "./shared/utils.js";
 import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
 
 

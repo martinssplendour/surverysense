@@ -15,7 +15,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"backend/tests/*.py" = [
+"backend/tests/**/*.py" = [
     "E402",
 ]
 
@@ -24,9 +24,11 @@ python_version = "3.12"
 files = [
     "app/main.py",
     "app/application_setup.py",
-    "app/api/_ingest_route_context.py",
-    "app/api/_ingest_analysis_routes.py",
-    "app/services/topic_analysis_services/topic_analysis_service.py",
+    "app/features/common/route_context.py",
+    "app/features/analysis/routes.py",
+    "app/features/analysis/topic_analysis_services/service.py",
+    "app/features/ingestion/routes.py",
+    "app/features/results/routes.py",
 ]
 check_untyped_defs = true
 disallow_incomplete_defs = true

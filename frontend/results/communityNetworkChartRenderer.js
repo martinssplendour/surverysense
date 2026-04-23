@@ -4,7 +4,7 @@ import {
     buildPercentLabel,
     escapeHtml,
     normalizeValue,
-} from "./utils.js";
+} from "./shared/utils.js";
 import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
 
 

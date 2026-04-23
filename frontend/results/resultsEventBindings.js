@@ -1,5 +1,5 @@
 import { elements, state } from "./shared.js";
-import { downloadAnalysisReport, normalizeAnalysisExportFormat, previewAnalysisReport } from "./chartExport.js";
+import { downloadAnalysisReport, normalizeAnalysisExportFormat, previewAnalysisReport } from "./charts/export.js";
 import { downloadDataExport, renderDataExportControls } from "./dataExport.js";
 import {
     closeAnalysisGroupModal,
@@ -37,7 +37,7 @@ import {
     openWorkspace,
     resetToUploadState,
     syncSliderRange,
-} from "./workspace.js";
+} from "./workspace/workspace.js";
 import { resizeAnalysisPlots } from "./charts.js";
 
 
@@ -48,12 +48,17 @@ export function bindResultsEvents() {
         void openWorkspace("analysis");
     });
     elements.openDataButton?.addEventListener("click", () => {
+        state.dataPreviewDataset = null;
+        state.showOnlyVerbatim = false;
         void openWorkspace("data");
     });
     elements.dataExportToggleButton?.addEventListener("click", handleDataExportToggleClick);
     elements.dataExportMenu?.addEventListener("click", handleDataExportMenuClick);
     elements.dataAnalyseButton?.addEventListener("click", () => {
         void openWorkspace("analysis");
+    });
+    elements.backToAnalysisResultsDataButton?.addEventListener("click", () => {
+        void openWorkspace("analysis-results");
     });
     elements.openFilterModalButton?.addEventListener("click", openFilterModal);
     elements.openAnalysisResultsFilterModalButton?.addEventListener("click", openFilterModal);
@@ -65,6 +70,9 @@ export function bindResultsEvents() {
         void openWorkspace("analysis");
     });
     elements.analysisViewDataButton?.addEventListener("click", () => {
+        state.dataPreviewDataset = state.analysisResult?.model_key === "community"
+            ? "community_analysis"
+            : null;
         state.showOnlyVerbatim = false;
         void openWorkspace("data");
     });

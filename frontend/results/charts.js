@@ -1,6 +1,6 @@
 // Builds and manages Plotly charts for community distribution and n-gram frequency.
 import { elements, state } from "./shared.js";
-import { configureChartExport } from "./chartExport.js";
+import { configureChartExport } from "./charts/export.js";
 import { renderCommunityNetworkChart } from "./communityNetworkChartRenderer.js";
 import { renderGroupDistributionChart } from "./groupChartRenderer.js";
 import { renderNgramFrequencyCharts } from "./ngramChartRenderer.js";

@@ -1,6 +1,6 @@
 // Manages metadata filter state, applies filters to both the data table and analysis, and exposes modal message helpers.
 import { elements, state } from "./shared.js";
-import { refreshFilteredDatasets } from "./rows.js";
+import { refreshFilteredDatasets } from "./data/rows.js";
 
 const callbacks = {
     closeFilterModal: () => {},

@@ -1,13 +1,13 @@
 // Handles the "Edit Columns" modal, letting users reassign CSV columns between verbatim, metadata, and unassigned roles.
 import { RESULT_STORAGE_KEY, elements, state } from "./shared.js";
-import { displayColumnLabel, escapeHtml } from "./utils.js";
+import { displayColumnLabel, escapeHtml } from "./shared/utils.js";
 import {
     getColumnRole,
     hideColumnRoleMessage,
     pruneInvalidActiveFilters,
     showColumnRoleMessage,
 } from "./filters.js";
-import { parseJson, refreshFilteredDatasets } from "./rows.js";
+import { parseJson, refreshFilteredDatasets } from "./data/rows.js";
 
 const callbacks = {
     handleMissingResultState: () => {},
@@ -143,6 +143,8 @@ export async function applyColumnRoleChange() {
             state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
         }
         state.analysisResult = null;
+        state.dataPreviewDataset = null;
+        state.communityAnalysisColumnNames = [];
         await refreshFilteredDatasets();
         callbacks.persistCurrentPayload();
         callbacks.renderDashboard(state.response || {});

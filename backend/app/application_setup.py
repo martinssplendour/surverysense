@@ -11,12 +11,12 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.api.routes_auth import build_auth_router
-from app.api.routes_ingest import build_ingest_router
+from app.features.auth.routes import build_auth_router
+from app.features.routes import build_workspace_router
 from app.core.auth import get_authenticated_user
 from app.core.settings import Settings
-from app.services.architect_service import ManifestArchitectConfig, ManifestArchitectService
-from app.services.cleaning_services import (
+from app.features.ingestion.architect_service import ManifestArchitectConfig, ManifestArchitectService
+from app.features.ingestion.cleaning_services import (
     AnalysisReadyDatasetService,
     DuplicateAnswerResolutionService,
     MetadataColumnSelectionService,
@@ -31,17 +31,17 @@ from app.services.cleaning_services import (
     VerticalRecordAssemblyService,
     VerticalRecordFilterService,
 )
-from app.services.csv_ingestion_service import CsvIngestionService
-from app.services.encoding_service import EncodingDetectionService
-from app.services.google_oauth_service import GoogleOAuthService
-from app.services.language_normalization_service import (
+from app.features.ingestion.csv_ingestion_service import CsvIngestionService
+from app.features.ingestion.encoding_service import EncodingDetectionService
+from app.features.auth.google_oauth_service import GoogleOAuthService
+from app.features.analysis.language_normalization_service import (
     EnglishTranslationConfig,
     EnglishTranslationService,
 )
-from app.services.metadata_filter_service import MetadataFilterService
-from app.services.report_export_service import AnalysisReportExportService
-from app.services.result_store_service import ResultStoreService
-from app.services.topic_analysis_services import (
+from app.features.results.metadata_filter import MetadataFilterService
+from app.features.export.report_export_service import AnalysisReportExportService
+from app.features.results.store import ResultStoreService
+from app.features.analysis.topic_analysis_services import (
     CommunityDetectionAnalysisService,
     NgramAnalysisService,
     RepresentativeExampleSelectionService,
@@ -53,8 +53,8 @@ from app.services.topic_analysis_services import (
     TopicAnalysisService,
     TopicAnalysisTextPreparationService,
 )
-from app.services.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
-from app.services.transformation_service import DataTransformationService
+from app.features.analysis.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
+from app.features.ingestion.transformation_service import DataTransformationService
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ def register_application_routers(
         )
     )
     app.include_router(
-        build_ingest_router(
+        build_workspace_router(
             ingestion_service=services.ingestion_service,
             architect_service=services.architect_service,
             transformation_service=services.transformation_service,

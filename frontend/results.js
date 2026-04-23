@@ -9,7 +9,7 @@ import {
 import {
     configureResultsDataExport,
 } from "./results/dataExport.js";
-import { configureResultsRows, parseJson } from "./results/rows.js";
+import { configureResultsRows, parseJson } from "./results/data/rows.js";
 import {
     clearAnalysisMessage,
     configureResultsAnalysis,
@@ -38,7 +38,7 @@ import {
     renderPreviewTable,
     syncSliderRange,
     updateWorkspaceVisibility,
-} from "./results/workspace.js";
+} from "./results/workspace/workspace.js";
 import { bindResultsEvents } from "./results/resultsEventBindings.js";
 
 (function () {

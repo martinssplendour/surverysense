@@ -8,5 +8,5 @@ export {
     RESULT_STORAGE_KEY,
     ROW_PAGE_SIZE,
 } from "./constants.js";
-export { elements } from "./elements.js";
-export { state } from "./state.js";
+export { elements } from "./shared/elements.js";
+export { state } from "./shared/state.js";

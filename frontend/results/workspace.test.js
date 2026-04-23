@@ -91,28 +91,28 @@ async function loadWorkspaceHarness({ search = "", navigationType = "navigate", 
     vi.doMock("./columnRoles.js", () => ({
         closeColumnRoleModal: vi.fn(),
     }));
-    vi.doMock("./workspaceFilterBar.js", () => ({
+    vi.doMock("./workspace/workspaceFilterBar.js", () => ({
         closeFilterModal: vi.fn(),
         openFilterModal: vi.fn(),
         renderFilterBar: vi.fn(),
     }));
-    vi.doMock("./workspacePreviewTable.js", () => ({
+    vi.doMock("./workspace/workspacePreviewTable.js", () => ({
         handlePreviewModeChange: vi.fn(),
         handlePreviewTableScroll: vi.fn(),
         handleSliderInput: vi.fn(),
         renderPreviewTable: vi.fn(),
         syncSliderRange: vi.fn(),
     }));
-    vi.doMock("./workspaceModalFocus.js", () => ({
+    vi.doMock("./workspace/workspaceModalFocus.js", () => ({
         handleDocumentKeydown: vi.fn(),
     }));
-    vi.doMock("./rows.js", () => ({
+    vi.doMock("./data/rows.js", () => ({
         currentPreviewDataset: vi.fn(() => "analysis"),
         ensureDatasetRowCount: vi.fn(async () => {}),
         getInitialVisibleRowTarget: vi.fn(() => 50),
     }));
 
-    const workspace = await import("./workspace.js");
+    const workspace = await import("./workspace/workspace.js");
     const { state } = await import("./shared.js");
     return {
         dom,
