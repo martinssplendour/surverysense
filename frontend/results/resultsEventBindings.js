@@ -141,15 +141,45 @@ function normalizeAnalysisResultsActionLayout() {
         filterRow.classList.add("analysis-results-filter-row");
     }
 
-    if (elements.previewAnalysisReportButton instanceof HTMLButtonElement && exportSplit instanceof HTMLElement) {
-        elements.previewAnalysisReportButton.className = "button button-primary analysis-export-preview-button";
-        elements.previewAnalysisReportButton.textContent = "Preview";
-        if (elements.previewAnalysisReportButton.parentElement !== exportSplit) {
-            const downloadButton = elements.downloadAnalysisReportButton;
-            const referenceNode = downloadButton instanceof Node && exportSplit.contains(downloadButton)
-                ? downloadButton
-                : exportSplit.firstChild;
-            exportSplit.insertBefore(elements.previewAnalysisReportButton, referenceNode);
+    if (exportSplit instanceof HTMLElement) {
+        if (!(elements.previewAnalysisReportButton instanceof HTMLButtonElement)) {
+            elements.previewAnalysisReportButton = document.createElement("button");
+            elements.previewAnalysisReportButton.type = "button";
+            elements.previewAnalysisReportButton.id = "preview-analysis-report-btn";
+        }
+
+        if (elements.previewAnalysisReportButton instanceof HTMLButtonElement) {
+            elements.previewAnalysisReportButton.className = "button button-primary analysis-export-preview-button";
+            elements.previewAnalysisReportButton.textContent = "Preview";
+            if (elements.previewAnalysisReportButton.parentElement !== exportSplit) {
+                const downloadButton = elements.downloadAnalysisReportButton;
+                const referenceNode = downloadButton instanceof Node && exportSplit.contains(downloadButton)
+                    ? downloadButton
+                    : exportSplit.firstChild;
+                exportSplit.insertBefore(elements.previewAnalysisReportButton, referenceNode);
+            }
+        }
+
+        if (elements.downloadAnalysisReportButton instanceof HTMLButtonElement) {
+            elements.downloadAnalysisReportButton.className = "button button-primary analysis-export-main-button";
+            if (elements.downloadAnalysisReportButton.parentElement !== exportSplit) {
+                const toggleButton = elements.analysisExportToggleButton;
+                const referenceNode = toggleButton instanceof Node && exportSplit.contains(toggleButton)
+                    ? toggleButton
+                    : null;
+                exportSplit.insertBefore(elements.downloadAnalysisReportButton, referenceNode);
+            }
+        }
+
+        if (elements.analysisExportToggleButton instanceof HTMLButtonElement) {
+            elements.analysisExportToggleButton.className = "button button-primary analysis-export-toggle-button";
+            if (elements.analysisExportToggleButton.parentElement !== exportSplit) {
+                exportSplit.appendChild(elements.analysisExportToggleButton);
+            }
+        }
+
+        if (elements.analysisExportMenu instanceof HTMLElement && elements.analysisExportMenu.parentElement !== exportSplit) {
+            exportSplit.appendChild(elements.analysisExportMenu);
         }
     }
 
