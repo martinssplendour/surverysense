@@ -3,19 +3,19 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.features.analysis.language_normalization_service import EnglishTranslationService
 from app.features.analysis.routes import register_analysis_routes
-from app.features.results.routes import register_result_routes
-from app.features.common.route_context import WorkspaceRouteContext
+from app.features.analysis.topic_analysis_services import TopicAnalysisService
 from app.features.analysis.translation_routes import register_translation_routes
-from app.features.ingestion.routes import register_upload_routes
+from app.features.common.route_context import WorkspaceRouteContext
+from app.features.export.report_export_service import AnalysisReportExportService
 from app.features.ingestion.architect_service import ManifestArchitectService
 from app.features.ingestion.cleaning_services import AnalysisReadyDatasetService
 from app.features.ingestion.csv_ingestion_service import CsvIngestionService
-from app.features.analysis.language_normalization_service import EnglishTranslationService
-from app.features.export.report_export_service import AnalysisReportExportService
-from app.features.results.store import ResultStoreService
-from app.features.analysis.topic_analysis_services import TopicAnalysisService
+from app.features.ingestion.routes import register_upload_routes
 from app.features.ingestion.transformation_service import DataTransformationService
+from app.features.results.routes import register_result_routes
+from app.features.results.store import ResultStoreService
 
 
 def build_workspace_router(

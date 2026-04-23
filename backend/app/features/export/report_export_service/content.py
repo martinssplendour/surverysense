@@ -3,14 +3,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from app.models.api import AnalysisExportRequest
-from app.features.export.report_export_service._constants import _FILENAME_PATTERN
-from app.features.results.store import ResultNotFoundError
-from app.features.common.protocols import ResultStoreReportReaderProtocol
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisExampleRecord,
     AnalysisGroupRecord,
 )
+from app.features.common.protocols import ResultStoreReportReaderProtocol
+from app.features.export.report_export_service._constants import _FILENAME_PATTERN
+from app.features.results.store import ResultNotFoundError
+from app.models.api import AnalysisExportRequest
 
 
 @dataclass(slots=True)

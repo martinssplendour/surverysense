@@ -3,14 +3,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Protocol
 
-from app.models.api import AnalysisExportRequest
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.language_normalization_service import EnglishTranslationBatchResult
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
     AnalysisRunResult,
 )
 from app.features.analysis.topic_label_ai_service import TopicAiLabelingBatchResult
+from app.models.api import AnalysisExportRequest
+from app.models.enums import AnalysisModelKey
 
 if TYPE_CHECKING:
     from app.features.results.models import AnalysisNgramDocumentsPage

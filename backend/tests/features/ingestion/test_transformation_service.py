@@ -1,7 +1,6 @@
 import unittest
 
 import pandas as pd
-from app.models.manifest import LayoutState, TransformationManifest
 from app.features.ingestion.cleaning_services import (
     AnalysisReadyDatasetService,
     DuplicateAnswerResolutionService,
@@ -18,6 +17,7 @@ from app.features.ingestion.cleaning_services import (
     VerticalRecordFilterService,
 )
 from app.features.ingestion.transformation_service import DataTransformationService
+from app.models.manifest import LayoutState, TransformationManifest
 
 
 class RecordingTextNormalizationService(TextNormalizationService):

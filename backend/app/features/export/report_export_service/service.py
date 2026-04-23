@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.models.api import AnalysisExportChartModel, AnalysisExportRequest
+from app.features.common.protocols import ResultStoreReportReaderProtocol
 from app.features.export.report_export_service.chart_image import (
     DecodedChartImage,
     ReportChartImageService,
 )
-from app.features.export.report_export_service.docx_report_builder import DocxReportBuilder
-from app.features.export.report_export_service.pdf_report_builder import PdfReportBuilder
-from app.features.export.report_export_service.pptx_report_builder import PptxReportBuilder
 from app.features.export.report_export_service.content import (
     GroupSummarySection,
     ReportContentService,
 )
-from app.features.common.protocols import ResultStoreReportReaderProtocol
+from app.features.export.report_export_service.docx_report_builder import DocxReportBuilder
+from app.features.export.report_export_service.pdf_report_builder import PdfReportBuilder
+from app.features.export.report_export_service.pptx_report_builder import PptxReportBuilder
+from app.models.api import AnalysisExportChartModel, AnalysisExportRequest
 
 
 @dataclass(slots=True)

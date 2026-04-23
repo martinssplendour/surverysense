@@ -32,11 +32,11 @@ from app.features.analysis.topic_analysis_services.narrative_service import (
     TopicAnalysisNarrativeService,
 )
 from app.features.analysis.topic_analysis_services.ngram_service import NgramAnalysisService
-from app.features.analysis.topic_analysis_services.text_preparation_service import (
-    TopicAnalysisTextPreparationService,
-)
 from app.features.analysis.topic_analysis_services.service import (
     TopicAnalysisService,
+)
+from app.features.analysis.topic_analysis_services.text_preparation_service import (
+    TopicAnalysisTextPreparationService,
 )
 from app.features.analysis.topic_analysis_services.validation_service import (
     TopicAnalysisInputValidationService,

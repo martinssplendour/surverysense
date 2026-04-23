@@ -3,7 +3,6 @@ from __future__ import annotations
 import pandas as pd
 
 from app.core.exceptions import RowLimitExceededError
-from app.models.manifest import LayoutState, TransformationManifest
 from app.features.ingestion.cleaning_services import (
     DuplicateAnswerResolutionService,
     MetadataConsolidationService,
@@ -18,6 +17,7 @@ from app.features.ingestion.cleaning_services import (
 )
 from app.features.ingestion.vertical_transformation_service import VerticalTransformationService
 from app.features.ingestion.wide_transformation_service import WideTransformationService
+from app.models.manifest import LayoutState, TransformationManifest
 
 
 class DataTransformationService:

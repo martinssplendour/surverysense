@@ -8,8 +8,6 @@ from dataclasses import dataclass, replace
 import pandas as pd
 
 from app.core.exceptions import TopicAnalysisError, TopicAnalysisInputError
-from app.models.enums import AnalysisModelKey
-from app.features.common.protocols import TopicLabelServiceProtocol
 from app.features.analysis.topic_analysis_services.community_detection_service import (
     CommunityDetectionAnalysisService,
 )
@@ -25,14 +23,16 @@ from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisScatterPointRecord,
 )
 from app.features.analysis.topic_analysis_services.embedding_service import SentenceEmbeddingService
-from app.features.analysis.topic_analysis_services.example_selection_service import RepresentativeExampleSelectionService
+from app.features.analysis.topic_analysis_services.example_selection_service import (
+    RepresentativeExampleSelectionService,
+)
+from app.features.analysis.topic_analysis_services.execution import (
+    TopicModelExecutionService,
+)
 from app.features.analysis.topic_analysis_services.group_assembly_service import (
     TopicGroupAssemblyService,
 )
 from app.features.analysis.topic_analysis_services.keyword_service import TopicAnalysisKeywordService
-from app.features.analysis.topic_analysis_services.execution import (
-    TopicModelExecutionService,
-)
 from app.features.analysis.topic_analysis_services.narrative_service import TopicAnalysisNarrativeService
 from app.features.analysis.topic_analysis_services.ngram_service import NgramAnalysisService
 from app.features.analysis.topic_analysis_services.output_translation_service import (
@@ -40,6 +40,8 @@ from app.features.analysis.topic_analysis_services.output_translation_service im
 )
 from app.features.analysis.topic_analysis_services.text_preparation_service import TopicAnalysisTextPreparationService
 from app.features.analysis.topic_analysis_services.validation_service import TopicAnalysisInputValidationService
+from app.features.common.protocols import TopicLabelServiceProtocol
+from app.models.enums import AnalysisModelKey
 
 logger = logging.getLogger(__name__)
 

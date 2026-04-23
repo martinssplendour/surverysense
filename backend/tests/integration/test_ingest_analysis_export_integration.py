@@ -6,13 +6,13 @@ from unittest.mock import patch
 from app.application_setup import build_application_services
 from app.core.auth import AuthenticatedUser
 from app.core.settings import Settings
-from app.main import create_app
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisExampleRecord,
     AnalysisGroupRecord,
     AnalysisRunResult,
 )
+from app.main import create_app
+from app.models.enums import AnalysisModelKey
 from fastapi.testclient import TestClient
 
 _SMALL_PNG_DATA_URL = (

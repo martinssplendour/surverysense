@@ -8,8 +8,8 @@ from typing import Any
 import pandas as pd
 
 from app.core.exceptions import ManifestBuildError
-from app.models.manifest import TransformationManifest
 from app.features.ingestion.architect_service.config import ManifestArchitectConfig
+from app.models.manifest import TransformationManifest
 
 logger = logging.getLogger(__name__)
 

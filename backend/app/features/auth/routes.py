@@ -10,16 +10,16 @@ from app.core.auth import (
     pop_session_result_ids,
     set_authenticated_user,
 )
-from app.models.auth import (
-    AuthConfigResponse,
-    AuthSessionResponse,
-    GoogleCredentialRequest,
-)
 from app.features.auth.google_oauth_service import (
     GoogleOAuthConfigurationError,
     GoogleOAuthService,
 )
 from app.features.results.store import ResultStoreService
+from app.models.auth import (
+    AuthConfigResponse,
+    AuthSessionResponse,
+    GoogleCredentialRequest,
+)
 
 
 def build_auth_router(

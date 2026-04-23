@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import pandas as pd
 from app.core.exceptions import ManifestBuildError
-from app.models.manifest import LayoutState, TransformationManifest
 from app.features.ingestion.architect_service import DiagnosticMode, ManifestArchitectConfig, ManifestArchitectService
 from app.features.ingestion.cleaning_services import (
     DuplicateAnswerResolutionService,
@@ -20,6 +19,7 @@ from app.features.ingestion.cleaning_services import (
     VerticalRecordFilterService,
 )
 from app.features.ingestion.transformation_service import DataTransformationService
+from app.models.manifest import LayoutState, TransformationManifest
 
 
 class ManifestArchitectServiceHeuristicTests(unittest.TestCase):

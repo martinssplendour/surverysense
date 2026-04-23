@@ -2,11 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from app.models.enums import AnalysisModelKey
-from app.features.common.protocols import (
-    TopicLabelServiceProtocol,
-    TranslationServiceProtocol,
-)
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisExampleRecord,
     AnalysisGroupRecord,
@@ -19,6 +14,11 @@ from app.features.analysis.topic_analysis_services.keyword_service import (
 from app.features.analysis.topic_analysis_services.narrative_service import (
     TopicAnalysisNarrativeService,
 )
+from app.features.common.protocols import (
+    TopicLabelServiceProtocol,
+    TranslationServiceProtocol,
+)
+from app.models.enums import AnalysisModelKey
 
 logger = logging.getLogger(__name__)
 

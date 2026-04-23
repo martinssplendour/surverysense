@@ -2,7 +2,6 @@ import json
 import unittest
 from unittest.mock import patch
 
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisDocumentRecord,
     AnalysisExampleRecord,
@@ -10,6 +9,7 @@ from app.features.analysis.topic_analysis_services.contracts import (
 )
 from app.features.analysis.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
 from app.features.analysis.topic_label_evidence_builder import TopicLabelEvidenceBuilder
+from app.models.enums import AnalysisModelKey
 
 
 class _FakeHttpResponse:

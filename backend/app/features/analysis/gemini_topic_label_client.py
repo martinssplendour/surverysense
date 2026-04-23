@@ -4,8 +4,8 @@ import json
 import urllib.request
 from typing import Any
 
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.topic_analysis_services.contracts import TopicLabelEvidenceGroup
+from app.models.enums import AnalysisModelKey
 
 
 class GeminiTopicLabelClient:

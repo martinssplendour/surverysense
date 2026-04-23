@@ -12,7 +12,7 @@ from uuid import uuid4
 import pandas as pd
 
 from app.core.constants import COMMUNITY_GROUP_COLUMN_NAME
-from app.models.enums import AnalysisModelKey, ColumnRole
+from app.features.analysis.topic_analysis_services.contracts import AnalysisRunResult
 from app.features.ingestion.cleaning_services import AnalysisReadyDatasetService
 from app.features.results.metadata_filter import MetadataFilterDefinition, MetadataFilterService
 from app.features.results.models import (
@@ -26,7 +26,7 @@ from app.features.results.models import (
 )
 from app.features.results.paging import ResultStorePagingService
 from app.features.results.snapshot import ResultStoreSnapshotService
-from app.features.analysis.topic_analysis_services.contracts import AnalysisRunResult
+from app.models.enums import AnalysisModelKey, ColumnRole
 
 logger = logging.getLogger(__name__)
 ResultExportScope = Literal["clean_data", "verbatim_only"]

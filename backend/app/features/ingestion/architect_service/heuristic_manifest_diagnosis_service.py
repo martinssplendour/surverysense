@@ -4,7 +4,6 @@ import logging
 
 import pandas as pd
 
-from app.models.manifest import LayoutState, TransformationManifest
 from app.features.ingestion.architect_service.config import (
     DEFAULT_NULL_EQUIVALENTS,
     ManifestArchitectConfig,
@@ -13,6 +12,7 @@ from app.features.ingestion.architect_service.manifest_column_stats_service impo
 from app.features.ingestion.architect_service.manifest_header_scoring_service import ManifestHeaderScoringService
 from app.features.ingestion.architect_service.vertical_layout_detection_service import VerticalLayoutDetectionService
 from app.features.ingestion.architect_service.wide_verbatim_detection_service import WideVerbatimDetectionService
+from app.models.manifest import LayoutState, TransformationManifest
 
 logger = logging.getLogger(__name__)
 

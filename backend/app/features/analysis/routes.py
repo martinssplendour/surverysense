@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import Query, Request, Response
 
-from app.features.common.route_context import WorkspaceRouteContext
 from app.core.auth import require_authenticated_user
+from app.features.common.route_context import WorkspaceRouteContext
 from app.models.api import (
     AnalysisExportRequest,
     AnalysisGroupDocumentsResponse,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Request, status
 
-from app.features.common.route_context import WorkspaceRouteContext
 from app.core.auth import require_authenticated_user
+from app.features.common.route_context import WorkspaceRouteContext
 from app.models.api import TranslateTextRequest, TranslateTextResponse
 
 

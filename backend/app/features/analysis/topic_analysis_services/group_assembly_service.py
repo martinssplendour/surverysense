@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from app.features.common.protocols import TranslationServiceProtocol
 from app.features.analysis.topic_analysis_services.config import (
     PreparedDocument,
     TopicAnalysisConfig,
@@ -21,6 +20,7 @@ from app.features.analysis.topic_analysis_services.keyword_service import (
 from app.features.analysis.topic_analysis_services.narrative_service import (
     TopicAnalysisNarrativeService,
 )
+from app.features.common.protocols import TranslationServiceProtocol
 
 
 class TopicGroupAssemblyService:

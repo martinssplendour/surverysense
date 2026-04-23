@@ -6,7 +6,6 @@ import logging
 import pandas as pd
 
 from app.core.exceptions import ManifestBuildError
-from app.models.manifest import TransformationManifest
 from app.features.ingestion.architect_service.config import (
     DiagnosticMode,
     ManifestArchitectConfig,
@@ -17,6 +16,7 @@ from app.features.ingestion.architect_service.gemini_manifest_diagnosis_service 
 from app.features.ingestion.architect_service.heuristic_manifest_diagnosis_service import (
     HeuristicManifestDiagnosisService,
 )
+from app.models.manifest import TransformationManifest
 
 logger = logging.getLogger(__name__)
 

@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.exceptions import TopicAnalysisDependencyError
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.topic_analysis_services.community_detection_service import (
     CommunityDetectionAnalysisService,
 )
 from app.features.analysis.topic_analysis_services.config import TopicAnalysisConfig
 from app.features.analysis.topic_analysis_services.contracts import TopicModelRunResult
 from app.features.analysis.topic_analysis_services.embedding_service import SentenceEmbeddingService
+from app.models.enums import AnalysisModelKey
 
 
 @dataclass(slots=True)

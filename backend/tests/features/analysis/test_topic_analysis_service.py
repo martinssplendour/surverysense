@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pandas as pd
 from app.core.exceptions import TopicAnalysisDependencyError
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.language_normalization_service import EnglishTranslationBatchResult
 from app.features.analysis.topic_analysis_services import (
     CommunityDetectionAnalysisService,
@@ -22,6 +21,7 @@ from app.features.analysis.topic_analysis_services import (
 )
 from app.features.analysis.topic_analysis_services.execution import TopicModelExecutionService
 from app.features.analysis.topic_label_ai_service import TopicAiLabelingBatchResult
+from app.models.enums import AnalysisModelKey
 
 
 class _FakeEmbeddingService:

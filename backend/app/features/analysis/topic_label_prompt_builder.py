@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.topic_analysis_services.contracts import TopicLabelEvidenceGroup
+from app.models.enums import AnalysisModelKey
 
 
 class TopicLabelPromptBuilder:

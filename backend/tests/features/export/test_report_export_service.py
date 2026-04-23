@@ -6,6 +6,13 @@ from types import SimpleNamespace
 from unittest import TestCase
 from zipfile import ZipFile
 
+from app.features.analysis.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisExampleRecord,
+    AnalysisGroupRecord,
+    AnalysisRunResult,
+)
+from app.features.export.report_export_service import AnalysisReportExportService, DecodedChartImage
 from app.models.api import (
     AnalysisExampleModel,
     AnalysisExportChartModel,
@@ -17,13 +24,6 @@ from app.models.api import (
     AnalysisRunResponse,
 )
 from app.models.enums import AnalysisModelKey
-from app.features.export.report_export_service import AnalysisReportExportService, DecodedChartImage
-from app.features.analysis.topic_analysis_services.contracts import (
-    AnalysisDocumentRecord,
-    AnalysisExampleRecord,
-    AnalysisGroupRecord,
-    AnalysisRunResult,
-)
 from PIL import Image
 
 

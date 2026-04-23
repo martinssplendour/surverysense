@@ -4,17 +4,17 @@ from collections import defaultdict
 from collections.abc import Callable
 
 from app.core.constants import MODEL_LABELS
-from app.features.results.models import (
-    StoredAnalysisGroupSnapshot,
-    StoredAnalysisNgramSnapshot,
-    StoredAnalysisSnapshot,
-    StoredResultDatasets,
-)
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
     AnalysisNgramBucketRecord,
     AnalysisNgramItemRecord,
     AnalysisRunResult,
+)
+from app.features.results.models import (
+    StoredAnalysisGroupSnapshot,
+    StoredAnalysisNgramSnapshot,
+    StoredAnalysisSnapshot,
+    StoredResultDatasets,
 )
 
 

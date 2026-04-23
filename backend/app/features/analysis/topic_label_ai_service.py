@@ -6,7 +6,6 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.gemini_topic_label_client import GeminiTopicLabelClient
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
@@ -15,6 +14,7 @@ from app.features.analysis.topic_analysis_services.contracts import (
 from app.features.analysis.topic_label_evidence_builder import TopicLabelEvidenceBuilder
 from app.features.analysis.topic_label_prompt_builder import TopicLabelPromptBuilder
 from app.features.analysis.topic_label_response_parser import TopicLabelResponseParser
+from app.models.enums import AnalysisModelKey
 
 logger = logging.getLogger(__name__)
 

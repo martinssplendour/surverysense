@@ -11,10 +11,28 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.features.auth.routes import build_auth_router
-from app.features.routes import build_workspace_router
 from app.core.auth import get_authenticated_user
 from app.core.settings import Settings
+from app.features.analysis.language_normalization_service import (
+    EnglishTranslationConfig,
+    EnglishTranslationService,
+)
+from app.features.analysis.topic_analysis_services import (
+    CommunityDetectionAnalysisService,
+    NgramAnalysisService,
+    RepresentativeExampleSelectionService,
+    SentenceEmbeddingService,
+    TopicAnalysisConfig,
+    TopicAnalysisInputValidationService,
+    TopicAnalysisKeywordService,
+    TopicAnalysisNarrativeService,
+    TopicAnalysisService,
+    TopicAnalysisTextPreparationService,
+)
+from app.features.analysis.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
+from app.features.auth.google_oauth_service import GoogleOAuthService
+from app.features.auth.routes import build_auth_router
+from app.features.export.report_export_service import AnalysisReportExportService
 from app.features.ingestion.architect_service import ManifestArchitectConfig, ManifestArchitectService
 from app.features.ingestion.cleaning_services import (
     AnalysisReadyDatasetService,
@@ -33,28 +51,10 @@ from app.features.ingestion.cleaning_services import (
 )
 from app.features.ingestion.csv_ingestion_service import CsvIngestionService
 from app.features.ingestion.encoding_service import EncodingDetectionService
-from app.features.auth.google_oauth_service import GoogleOAuthService
-from app.features.analysis.language_normalization_service import (
-    EnglishTranslationConfig,
-    EnglishTranslationService,
-)
-from app.features.results.metadata_filter import MetadataFilterService
-from app.features.export.report_export_service import AnalysisReportExportService
-from app.features.results.store import ResultStoreService
-from app.features.analysis.topic_analysis_services import (
-    CommunityDetectionAnalysisService,
-    NgramAnalysisService,
-    RepresentativeExampleSelectionService,
-    SentenceEmbeddingService,
-    TopicAnalysisConfig,
-    TopicAnalysisInputValidationService,
-    TopicAnalysisKeywordService,
-    TopicAnalysisNarrativeService,
-    TopicAnalysisService,
-    TopicAnalysisTextPreparationService,
-)
-from app.features.analysis.topic_label_ai_service import TopicAiLabelingConfig, TopicAiLabelService
 from app.features.ingestion.transformation_service import DataTransformationService
+from app.features.results.metadata_filter import MetadataFilterService
+from app.features.results.store import ResultStoreService
+from app.features.routes import build_workspace_router
 
 logger = logging.getLogger(__name__)
 

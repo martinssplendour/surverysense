@@ -4,8 +4,8 @@ from collections.abc import Iterable
 
 from app.core.constants import MODEL_LABELS
 from app.core.exceptions import TopicAnalysisInputError
-from app.models.enums import AnalysisModelKey
 from app.features.analysis.topic_analysis_services.config import PreparedTextDataset
+from app.models.enums import AnalysisModelKey
 
 
 class TopicAnalysisInputValidationService:

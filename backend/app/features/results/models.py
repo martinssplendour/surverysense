@@ -6,8 +6,6 @@ from typing import Literal
 
 import pandas as pd
 
-from app.models.enums import AnalysisModelKey
-from app.features.results.metadata_filter import MetadataFilterDefinition
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisDocumentRecord,
     AnalysisExampleRecord,
@@ -18,6 +16,8 @@ from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisRunResult,
     AnalysisScatterPointRecord,
 )
+from app.features.results.metadata_filter import MetadataFilterDefinition
+from app.models.enums import AnalysisModelKey
 
 DatasetName = Literal["transformed", "analysis", "community_analysis"]
 

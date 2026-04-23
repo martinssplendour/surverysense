@@ -9,18 +9,18 @@ from typing import NoReturn, TypeVar
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.exceptions import IngestionError
+from app.features.analysis.language_normalization_service import EnglishTranslationService
+from app.features.analysis.topic_analysis_services import TopicAnalysisService
+from app.features.export.report_export_service import AnalysisReportExportService
+from app.features.ingestion.architect_service import ManifestArchitectService
+from app.features.ingestion.cleaning_services import AnalysisReadyDatasetService
+from app.features.ingestion.csv_ingestion_service import CsvIngestionService
+from app.features.ingestion.transformation_service import DataTransformationService
+from app.features.results.store import ResultNotFoundError, ResultStoreService
 from app.models.api import (
     MetadataFilterDefinitionModel,
     MetadataFilterOptionModel,
 )
-from app.features.ingestion.architect_service import ManifestArchitectService
-from app.features.ingestion.cleaning_services import AnalysisReadyDatasetService
-from app.features.ingestion.csv_ingestion_service import CsvIngestionService
-from app.features.analysis.language_normalization_service import EnglishTranslationService
-from app.features.export.report_export_service import AnalysisReportExportService
-from app.features.results.store import ResultNotFoundError, ResultStoreService
-from app.features.analysis.topic_analysis_services import TopicAnalysisService
-from app.features.ingestion.transformation_service import DataTransformationService
 
 logger = logging.getLogger(__name__)
 _T = TypeVar("_T")

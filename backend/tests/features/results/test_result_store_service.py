@@ -2,7 +2,14 @@ import unittest
 
 import pandas as pd
 from app.core.constants import COMMUNITY_GROUP_COLUMN_NAME
-from app.models.enums import AnalysisModelKey
+from app.features.analysis.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisGroupRecord,
+    AnalysisNetworkEdgeRecord,
+    AnalysisNgramBucketRecord,
+    AnalysisNgramItemRecord,
+    AnalysisRunResult,
+)
 from app.features.ingestion.cleaning_services import (
     AnalysisReadyDatasetService,
     MetadataColumnSelectionService,
@@ -13,14 +20,7 @@ from app.features.ingestion.cleaning_services import (
 )
 from app.features.results.metadata_filter import MetadataFilterService
 from app.features.results.store import ResultNotFoundError, ResultStoreService
-from app.features.analysis.topic_analysis_services.contracts import (
-    AnalysisDocumentRecord,
-    AnalysisGroupRecord,
-    AnalysisNetworkEdgeRecord,
-    AnalysisNgramBucketRecord,
-    AnalysisNgramItemRecord,
-    AnalysisRunResult,
-)
+from app.models.enums import AnalysisModelKey
 
 
 class ResultStoreServiceTests(unittest.TestCase):
