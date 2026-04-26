@@ -44,13 +44,14 @@ class _FakeCommunityDetectionService:
         max_neighbors: int,
         resolution: float = 1.0,
         mutual_neighbors: bool = True,
+        languages: list[str | None] | None = None,
     ) -> TopicModelRunResult:
         return TopicModelRunResult(
             assignments=[0, 0, 1],
             warnings=["Community detection test warning."],
             network_edges=[(0, 1, 0.95)],
             layout_positions={0: (0.0, 0.0), 1: (0.2, 0.1), 2: (1.0, 1.0)},
-        )
+    )
 
 
 class _EmbeddingPassthroughCommunityService:
@@ -62,8 +63,71 @@ class _EmbeddingPassthroughCommunityService:
         max_neighbors: int,
         resolution: float = 1.0,
         mutual_neighbors: bool = True,
+        languages: list[str | None] | None = None,
     ) -> TopicModelRunResult:
         return TopicModelRunResult(assignments=[0 for _embedding in embeddings], warnings=[])
+
+
+class _SingleCommunityDetectionService:
+    def run(
+        self,
+        embeddings,
+        *,
+        similarity_threshold: float,
+        max_neighbors: int,
+        resolution: float = 1.0,
+        mutual_neighbors: bool = True,
+        languages: list[str | None] | None = None,
+    ) -> TopicModelRunResult:
+        return TopicModelRunResult(assignments=[0 for _embedding in embeddings], warnings=[])
+
+
+class _CentralCommunityDetectionService:
+    def run(
+        self,
+        embeddings,
+        *,
+        similarity_threshold: float,
+        max_neighbors: int,
+        resolution: float = 1.0,
+        mutual_neighbors: bool = True,
+        languages: list[str | None] | None = None,
+    ) -> TopicModelRunResult:
+        return TopicModelRunResult(
+            assignments=[0 for _embedding in embeddings],
+            warnings=[],
+            network_edges=[
+                (2, 1, 0.95),
+                (2, 3, 0.95),
+                (1, 3, 0.5),
+                (2, 0, 0.2),
+                (0, 1, 0.1),
+            ],
+        )
+
+
+class _DuplicateLabelCommunityDetectionService:
+    def run(
+        self,
+        embeddings,
+        *,
+        similarity_threshold: float,
+        max_neighbors: int,
+        resolution: float = 1.0,
+        mutual_neighbors: bool = True,
+        languages: list[str | None] | None = None,
+    ) -> TopicModelRunResult:
+        return TopicModelRunResult(
+            assignments=[0, 0, 1, 1],
+            warnings=[],
+            network_edges=[(0, 1, 0.9), (2, 3, 0.9)],
+            layout_positions={
+                0: (0.0, 0.0),
+                1: (0.1, 0.1),
+                2: (1.0, 1.0),
+                3: (1.1, 1.1),
+            },
+        )
 
 
 class _FakeFallbackEmbeddingService:
@@ -113,6 +177,15 @@ class _FakeEnglishTranslationService:
             detected_languages=detected_languages,
             warnings=list(self.warnings),
             translated_count=translated_count,
+        )
+
+    def detect_languages(self, texts: list[str]) -> EnglishTranslationBatchResult:
+        return EnglishTranslationBatchResult(
+            texts=list(texts),
+            translated_flags=[False] * len(texts),
+            detected_languages=["es" if text in self.translations else "en" for text in texts],
+            warnings=[],
+            translated_count=0,
         )
 
 
@@ -170,7 +243,7 @@ class TopicAnalysisTextPreparationServiceTests(unittest.TestCase):
         self.assertIn("Skipped 3 empty or NaN row(s) before analysis.", prepared.warnings)
         self.assertEqual(prepared.translated_document_count, 0)
 
-    def test_prepare_keeps_original_text_before_output_translation(self) -> None:
+    def test_prepare_translates_non_english_texts_before_embedding(self) -> None:
         dataframe = pd.DataFrame(
             {
                 "verbatim": [
@@ -188,14 +261,137 @@ class TopicAnalysisTextPreparationServiceTests(unittest.TestCase):
         )
         prepared = service.prepare(dataframe, text_column_name="verbatim")
 
-        self.assertEqual(prepared.translated_document_count, 0)
+        self.assertEqual(prepared.translated_document_count, 1)
         self.assertEqual(
             prepared.texts,
-            ["Necesito mas recursos de matematicas", "Need clearer instructions"],
+            ["Need more maths resources", "Need clearer instructions"],
         )
+        self.assertEqual(prepared.documents[0].text, "Need more maths resources")
         self.assertEqual(prepared.documents[0].source_text, "Necesito mas recursos de matematicas")
-        self.assertFalse(prepared.documents[0].translated_to_english)
-        self.assertNotIn("Translated", " ".join(prepared.warnings))
+        self.assertTrue(prepared.documents[0].translated_to_english)
+        self.assertFalse(prepared.documents[1].translated_to_english)
+
+    def test_prepare_detects_language_without_translating_when_input_translation_is_disabled(self) -> None:
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Necesito mas recursos de matematicas",
+                    "Need clearer instructions",
+                ]
+            }
+        )
+        translation_service = _FakeEnglishTranslationService(
+            {"Necesito mas recursos de matematicas": "Need more maths resources"}
+        )
+
+        service = TopicAnalysisTextPreparationService(
+            max_document_chars=200,
+            translation_service=translation_service,
+            input_translation_enabled=False,
+        )
+        prepared = service.prepare(dataframe, text_column_name="verbatim")
+
+        self.assertEqual(prepared.texts, ["Necesito mas recursos de matematicas", "Need clearer instructions"])
+        self.assertEqual(prepared.translated_document_count, 0)
+        self.assertEqual(prepared.documents[0].detected_language, "es")
+        self.assertEqual(prepared.documents[1].detected_language, "en")
+        self.assertEqual(translation_service.calls, [])
+
+    def test_prepare_sentencizes_multi_sentence_responses_for_embedding(self) -> None:
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Need more maths challenge resources. Would like clearer worked examples.",
+                    "Need better reading resources, Would like more phonics examples",
+                    "The website is useful.",
+                ]
+            }
+        )
+
+        service = TopicAnalysisTextPreparationService(max_document_chars=200)
+        prepared = service.prepare(dataframe, text_column_name="verbatim")
+
+        self.assertEqual(
+            prepared.texts,
+            [
+                "Need more maths challenge resources.",
+                "Would like clearer worked examples.",
+                "Need better reading resources",
+                "Would like more phonics examples",
+                "The website is useful.",
+            ],
+        )
+        self.assertEqual(prepared.original_response_count, 3)
+        self.assertEqual([document.row_number for document in prepared.documents], [1, 1, 2, 2, 3])
+
+    def test_prepare_does_not_sentencize_short_or_mixed_punctuation_sentences(self) -> None:
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Yes. Need more maths challenge resources.",
+                    "Need more maths challenge resources! Would like clearer worked examples.",
+                    "Yes, Need more maths challenge resources",
+                    "As a Pastoral Lead, I need quick access to age appropriate resources.",
+                ]
+            }
+        )
+
+        service = TopicAnalysisTextPreparationService(max_document_chars=200)
+        prepared = service.prepare(dataframe, text_column_name="verbatim")
+
+        self.assertEqual(
+            prepared.texts,
+            [
+                "Yes. Need more maths challenge resources.",
+                "Need more maths challenge resources! Would like clearer worked examples.",
+                "Yes, Need more maths challenge resources",
+                "As a Pastoral Lead, I need quick access to age appropriate resources.",
+            ],
+        )
+
+    def test_prepare_merges_connector_sentences_with_previous_chunk(self) -> None:
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "The search is difficult. So better filters would help.",
+                    "The platform is useful. But clearer labels would build confidence. More examples would help teachers.",
+                    "The resources are helpful. However, curriculum links would improve confidence. Because teachers need evidence.",
+                ]
+            }
+        )
+
+        service = TopicAnalysisTextPreparationService(max_document_chars=300)
+        prepared = service.prepare(dataframe, text_column_name="verbatim")
+
+        self.assertEqual(
+            prepared.texts,
+            [
+                "The search is difficult. So better filters would help.",
+                "The platform is useful. But clearer labels would build confidence.",
+                "More examples would help teachers.",
+                "The resources are helpful. However, curriculum links would improve confidence. Because teachers need evidence.",
+            ],
+        )
+
+    def test_prepare_keeps_and_sentences_as_separate_chunks(self) -> None:
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "The resources are useful. And clearer curriculum links would help.",
+                ]
+            }
+        )
+
+        service = TopicAnalysisTextPreparationService(max_document_chars=300)
+        prepared = service.prepare(dataframe, text_column_name="verbatim")
+
+        self.assertEqual(
+            prepared.texts,
+            [
+                "The resources are useful.",
+                "And clearer curriculum links would help.",
+            ],
+        )
 
 
 class TopicAnalysisKeywordServiceTests(unittest.TestCase):
@@ -207,25 +403,26 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
                 "curriculum of",
                 "search the search",
                 "twinkl is twinkl",
+                "using resources",
                 "to",
             ]
         )
 
-        self.assertEqual(terms, ["curriculum", "search", "twinkl"])
+        self.assertEqual(terms, ["curriculum", "search", "twinkl", "resources"])
 
     def test_top_ngrams_remove_stopwords_before_building_ngrams(self) -> None:
         service = TopicAnalysisKeywordService()
 
         ngrams = service.top_ngrams(
             [
-                "What I am looking for is more of the resources in the classroom",
-                "I am in the classroom and of the resources",
+                "What I am looking for is more of the Twinkl resources in the classroom",
+                "I am using Twinkl in the classroom and of the resources",
             ],
             ngram_size=1,
             top_n=10,
         )
 
-        self.assertEqual([item["term"] for item in ngrams], ["resources", "classroom", "looking"])
+        self.assertEqual([item["term"] for item in ngrams], ["twinkl", "resources", "classroom"])
 
     def test_top_terms_drop_two_letter_tokens_during_label_cleanup(self) -> None:
         service = TopicAnalysisKeywordService()
@@ -358,7 +555,84 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(strict_edges, {(1, 2)})
         self.assertEqual(loose_edges, {(0, 1), (1, 2)})
 
-    def test_run_falls_back_to_singleton_communities_when_no_edges_match_threshold(self) -> None:
+    def test_run_applies_stricter_same_language_threshold_for_non_english_edges(self) -> None:
+        service = CommunityDetectionAnalysisService()
+        embeddings = [
+            [1.0, 0.0],
+            [0.75, 0.6614378278],
+        ]
+
+        unguarded_result = service.run(
+            embeddings,
+            similarity_threshold=0.7,
+            max_neighbors=1,
+            mutual_neighbors=False,
+        )
+        guarded_result = service.run(
+            embeddings,
+            similarity_threshold=0.7,
+            max_neighbors=1,
+            mutual_neighbors=False,
+            languages=["es", "es"],
+        )
+
+        self.assertEqual(len(unguarded_result.network_edges), 1)
+        self.assertEqual(guarded_result.network_edges, [])
+        self.assertIn("stricter same-language", " ".join(guarded_result.warnings))
+
+    def test_run_splits_language_dominant_communities_with_weak_topical_links(self) -> None:
+        class _FakeEdgeSequence:
+            def __init__(self, graph) -> None:
+                self.graph = graph
+
+            def __setitem__(self, key, value) -> None:
+                if key == "weight":
+                    self.graph.weights = list(value)
+
+        class _FakeGraph:
+            def __init__(self) -> None:
+                self.vertex_count = 0
+                self.edges: list[tuple[int, int]] = []
+                self.weights: list[float] = []
+                self.es = _FakeEdgeSequence(self)
+
+            def add_vertices(self, count: int) -> None:
+                self.vertex_count = int(count)
+
+            def add_edges(self, edges) -> None:
+                self.edges = list(edges)
+
+        class _FakePartition:
+            membership = [0, 0, 0, 0]
+
+        def find_partition(graph, partition_type, **kwargs):
+            return _FakePartition()
+
+        fake_igraph = types.ModuleType("igraph")
+        fake_igraph.Graph = _FakeGraph
+        fake_leidenalg = types.ModuleType("leidenalg")
+        fake_leidenalg.RBConfigurationVertexPartition = object()
+        fake_leidenalg.find_partition = find_partition
+
+        service = CommunityDetectionAnalysisService()
+        with patch.dict(sys.modules, {"igraph": fake_igraph, "leidenalg": fake_leidenalg}):
+            result = service.run(
+                [
+                    [1.0, 0.0],
+                    [0.9, 0.4358898944],
+                    [-1.0, 0.0],
+                    [-0.9, -0.4358898944],
+                ],
+                similarity_threshold=0.7,
+                max_neighbors=2,
+                mutual_neighbors=False,
+                languages=["es", "es", "es", "es"],
+            )
+
+        self.assertEqual(result.assignments, [0, 0, 1, 1])
+        self.assertIn("split 1 language-dominant community", " ".join(result.warnings))
+
+    def test_run_marks_all_responses_as_noise_when_no_edges_match_threshold(self) -> None:
         service = CommunityDetectionAnalysisService()
 
         result = service.run(
@@ -371,8 +645,45 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
             max_neighbors=2,
         )
 
-        self.assertEqual(result.assignments, [0, 1, 2])
-        self.assertIn("each response is shown as its own community", " ".join(result.warnings))
+        self.assertEqual(result.assignments, [-1, -1, -1])
+        self.assertTrue(result.groups["-1"].is_noise)
+        self.assertIn("all responses were marked as unassigned noise", " ".join(result.warnings))
+
+    def test_run_marks_singleton_communities_as_noise(self) -> None:
+        service = CommunityDetectionAnalysisService()
+
+        result = service.run(
+            [
+                [1.0, 0.0],
+                [0.99, 0.01],
+                [0.0, 1.0],
+            ],
+            similarity_threshold=0.8,
+            max_neighbors=2,
+        )
+
+        self.assertEqual(result.assignments, [0, 0, -1])
+        self.assertTrue(result.groups["-1"].is_noise)
+        self.assertIn("marked 1 weakly connected response", " ".join(result.warnings))
+
+    def test_run_marks_tiny_communities_as_noise_when_sample_is_large_enough(self) -> None:
+        service = CommunityDetectionAnalysisService()
+
+        result = service.run(
+            [
+                [1.0, 0.0],
+                [0.99, 0.01],
+                [-1.0, 0.0],
+                [-0.99, -0.01],
+                [-0.98, -0.02],
+            ],
+            similarity_threshold=0.8,
+            max_neighbors=3,
+        )
+
+        self.assertEqual(result.assignments, [-1, -1, 0, 0, 0])
+        self.assertTrue(result.groups["-1"].is_noise)
+        self.assertIn("marked 2 weakly connected response", " ".join(result.warnings))
 
     def test_run_falls_back_to_raw_embeddings_when_umap_reduction_fails(self) -> None:
         class _FailingReducer:
@@ -815,19 +1126,56 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.model_label, "Community Detection")
         self.assertEqual(len(result.groups), 2)
         self.assertEqual(result.groups[0].count, 2)
-        self.assertEqual(result.groups[0].label, "Responses about teaching support")
-        self.assertEqual(result.groups[0].source_label, "Responses about ayuda docente")
-        self.assertTrue(result.groups[0].translated)
+        # Label is built from translated English texts — already English, no output translation needed
+        self.assertIn("teaching support", result.groups[0].label.casefold())
+        self.assertIsNone(result.groups[0].source_label)
+        self.assertFalse(result.groups[0].translated)
         self.assertGreaterEqual(len(result.groups[0].examples), 1)
+        # Examples are translated at input time — source_text preserved, translated flag set
         self.assertTrue(result.groups[0].examples[0].translated)
         self.assertEqual(result.groups[0].examples[0].source_text, "ayuda docente")
+        self.assertEqual(result.groups[0].examples[0].text, "teaching support")
         self.assertIn("Representative document", result.groups[0].comment)
         self.assertIn("Community detection test warning.", result.warnings)
+        # translated_document_count now reflects input-time translation (2 docs)
         self.assertGreaterEqual(result.translated_document_count, 2)
         self.assertEqual(len(result.scatter_points), 3)
         self.assertEqual(len(result.network_edges), 1)
         self.assertEqual(result.network_edges[0].source_row_number, 1)
         self.assertEqual(result.network_edges[0].target_row_number, 2)
+
+    def test_run_community_plot_links_sentence_fragments_to_full_source_response(self) -> None:
+        service = self._build_service(community_detection_service=_FakeCommunityDetectionService())
+        full_response = "Need clearer curriculum labels. More examples would help teachers."
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    full_response,
+                    "Better search filters would help",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.original_response_count, 2)
+        self.assertEqual(result.valid_document_count, 3)
+        self.assertEqual(len(result.scatter_points), 3)
+        self.assertEqual(result.scatter_points[0].text, "Need clearer curriculum labels.")
+        self.assertEqual(result.scatter_points[1].text, "More examples would help teachers.")
+        self.assertEqual(result.scatter_points[0].source_text, full_response)
+        self.assertEqual(result.scatter_points[1].source_text, full_response)
+        self.assertEqual(result.scatter_points[0].point_index, 0)
+        self.assertEqual(result.scatter_points[1].point_index, 1)
+        self.assertEqual(result.network_edges[0].source_point_index, 0)
+        self.assertEqual(result.network_edges[0].target_point_index, 1)
 
     def test_run_community_can_replace_heuristic_labels_with_ai_labels_without_retranslating_them(self) -> None:
         translation_service = _FakeEnglishTranslationService(
@@ -863,7 +1211,9 @@ class TopicAnalysisServiceTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(result.groups[0].label, "Teaching Support")
-        self.assertEqual(result.groups[0].source_label, "Responses about ayuda docente")
+        # source_label is the English heuristic label built from input-translated texts
+        self.assertIsNotNone(result.groups[0].source_label)
+        self.assertIn("teaching support", result.groups[0].source_label.casefold())
         self.assertTrue(result.groups[0].ai_generated)
         self.assertFalse(result.groups[0].translated)
         self.assertTrue(all("Teaching Support" not in batch for batch in translation_service.calls))
@@ -905,6 +1255,93 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                 "Need more maths challenge activities",
             },
         )
+
+    def test_run_community_orders_group_documents_by_top_term_evidence(self) -> None:
+        service = self._build_service(community_detection_service=_SingleCommunityDetectionService())
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "General feedback about the platform",
+                    "Need more science resources and maths resources",
+                    "Resources should include lesson plans and classroom materials",
+                    "The login screen is confusing",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.groups[0].terms[0], "resources")
+        self.assertEqual(
+            [document.row_number for document in result.groups[0].documents[:2]],
+            [2, 3],
+        )
+
+    def test_run_community_orders_group_documents_by_graph_representativeness_before_terms(self) -> None:
+        service = self._build_service(community_detection_service=_CentralCommunityDetectionService())
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Resources resources resources are available",
+                    "Need better lesson planning support",
+                    "Need clearer lesson planning support",
+                    "Need better planning resources",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(
+            [document.row_number for document in result.groups[0].documents],
+            [3, 2, 4, 1],
+        )
+
+    def test_run_community_merges_groups_with_duplicate_ai_labels(self) -> None:
+        service = self._build_service(
+            community_detection_service=_DuplicateLabelCommunityDetectionService(),
+            ai_label_service=_FakeAiLabelService({"0": "Mixed Responses", "1": "Mixed Responses"}),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Need clearer search filters",
+                    "Search filters are confusing",
+                    "Need better curriculum links",
+                    "Curriculum links are hard to find",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(len(result.groups), 1)
+        self.assertEqual(result.groups[0].label, "Mixed Responses")
+        self.assertEqual(result.groups[0].count, 4)
+        self.assertEqual([document.row_number for document in result.groups[0].documents], [1, 2, 4, 3])
+        self.assertEqual({point.group_id for point in result.scatter_points}, {"0"})
+        self.assertEqual({point.group_label for point in result.scatter_points}, {"Mixed Responses"})
 
     def test_run_keeps_heuristic_labels_when_ai_labeling_fails(self) -> None:
         service = self._build_service(

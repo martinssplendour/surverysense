@@ -34,12 +34,12 @@ async function initLoginPage() {
             {
                 theme: "outline",
                 size: "large",
-                text: "signin_with",
-                shape: "pill",
-                width: 180,
+                text: "continue_with",
+                shape: "rectangular",
+                width: 300,
             },
         );
-        showStatus("neutral", "Use your Twinkl account to log in.");
+        showStatus("neutral", "");
     } catch (error) {
         const message = error instanceof Error ? error.message : "Login could not be initialized.";
         showStatus("error", message);
@@ -100,6 +100,7 @@ function waitForGoogleIdentity() {
 function showStatus(kind, message) {
     elements.loginStatus.textContent = message;
     elements.loginStatus.className = `status-message status-${kind}`;
+    elements.loginStatus.hidden = !message;
 }
 
 async function parseJson(response) {

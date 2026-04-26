@@ -30,14 +30,14 @@ from PIL import Image
 class AnalysisReportExportServiceTests(TestCase):
     def setUp(self) -> None:
         chart_buffer = BytesIO()
-        Image.new("RGB", (320, 180), "#dce9df").save(chart_buffer, format="PNG")
+        Image.new("RGB", (320, 180), "#dceaff").save(chart_buffer, format="PNG")
         chart_data_url = "data:image/png;base64," + b64encode(chart_buffer.getvalue()).decode("ascii")
 
         self.request = AnalysisExportRequest(
             format="pdf",
             report_title="Requests for resources - Community Detection Report",
             source_filename="sample.csv",
-            subtitle="Community Detection | question_text | 120 filtered rows | 100 usable responses",
+            subtitle="Community Detection | question_text | 100 responses",
             active_filters=[
                 AnalysisExportFilterModel(
                     column_name="country",

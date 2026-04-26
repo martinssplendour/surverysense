@@ -430,10 +430,12 @@ class ResultStoreService:
                 if row_number > 0:
                     row_to_group[row_number] = (group.group_id, label)
 
+        group_label_column_name = COMMUNITY_LABEL_COLUMN_NAME
+        group_id_column_name = COMMUNITY_ID_COLUMN_NAME
         columns = []
         if identifier_column:
             columns.append(identifier_column)
-        columns.extend([snapshot.text_column_name, COMMUNITY_LABEL_COLUMN_NAME, COMMUNITY_ID_COLUMN_NAME])
+        columns.extend([snapshot.text_column_name, group_label_column_name, group_id_column_name])
 
         records: list[dict[str, object | None]] = []
         for row_index, source_row in filtered_df.iterrows():
@@ -444,8 +446,8 @@ class ResultStoreService:
             group_id, group_label = row_to_group[row_number]
             record: dict[str, object | None] = {
                 snapshot.text_column_name: self._serialize_cell(source_row.get(snapshot.text_column_name)),
-                COMMUNITY_LABEL_COLUMN_NAME: group_label,
-                COMMUNITY_ID_COLUMN_NAME: group_id,
+                group_label_column_name: group_label,
+                group_id_column_name: group_id,
             }
             if identifier_column:
                 record[identifier_column] = self._serialize_cell(source_row.get(identifier_column))

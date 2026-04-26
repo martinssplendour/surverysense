@@ -29,6 +29,7 @@ class PreparedDocument:
     row_number: int
     text: str
     source_text: str
+    original_text: str
     translated_to_english: bool = False
     detected_language: str | None = None
 
@@ -37,6 +38,7 @@ class PreparedDocument:
 class PreparedTextDataset:
     documents: list[PreparedDocument]
     total_row_count: int
+    original_response_count: int
     skipped_row_count: int
     translated_document_count: int
     warnings: list[str]

@@ -36,6 +36,8 @@ class RepresentativeExampleSelectionService:
                 AnalysisExampleRecord(
                     row_number=int(document.row_number),
                     text=document.text,
+                    source_text=document.source_text if document.translated_to_english else None,
+                    translated=document.translated_to_english,
                 )
             )
             if len(examples) >= max_examples:

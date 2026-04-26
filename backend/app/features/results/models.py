@@ -87,6 +87,7 @@ class StoredAnalysisSnapshot:
 
     text_column_name: str
     model_key: AnalysisModelKey
+    original_response_count: int
     groups: dict[str, StoredAnalysisGroupSnapshot]
     ngram_items: dict[str, StoredAnalysisNgramSnapshot]
     scatter_points: list[AnalysisScatterPointRecord]

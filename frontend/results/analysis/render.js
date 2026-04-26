@@ -35,6 +35,7 @@ export function renderAnalysisControls() {
     elements.analysisMethods.innerHTML = ANALYSIS_MODE_OPTIONS
         .map((option) => {
             const isSelected = option.key === state.selectedAnalysisModel;
+            const iconClass = option.key === "ngrams" ? "analysis-method-icon-ngrams" : "analysis-method-icon-community";
             return `
                 <button
                     type="button"
@@ -42,8 +43,12 @@ export function renderAnalysisControls() {
                     data-model-key="${escapeHtml(option.key)}"
                     aria-pressed="${isSelected ? "true" : "false"}"
                 >
-                    <span class="analysis-method-title">${escapeHtml(option.label)}</span>
-                    <span class="analysis-method-copy">${escapeHtml(option.description)}</span>
+                    <span class="analysis-method-radio" aria-hidden="true"></span>
+                    <span class="analysis-method-icon ${iconClass}" aria-hidden="true"></span>
+                    <span class="analysis-method-copy-block">
+                        <span class="analysis-method-title">${escapeHtml(option.label)}</span>
+                        <span class="analysis-method-copy">${escapeHtml(option.description)}</span>
+                    </span>
                 </button>
             `;
         })
@@ -51,7 +56,7 @@ export function renderAnalysisControls() {
     elements.runAnalysisButton.disabled = state.analysisRunning || !state.selectedAnalysisColumn;
     elements.runAnalysisButton.innerHTML = state.analysisRunning
         ? '<span class="analysis-run-button-content"><span class="analysis-run-spinner" aria-hidden="true"></span><span>Running Analysis...</span></span>'
-        : "Run Analysis";
+        : '<span class="analysis-run-button-content"><span class="analysis-run-icon" aria-hidden="true"></span><span>Run Analysis</span></span>';
 }
 
 export function renderAnalysisOutput() {
@@ -179,10 +184,10 @@ export function renderAnalysisResultsHeader() {
     }
 
     const result = state.analysisResult;
+    const originalResponseCount = Number(result.original_response_count || result.valid_document_count || 0);
     const details = [
         displayColumnLabel(result.text_column_name || ""),
-        `${formatNumber(result.filtered_row_count || 0)} filtered rows`,
-        `${formatNumber(result.valid_document_count || 0)} usable responses`,
+        `${formatNumber(originalResponseCount)} responses`,
     ];
     elements.analysisResultsSubtitle.textContent = details.join(" | ");
 }

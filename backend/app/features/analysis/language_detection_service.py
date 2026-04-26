@@ -17,18 +17,21 @@ class LanguageDetectionService:
     def __init__(self, *, source_language: str) -> None:
         self.source_language = source_language
 
+    MIN_DETECTABLE_LENGTH = 8
+
     def detect_language(self, text: str) -> str | None:
         if self.source_language != "auto":
             return self.normalize_source_language(self.source_language)
         if detect is None:
             raise ImportError("langdetect is not installed")
+        if len(text.strip()) < self.MIN_DETECTABLE_LENGTH:
+            return None
 
         try:
             detected_language = detect(text)
-        except LangDetectException as exc:
-            logger.warning(
-                "Language detection failed (%s). Falling back to configured source=%s for this response.",
-                type(exc).__name__,
+        except LangDetectException:
+            logger.debug(
+                "Language detection failed for a response; falling back to source=%s.",
                 self.source_language,
             )
             return None

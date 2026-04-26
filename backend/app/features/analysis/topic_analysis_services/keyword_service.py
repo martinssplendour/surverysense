@@ -11,21 +11,42 @@ from app.features.analysis.topic_analysis_services.contracts import (
 )
 
 
+def _load_standard_stopwords() -> frozenset[str]:
+    words: set[str] = set()
+    try:
+        from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+    except Exception:  # pragma: no cover - defensive fallback for partial installs
+        words.update(
+            {
+                "a", "about", "all", "also", "am", "an", "and", "are", "as", "at",
+                "be", "been", "but", "by", "can", "could", "do", "does", "for",
+                "from", "had", "has", "have", "he", "her", "him", "his", "how",
+                "i", "if", "in", "into", "is", "it", "its", "me", "more", "my",
+                "not", "of", "on", "or", "our", "she", "should", "so", "that",
+                "the", "their", "them", "then", "there", "these", "they", "this",
+                "those", "to", "too", "us", "was", "we", "were", "what", "when",
+                "which", "who", "will", "with", "would", "you", "your",
+            }
+        )
+    else:
+        words.update(str(word).casefold() for word in ENGLISH_STOP_WORDS)
+
+    try:
+        from nltk.corpus import stopwords
+    except Exception:  # pragma: no cover - optional dependency
+        return frozenset(words)
+
+    try:
+        for language in stopwords.fileids():
+            words.update(str(word).casefold() for word in stopwords.words(language))
+    except LookupError:  # pragma: no cover - nltk installed without corpus data
+        return frozenset(words)
+
+    return frozenset(words)
+
+
 class TopicAnalysisKeywordService:
-    STOPWORDS = frozenset(
-        {
-            "a", "about", "after", "again", "all", "also", "an", "and", "any", "are",
-            "as", "at", "am", "be", "been", "being", "both", "but", "by", "can",
-            "could", "do", "does", "each", "few", "for", "from", "had", "has", "have",
-            "he", "her", "here", "hers", "herself", "him", "himself", "his", "how",
-            "i", "if", "in", "into", "is", "it", "its", "me", "more", "most", "my",
-            "need", "needs", "not", "of", "on", "only", "or", "other", "our", "ours",
-            "ourselves", "out", "own", "please", "really", "same", "she", "should",
-            "so", "that", "the", "their", "them", "then", "there", "these", "they",
-            "this", "those", "to", "too", "us", "very", "was", "we", "were", "what",
-            "when", "which", "who", "whom", "why", "will", "with", "would", "you", "your",
-        }
-    )
+    STOPWORDS = _load_standard_stopwords()
     TOKEN_PATTERN = re.compile(r"[^\W_][^\W_'\-]*", re.UNICODE)
 
     def top_terms(self, texts: list[str], *, top_n: int) -> list[str]:

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verbatim App Login</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260423b">
+    <link rel="stylesheet" href="/static/styles.css?v=20260426c">
 </head>
 <body class="login-page">
     <header class="topbar">
@@ -20,18 +20,27 @@
         <main class="workflow">
             <section class="view upload-view is-active" aria-label="Google login">
                 <section class="upload-card login-card">
-                    <p class="panel-kicker">Access</p>
-                    <h2 class="login-title">Login</h2>
+                    <img class="login-card-logo" src="/static/assets/twinkl-logo.svg" alt="Twinkl">
+                    <h1 class="login-title">Sign in to Verbatim App</h1>
+                    <p class="login-copy">Access your account to continue</p>
                     <div class="google-signin-wrap">
                         <div id="google-signin-button"></div>
                     </div>
-                    <p class="status-message status-neutral" id="login-status">Checking Google sign-in configuration.</p>
+                    <div class="login-divider" aria-hidden="true">
+                        <span>or</span>
+                    </div>
+                    <p class="login-copy login-copy-secondary">Use your Twinkl Google account to sign in securely.</p>
+                    <p class="status-message status-neutral" id="login-status">Checking sign-in configuration.</p>
+                    <div class="login-help">
+                        <span>Having trouble signing in?</span>
+                        <span>Contact us at internalai@twinkl.co.uk.</span>
+                    </div>
                 </section>
             </section>
         </main>
     </div>
 
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="/static/login.js?v=20260423b" defer></script>
+    <script src="/static/login.js?v=20260426c" defer></script>
 </body>
 </html>

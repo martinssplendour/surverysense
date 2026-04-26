@@ -141,11 +141,15 @@ class AnalysisScatterPointRecord:
     group_label: str
     x: float
     y: float
+    source_text: str | None = None
+    point_index: int = -1
 
     def to_api_payload(self) -> dict[str, object]:
         return {
+            "point_index": int(self.point_index),
             "row_number": int(self.row_number),
             "text": self.text,
+            "source_text": self.source_text,
             "group_id": self.group_id,
             "group_label": self.group_label,
             "x": float(self.x),
@@ -158,9 +162,13 @@ class AnalysisNetworkEdgeRecord:
     source_row_number: int
     target_row_number: int
     weight: float
+    source_point_index: int | None = None
+    target_point_index: int | None = None
 
     def to_api_payload(self) -> dict[str, object]:
         return {
+            "source_point_index": self.source_point_index,
+            "target_point_index": self.target_point_index,
             "source_row_number": int(self.source_row_number),
             "target_row_number": int(self.target_row_number),
             "weight": float(self.weight),
@@ -176,6 +184,7 @@ class AnalysisRunResult:
     text_column_name: str
     filtered_row_count: int
     valid_document_count: int = 0
+    original_response_count: int = 0
     skipped_document_count: int = 0
     translated_document_count: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -212,6 +221,7 @@ class AnalysisRunResult:
             "text_column_name": self.text_column_name,
             "filtered_row_count": int(self.filtered_row_count),
             "valid_document_count": int(self.valid_document_count),
+            "original_response_count": int(self.original_response_count),
             "skipped_document_count": int(self.skipped_document_count),
             "translated_document_count": int(self.translated_document_count),
             "warnings": list(self.warnings),

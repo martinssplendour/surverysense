@@ -99,7 +99,7 @@ class PdfReportBuilder:
                 "ReportSubtitle",
                 parent=base["BodyText"],
                 fontName="Helvetica",
-                fontSize=10,
+                fontSize=12,
                 leading=14,
                 textColor=colors.HexColor("#5e574f"),
                 spaceAfter=0,
@@ -109,14 +109,14 @@ class PdfReportBuilder:
                 parent=base["Heading2"],
                 fontName="Helvetica-Bold",
                 fontSize=14,
-                textColor=colors.HexColor("#294b3b"),
+                textColor=colors.HexColor("#2477F8"),
                 spaceAfter=4,
             ),
             "chart_title": ParagraphStyle(
                 "ReportChartTitle",
                 parent=base["Heading3"],
                 fontName="Helvetica-Bold",
-                fontSize=11,
+                fontSize=12,
                 textColor=colors.HexColor("#3d352d"),
                 spaceAfter=2,
             ),
@@ -124,7 +124,7 @@ class PdfReportBuilder:
                 "ReportPlotTitle",
                 parent=base["Heading3"],
                 fontName="Helvetica-Bold",
-                fontSize=11,
+                fontSize=12,
                 textColor=colors.HexColor("#3d352d"),
                 spaceAfter=2,
             ),
@@ -132,7 +132,7 @@ class PdfReportBuilder:
                 "ReportPlotCaption",
                 parent=base["BodyText"],
                 fontName="Helvetica-Oblique",
-                fontSize=9,
+                fontSize=12,
                 leading=12,
                 textColor=colors.HexColor("#6d655b"),
                 spaceAfter=6,
@@ -141,7 +141,7 @@ class PdfReportBuilder:
                 "ReportBody",
                 parent=base["BodyText"],
                 fontName="Helvetica",
-                fontSize=10,
+                fontSize=12,
                 leading=14,
                 textColor=colors.HexColor("#3d352d"),
             ),
@@ -160,7 +160,7 @@ class PdfReportBuilder:
     def _decorate_page(canvas, document) -> None:
         canvas.saveState()
         canvas.setStrokeColor(colors.HexColor("#d8cdbf"))
-        canvas.setFillColor(colors.HexColor("#294b3b"))
-        canvas.setFont("Helvetica", 9)
+        canvas.setFillColor(colors.HexColor("#2477F8"))
+        canvas.setFont("Helvetica", 12)
         canvas.drawRightString(document.pagesize[0] - 42, 20, f"Page {document.page}")
         canvas.restoreState()

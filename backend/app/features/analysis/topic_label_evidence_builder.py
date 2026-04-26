@@ -112,33 +112,18 @@ class TopicLabelEvidenceBuilder:
         return evidence_groups
 
     def collect_examples(self, group: AnalysisGroupRecord) -> list[str]:
-        # Draw from the full document set so the AI sees a representative spread of
-        # the cluster, not just the 3 display examples stored at assembly time.
+        # Group documents are ordered before AI labeling. Use that order directly so
+        # the naming evidence is the same response order users see in the modal.
         max_examples = max(1, self.max_examples_per_group)
         max_chars = max(80, self.max_chars_per_example)
-        lower_terms = [t.casefold() for t in self.collect_terms(group) if t]
 
-        scored: list[tuple[tuple[float, float], str]] = []
-        seen_keys: set[str] = set()
-        for doc in group.documents:
+        documents = list(group.documents) or list(group.examples)
+        examples: list[str] = []
+        for doc in documents:
             text = re.sub(r"\s+", " ", str(doc.text or "").strip())
             if not text:
                 continue
-            key = text.casefold()
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-            term_hits = sum(1 for t in lower_terms if t in key)
-            length_score = -abs(len(text) - 280)
-            scored.append(((float(term_hits), float(length_score)), text))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-
-        examples: list[str] = []
-        for _, text in scored:
             truncated = text[:max_chars].rstrip()
-            if examples and any(self._word_overlap(truncated, ex) > 0.55 for ex in examples):
-                continue
             examples.append(truncated)
             if len(examples) >= max_examples:
                 break
@@ -208,14 +193,6 @@ class TopicLabelEvidenceBuilder:
             if len(texts) >= self.MAX_CONTEXT_DOCUMENTS:
                 break
         return texts
-
-    @staticmethod
-    def _word_overlap(text_a: str, text_b: str) -> float:
-        words_a = set(text_a.casefold().split())
-        words_b = set(text_b.casefold().split())
-        if not words_a or not words_b:
-            return 0.0
-        return len(words_a & words_b) / min(len(words_a), len(words_b))
 
     def _trim_context_phrase(self, tokens: list[str]) -> str:
         start = 0

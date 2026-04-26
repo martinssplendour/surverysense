@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verbatim App</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260423c">
+    <link rel="stylesheet" href="/static/styles.css?v=20260426i">
 </head>
 <body>
     <header class="topbar">
@@ -68,24 +68,34 @@
                 </section>
 
                 <section class="panel analysis-panel" id="analysis-panel" hidden>
-                    <div class="section-heading">
-                        <div>
+                    <div class="section-heading analysis-setup-heading">
+                        <div class="analysis-setup-copy">
                             <h3>Analyze Data</h3>
+                            <p class="analysis-setup-subtitle">
+                                Choose one verbatim question, pick one analysis method, and run it. Active metadata filters are applied automatically.
+                            </p>
                         </div>
                         <button type="button" class="dashboard-data-link analysis-back-dashboard-link" id="back-to-dashboard-analysis-btn"><span aria-hidden="true">&larr;</span> Back to dashboard</button>
                     </div>
 
-                    <p class="analysis-step-label">Choose Verbatim Question</p>
-                    <div class="analysis-controls">
-                        <label class="filter-field filter-field-wide" for="analysis-column-select">
-                            <span class="visually-hidden">Verbatim Question</span>
-                            <select id="analysis-column-select" aria-label="Verbatim Question"></select>
-                        </label>
-                        <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
+                    <div class="analysis-setup-section analysis-question-section">
+                        <p class="analysis-step-label">1. Select a question</p>
+                        <div class="analysis-control-row">
+                            <label class="filter-field filter-field-wide" for="analysis-column-select">
+                                <span class="visually-hidden">Verbatim Question</span>
+                                <select id="analysis-column-select" aria-label="Verbatim Question"></select>
+                            </label>
+                            <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
+                        </div>
                     </div>
 
-                    <p class="analysis-step-label">Choose Model</p>
-                    <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
+                    <div class="analysis-setup-section analysis-method-section">
+                        <p class="analysis-step-label">2. Choose an analysis method</p>
+                        <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
+                    </div>
+                    <p class="analysis-help" id="analysis-help">
+                        Bar plots are used to show analysis result.
+                    </p>
                 </section>
 
                 <section class="panel analysis-results-panel" id="analysis-results-panel" hidden>

@@ -146,6 +146,7 @@ describe("results/analysis", () => {
             text_column_name: "comment",
             filtered_row_count: 3,
             valid_document_count: 3,
+            original_response_count: 2,
             skipped_document_count: 0,
             groups: [{ group_id: "0", label: "Support", count: 3, share: 1, examples: [] }],
             ngram_buckets: [],
@@ -175,6 +176,7 @@ describe("results/analysis", () => {
         expect(harness.state.currentWorkspace).toBe("analysis-results");
         expect(harness.updateWorkspaceVisibility).toHaveBeenCalledTimes(1);
         expect(harness.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+        expect(harness.dom.elements.get("analysis-results-subtitle").textContent).toBe("comment | 2 responses");
     });
 
     it("hands missing result state back to the workspace layer on 404", async () => {

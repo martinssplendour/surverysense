@@ -24,7 +24,8 @@ export function renderPreviewTable(preserveScroll) {
     if (elements.backToAnalysisResultsDataButton) {
         elements.backToAnalysisResultsDataButton.hidden = !(
             dataset === "community_analysis"
-            && state.analysisResult?.model_key === "community"
+            && state.analysisResult?.model_key
+            && state.analysisResult?.model_key !== "ngrams"
         );
     }
     if (elements.dataPanelTitle) {

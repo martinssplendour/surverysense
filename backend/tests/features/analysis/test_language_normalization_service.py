@@ -63,3 +63,35 @@ class EnglishTranslationServiceTests(unittest.TestCase):
         self.assertEqual(result.translated_flags, [False])
         self.assertEqual(result.detected_languages, ["en"])
         self.assertEqual(result.translated_count, 0)
+
+    def test_translate_warns_when_non_english_translation_is_unavailable(self) -> None:
+        service = self.build_service()
+        service._detect_language = lambda text: "es"  # type: ignore[method-assign]
+        service._get_translator = lambda source_language: (_ for _ in ()).throw(ImportError("unavailable"))  # type: ignore[method-assign]
+
+        result = service.translate(["Más material de inglés para primaria."])
+
+        self.assertEqual(result.texts, ["Más material de inglés para primaria."])
+        self.assertEqual(result.translated_flags, [False])
+        self.assertEqual(result.detected_languages, ["es"])
+        self.assertEqual(result.translated_count, 0)
+        self.assertIn("may cluster by language instead of topic", " ".join(result.warnings))
+
+    def test_translate_detects_language_without_translating_when_disabled(self) -> None:
+        service = EnglishTranslationService(
+            config=EnglishTranslationConfig(
+                enabled=False,
+                source_language="auto",
+                target_language="en",
+                batch_size=8,
+            )
+        )
+        service._detect_language = lambda text: "es"  # type: ignore[method-assign]
+        service._get_translator = lambda source_language: self.fail("Translator should not be used when disabled")  # type: ignore[method-assign]
+
+        result = service.translate(["Más material de inglés para primaria."])
+
+        self.assertEqual(result.texts, ["Más material de inglés para primaria."])
+        self.assertEqual(result.translated_flags, [False])
+        self.assertEqual(result.detected_languages, ["es"])
+        self.assertEqual(result.translated_count, 0)

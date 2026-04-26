@@ -6,18 +6,27 @@ import {
     normalizeValue,
     wrapPlotLabelTwoLines,
 } from "./shared/utils.js";
-import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
+import { getPlotly, queueAnalysisPlotResize, resizeAnalysisPlots } from "./plotlyRuntime.js";
+
+
+const GROUP_ROW_HEIGHT = 52;
+const GROUP_PLOT_VERTICAL_PADDING = 92;
+const MIN_GROUP_PLOT_HEIGHT = 360;
+const MIN_GROUP_PLOT_WIDTH = 760;
+let groupResizeObserver = null;
 
 
 export function renderGroupDistributionChart(groups, { chartTitle, chartCaption, yAxisLabel, openAnalysisGroupModalByIndex, controlsHtml = "" }) {
+    disconnectGroupResizeObserver();
     elements.analysisChart.hidden = false;
+    const plotHeight = getGroupFigureHeight(groups);
     elements.analysisChart.innerHTML = `
         <div class="analysis-chart-copy">
             <h4 class="analysis-chart-title">${escapeHtml(chartTitle)}</h4>
             <p class="analysis-chart-caption">${escapeHtml(chartCaption)}</p>
             ${controlsHtml}
         </div>
-        <div class="analysis-plot-shell">
+        <div class="analysis-plot-shell analysis-group-plot-shell" style="--group-plot-min-height: ${plotHeight}px;">
             <div class="analysis-plot-surface" id="analysis-group-plot"></div>
         </div>
     `;
@@ -31,6 +40,7 @@ export function renderGroupDistributionChart(groups, { chartTitle, chartCaption,
     if (!rendered && plotContainer instanceof HTMLElement) {
         plotContainer.outerHTML = renderFallbackGroupChart(groups);
     }
+    observeResizableGroupPlot();
     queueAnalysisPlotResize();
 }
 
@@ -44,8 +54,8 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
     const sortedGroups = groups
         .map((group, index) => ({ group, index }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
-    const subjectLabel = yAxisLabel === "Topics" ? "topics" : "group";
-    const wrappedLabels = sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group", 20));
+    const subjectLabel = yAxisLabel === "Topics" ? "topics" : "groups";
+    const wrappedLabels = sortedGroups.map(({ group }) => wrapPlotLabelTwoLines(group.label || "Unlabelled group", 24));
     const longestLabelLineLength = wrappedLabels.reduce(
         (maximum, label) => Math.max(
             maximum,
@@ -53,8 +63,10 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
         ),
         0,
     );
-    const leftMargin = Math.min(216, Math.max(156, longestLabelLineLength * 6 + 36));
-    const figureHeight = Math.max(216, sortedGroups.length * 36);
+    const leftMargin = Math.min(300, Math.max(180, longestLabelLineLength * 7 + 44));
+    const maxCount = Math.max(...sortedGroups.map(({ group }) => Number(group.count || 0)), 1);
+    const figureHeight = getGroupFigureHeight(sortedGroups.map(({ group }) => group));
+    plotContainer.style.minHeight = `${figureHeight}px`;
 
     const plotPromise = plotly.newPlot(
         plotContainer,
@@ -64,10 +76,13 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
                 orientation: "h",
                 y: wrappedLabels,
                 x: sortedGroups.map(({ group }) => Number(group.count || 0)),
+                text: sortedGroups.map(({ group }) => String(Number(group.count || 0))),
+                textposition: "outside",
+                cliponaxis: false,
                 marker: {
-                    color: sortedGroups.map(({ group }) => group.is_noise ? "#b8ac9f" : "#4f7a63"),
+                    color: sortedGroups.map(({ group }) => group.is_noise ? "#b8ac9f" : "#2477F8"),
                     line: {
-                        color: sortedGroups.map(({ group }) => group.is_noise ? "#8d8275" : "#355847"),
+                        color: sortedGroups.map(({ group }) => group.is_noise ? "#8d8275" : "#1b5dcc"),
                         width: 1,
                     },
                 },
@@ -87,10 +102,11 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
         ],
         {
             height: figureHeight,
+            autosize: true,
             margin: {
-                t: 12,
-                r: 12,
-                b: 36,
+                t: 18,
+                r: 72,
+                b: 54,
                 l: leftMargin,
             },
             paper_bgcolor: "rgba(0, 0, 0, 0)",
@@ -98,29 +114,30 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
             font: {
                 family: "\"Segoe UI\", Aptos, sans-serif",
                 color: "#3d352d",
-                size: 8,
+                size: 12,
             },
             bargap: 0.28,
             xaxis: {
                 title: {
-                    text: "Number of responses",
+                    text: "Responses",
                 },
                 gridcolor: "rgba(89, 68, 42, 0.1)",
                 zeroline: false,
+                range: [0, Math.ceil(maxCount * 1.08)],
+                fixedrange: true,
             },
             yaxis: {
-                title: {
-                    text: yAxisLabel,
-                },
                 automargin: true,
                 autorange: "reversed",
                 tickangle: 0,
                 tickfont: {
-                    size: 7.2,
+                    size: 12,
                 },
+                fixedrange: true,
             },
         },
         {
+            displayModeBar: false,
             displaylogo: false,
             responsive: true,
             modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
@@ -145,6 +162,54 @@ function renderInteractiveGroupChart(plotContainer, groups, { chartTitle, yAxisL
     }
 
     return true;
+}
+
+
+function disconnectGroupResizeObserver() {
+    if (groupResizeObserver) {
+        groupResizeObserver.disconnect();
+        groupResizeObserver = null;
+    }
+}
+
+
+function observeResizableGroupPlot() {
+    if (typeof ResizeObserver === "undefined") {
+        return;
+    }
+
+    const plotShell = elements.analysisChart.querySelector(".analysis-group-plot-shell");
+    const plotSurface = elements.analysisChart.querySelector("#analysis-group-plot");
+    if (!(plotShell instanceof HTMLElement) || !(plotSurface instanceof HTMLElement)) {
+        return;
+    }
+
+    const plotly = getPlotly();
+    if (!plotly) {
+        return;
+    }
+
+    groupResizeObserver = new ResizeObserver(() => {
+        try {
+            const width = Math.max(MIN_GROUP_PLOT_WIDTH - 32, Math.floor(plotSurface.clientWidth));
+            const height = Math.max(MIN_GROUP_PLOT_HEIGHT, Math.floor(plotSurface.clientHeight));
+            if (typeof plotly.relayout === "function") {
+                plotly.relayout(plotSurface, { width, height });
+            } else {
+                plotly.Plots.resize(plotSurface);
+            }
+        } catch (_error) {
+            // Ignore resize noise while Plotly is mounting.
+        }
+    });
+    groupResizeObserver.observe(plotShell);
+    resizeAnalysisPlots();
+}
+
+
+function getGroupFigureHeight(groups) {
+    const groupCount = Array.isArray(groups) ? groups.length : 0;
+    return Math.max(MIN_GROUP_PLOT_HEIGHT, GROUP_PLOT_VERTICAL_PADDING + groupCount * GROUP_ROW_HEIGHT);
 }
 
 

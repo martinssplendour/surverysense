@@ -300,6 +300,7 @@ class ResultStoreServiceTests(unittest.TestCase):
             filters={"country__idx_1": ["UK"]},
         )
         self.assertIsNotNone(fast_result)
+        self.assertEqual(fast_result.original_response_count, 1)
         self.assertEqual(fast_result.network_edges, [])
 
     def test_community_analysis_skips_response_id_when_no_user_identifier_exists(self) -> None:

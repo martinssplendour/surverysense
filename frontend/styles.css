@@ -7,9 +7,9 @@
     --line-strong: rgba(64, 53, 36, 0.2);
     --text: #2a241f;
     --muted: #6f675d;
-    --green: #294b3b;
-    --green-soft: #dce9df;
-    --sage: #a8bbac;
+    --green: #2477F8;
+    --green-soft: #dceaff;
+    --sage: #9fc3ff;
     --gold: #d9bd82;
     --gold-soft: #f3e3bb;
     --danger: #9a4a3f;
@@ -56,7 +56,10 @@ body.upload-workspace-active {
 body.login-page {
     display: grid;
     place-items: center;
-    padding: 24px 0;
+    padding: clamp(28px, 5vw, 56px) 18px;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(36, 119, 248, 0.08), transparent 34%),
+        #ffffff;
 }
 
 .results-page .app-shell {
@@ -74,27 +77,31 @@ body.data-workspace-active .app-shell {
 body.analysis-setup-workspace-active {
     display: grid;
     place-items: center;
-    padding: 24px 0;
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+    padding: 0;
+    background: #ffffff;
 }
 
 body.analysis-setup-workspace-active .app-shell {
-    width: min(700px, calc(100vw - 32px));
-    margin: 0 auto;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: min(1060px, calc(100vw - 20px));
+    margin: 0;
     padding: 0;
     border: none;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
     backdrop-filter: none;
+    transform: translate(-50%, -50%) scale(0.6);
+    transform-origin: center center;
 }
 
 body.analysis-setup-workspace-active .topbar {
-    top: 12px;
-    left: 18px;
-    right: 18px;
-    gap: 12px;
-    padding: 6px 10px 8px;
-    border-radius: 16px;
+    display: none;
 }
 
 body.analysis-setup-workspace-active .topbar::after {
@@ -111,7 +118,7 @@ body.analysis-setup-workspace-active .topbar-link {
     min-height: 26px;
     min-width: 72px;
     padding: 7px 12px;
-    font-size: 0.74rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-setup-workspace-active .brand-lockup {
@@ -167,7 +174,7 @@ body.login-page .topbar-link {
     min-height: 26px;
     min-width: 72px;
     padding: 7px 12px;
-    font-size: 0.74rem;
+    font-size: 0.75rem;
 }
 
 body.login-page .brand-lockup {
@@ -275,7 +282,7 @@ summary {
     width: 50px;
     height: 50px;
     border-radius: 16px;
-    background: linear-gradient(180deg, #365843, #244032);
+    background: linear-gradient(180deg, #2477F8, #1b5dcc);
     color: #f5ecdf;
     font-family: Georgia, Cambria, serif;
     font-size: 1.55rem;
@@ -355,7 +362,7 @@ body.dashboard-workspace-active .topbar-link {
     min-height: 26px;
     min-width: 72px;
     padding: 7px 12px;
-    font-size: 0.74rem;
+    font-size: 0.75rem;
 }
 
 body.dashboard-workspace-active .brand-lockup {
@@ -434,7 +441,7 @@ body.upload-workspace-active .upload-view {
     gap: 5px;
     padding: 19px 14px;
     border-radius: 12px;
-    border: 1.5px dashed rgba(41, 75, 59, 0.28);
+    border: 1.5px dashed rgba(36, 119, 248, 0.28);
     background:
         radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 42%),
         linear-gradient(180deg, rgba(239, 226, 203, 0.28), rgba(255, 250, 242, 0.55));
@@ -446,27 +453,27 @@ body.upload-workspace-active .upload-view {
 .dropzone:hover,
 .dropzone.is-dragover {
     transform: translateY(-2px);
-    border-color: rgba(41, 75, 59, 0.56);
+    border-color: rgba(36, 119, 248, 0.56);
     background:
         radial-gradient(circle at top left, rgba(255, 255, 255, 0.84), transparent 42%),
-        linear-gradient(180deg, rgba(220, 233, 223, 0.65), rgba(255, 250, 242, 0.78));
+        linear-gradient(180deg, rgba(220, 234, 255, 0.65), rgba(255, 250, 242, 0.78));
 }
 
 .dropzone-label {
     color: var(--green);
-    font-size: 0.43rem;
+    font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
 .dropzone-title {
-    font-size: 0.67rem;
+    font-size: 0.75rem;
 }
 
 .dropzone-caption {
     color: var(--muted);
-    font-size: 0.5rem;
+    font-size: 0.75rem;
 }
 
 .upload-actions {
@@ -479,7 +486,7 @@ body.upload-workspace-active .upload-view {
 .upload-actions .button {
     min-width: 74px;
     padding: 7px 11px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 .button {
@@ -498,7 +505,7 @@ body.upload-workspace-active .upload-view {
 .button:focus-visible,
 .analysis-method:focus-visible,
 .dashboard-data-link:focus-visible {
-    outline: 3px solid rgba(41, 75, 59, 0.26);
+    outline: 3px solid rgba(36, 119, 248, 0.26);
     outline-offset: 3px;
 }
 
@@ -508,9 +515,9 @@ body.upload-workspace-active .upload-view {
 }
 
 .button-primary {
-    background: linear-gradient(180deg, #355847, #234032);
+    background: linear-gradient(180deg, #2477F8, #1b5dcc);
     color: #f8f2e8;
-    box-shadow: 0 12px 26px rgba(35, 64, 50, 0.24);
+    box-shadow: 0 12px 26px rgba(31, 99, 204, 0.24);
 }
 
 .button-secondary,
@@ -538,14 +545,14 @@ body.upload-workspace-active .upload-view {
     min-height: 23px;
     min-width: 56px;
     padding: 6px 11px;
-    font-size: 0.74rem;
+    font-size: 0.75rem;
 }
 
 .status-message {
     margin-top: 10px;
     text-align: center;
     min-height: 12px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     color: var(--muted);
 }
 
@@ -585,13 +592,24 @@ body.analysis-setup-workspace-active .analysis-panel {
 }
 
 body.login-page .login-card {
-    width: min(620px, 100%);
-    padding: 28px 30px 18px;
-    border-radius: 16px;
+    width: min(420px, 100%);
+    padding: 38px 34px;
+    border: 1px solid rgba(36, 119, 248, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 24px 70px rgba(24, 48, 92, 0.12);
+}
+
+.login-card-logo {
+    display: block;
+    width: min(78px, 28vw);
+    height: auto;
+    margin: 0 auto 28px;
+    border-radius: 8px;
 }
 
 body.login-page .panel-kicker {
-    font-size: 0.43rem;
+    font-size: 0.75rem;
 }
 
 .login-title {
@@ -604,8 +622,10 @@ body.login-page .panel-kicker {
 }
 
 body.login-page .login-title {
-    margin-top: 7px;
-    font-size: clamp(0.95rem, 1.7vw, 1.25rem);
+    margin-top: 0;
+    font-size: clamp(1.05rem, 2.7vw, 1.28rem);
+    color: #101828;
+    letter-spacing: 0;
 }
 
 .login-copy {
@@ -616,10 +636,11 @@ body.login-page .login-title {
 }
 
 body.login-page .login-copy {
-    max-width: 30ch;
-    margin-top: 8px;
-    font-size: 0.68rem;
+    max-width: 32ch;
+    margin-top: 10px;
+    font-size: 0.69rem;
     line-height: 1.5;
+    color: #697386;
 }
 
 .google-signin-wrap {
@@ -629,7 +650,47 @@ body.login-page .login-copy {
 }
 
 body.login-page .google-signin-wrap {
-    margin-top: 13px;
+    margin-top: 30px;
+}
+
+body.login-page .google-signin-wrap > div {
+    min-width: 300px;
+}
+
+.login-divider {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 14px;
+    margin: 24px 0 20px;
+    color: #697386;
+    font-size: 0.9rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: "";
+    height: 1px;
+    background: #e5e9f0;
+}
+
+.login-copy-secondary {
+    margin-inline: auto;
+    font-size: 0.92rem;
+}
+
+body.login-page .status-message {
+    margin-top: 16px;
+    font-size: 0.82rem;
+}
+
+.login-help {
+    display: grid;
+    gap: 7px;
+    margin-top: 34px;
+    color: #697386;
+    font-size: 0.86rem;
+    line-height: 1.45;
 }
 
 .results-view {
@@ -733,9 +794,9 @@ body.dashboard-workspace-active .dashboard-upload-status {
     width: 30px;
     height: 30px;
     border-radius: 999px;
-    background: linear-gradient(180deg, #6d8574, #556b5d);
+    background: linear-gradient(180deg, #6aa5ff, #2477F8);
     color: #f7efe3;
-    font-size: 0;
+    font-size: 0.75rem;
     font-weight: 700;
 }
 
@@ -751,7 +812,7 @@ body.dashboard-workspace-active .dashboard-upload-check {
 }
 
 body.dashboard-workspace-active .dashboard-upload-check::before {
-    font-size: 0.54rem;
+    font-size: 0.75rem;
 }
 
 .dashboard-ready-title {
@@ -762,7 +823,7 @@ body.dashboard-workspace-active .dashboard-upload-check::before {
 }
 
 body.dashboard-workspace-active .dashboard-ready-title {
-    font-size: clamp(0.72rem, 1vw, 0.9rem);
+    font-size: clamp(0.75rem, 1vw, 0.9rem);
 }
 
 .dashboard-upload-filename {
@@ -856,7 +917,7 @@ body.dashboard-workspace-active .dashboard-metric-icon svg {
 
 body.dashboard-workspace-active .dashboard-metric-label {
     margin-top: 6px;
-    font-size: 0.62rem;
+    font-size: 0.75rem;
 }
 
 .dashboard-metric-value {
@@ -896,12 +957,12 @@ body.dashboard-workspace-active .dashboard-actions {
 body.dashboard-workspace-active .dashboard-primary-action {
     min-width: 262px;
     padding: 11px 18px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.dashboard-workspace-active .dashboard-action-note {
     margin: -9px 15px 14px;
-    font-size: 0.58rem;
+    font-size: 0.75rem;
 }
 
 .dashboard-summary-section {
@@ -936,7 +997,7 @@ body.dashboard-workspace-active .dashboard-summary-title {
 }
 
 body.dashboard-workspace-active .dashboard-data-link {
-    font-size: 0.68rem;
+    font-size: 0.75rem;
 }
 
 .dashboard-data-link:hover:not(:disabled) {
@@ -1005,7 +1066,7 @@ body.dashboard-workspace-active .dashboard-data-link {
 
 .data-export-menu-item:hover,
 .data-export-menu-item:focus-visible {
-    background: rgba(220, 233, 223, 0.72);
+    background: rgba(220, 234, 255, 0.72);
     color: var(--green);
 }
 
@@ -1039,7 +1100,7 @@ body.dashboard-workspace-active .dashboard-data-link {
     border-radius: 24px;
     background: #ffffff;
     border: 1px solid var(--line);
-    box-shadow: 0 24px 70px rgba(41, 75, 59, 0.16);
+    box-shadow: 0 24px 70px rgba(36, 119, 248, 0.16);
 }
 
 .modal-header {
@@ -1100,7 +1161,7 @@ body.dashboard-workspace-active .dashboard-data-link {
 }
 
 .modal-card-compact .panel-kicker {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     letter-spacing: 0.22em;
 }
 
@@ -1160,34 +1221,66 @@ body.data-workspace-active .preview-panel {
 }
 
 body.analysis-setup-workspace-active .analysis-panel {
-    padding: 17px 18px 15px;
+    width: 100%;
+    padding: 28px 32px 34px;
+    border: 1px solid #e6ebf2;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 14px 42px rgba(24, 48, 92, 0.08);
 }
 
 body.analysis-setup-workspace-active .panel-kicker {
-    font-size: 0.53rem;
+    display: none;
 }
 
 body.analysis-setup-workspace-active .section-heading h3 {
     margin: 0;
-    font-size: 1.38rem;
+    color: #172033;
+    font-size: 34px;
+    letter-spacing: 0;
+    line-height: 1.1;
 }
 
 body.analysis-setup-workspace-active .analysis-back-dashboard-link {
-    font-size: 0.72rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    color: #1266f1;
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 body.analysis-setup-workspace-active .button {
-    padding: 9px 16px;
-    font-size: 0.72rem;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 20px;
 }
 
 body.analysis-setup-workspace-active .filter-label {
-    font-size: 0.54rem;
+    color: #172033;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 body.analysis-setup-workspace-active .filter-field select {
-    padding: 9px 10px;
-    font-size: 0.72rem;
+    min-height: 42px;
+    padding: 0 14px;
+    border-color: #d8dee8;
+    border-radius: 10px;
+    color: #172033;
+    font-size: 20px;
+    box-shadow: 0 1px 2px rgba(24, 48, 92, 0.03);
 }
 
 body.analysis-setup-workspace-active .analysis-controls {
@@ -1196,37 +1289,215 @@ body.analysis-setup-workspace-active .analysis-controls {
 }
 
 body.analysis-setup-workspace-active .analysis-run-button {
-    min-width: 108px;
+    min-width: 150px;
+    min-height: 42px;
+    background: linear-gradient(180deg, #126ef8, #075bd8);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(18, 102, 241, 0.24);
 }
 
 body.analysis-setup-workspace-active .analysis-step-label {
-    margin: 10px 0 0;
-    color: var(--muted);
-    font-size: 0.62rem;
+    margin: 0 0 14px;
+    color: #172033;
+    font-size: 20px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 body.analysis-setup-workspace-active .analysis-methods {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 8px;
+    gap: 30px;
+    margin-top: 0;
 }
 
 body.analysis-setup-workspace-active .analysis-method {
-    gap: 6px;
-    padding: 12px;
-    min-height: 62px;
+    position: relative;
+    grid-template-columns: 66px minmax(0, 1fr);
+    gap: 18px;
+    align-items: center;
+    min-height: 124px;
+    padding: 20px 26px 20px 58px;
+    border-color: #dfe5ee;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: none;
 }
 
 body.analysis-setup-workspace-active .analysis-method-title {
-    font-size: 0.8rem;
+    color: #172033;
+    font-size: 20px;
 }
 
 body.analysis-setup-workspace-active .analysis-method-copy {
-    font-size: 0.68rem;
-    line-height: 1.45;
+    max-width: 32ch;
+    color: #687386;
+    font-size: 20px;
+    line-height: 1.55;
+}
+
+body.analysis-setup-workspace-active .workflow {
+    width: 100%;
+    min-height: auto;
+    padding-top: 0;
+}
+
+body.analysis-setup-workspace-active .results-view {
+    width: 100%;
+}
+
+body.analysis-setup-workspace-active .analysis-setup-heading {
+    align-items: flex-start;
+    gap: 24px;
+}
+
+body.analysis-setup-workspace-active .analysis-setup-copy {
+    min-width: 0;
+}
+
+body.analysis-setup-workspace-active .analysis-setup-subtitle {
+    margin: 12px 0 0;
+    color: #687386;
+    font-size: 20px;
+    line-height: 1.5;
+}
+
+body.analysis-setup-workspace-active .analysis-question-section {
+    margin-top: 34px;
+    padding-bottom: 34px;
+    border-bottom: 1px solid #e7ebf1;
+}
+
+body.analysis-setup-workspace-active .analysis-control-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 210px;
+    gap: 80px;
+    align-items: start;
+}
+
+body.analysis-setup-workspace-active .analysis-method-section {
+    margin-top: 30px;
+}
+
+body.analysis-setup-workspace-active .analysis-method-active {
+    border-color: #2f80ff;
+    background: linear-gradient(180deg, rgba(247, 251, 255, 0.98), #ffffff);
+    box-shadow: 0 18px 34px rgba(18, 102, 241, 0.08);
+}
+
+body.analysis-setup-workspace-active .analysis-method-radio {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #c8d0dc;
+    border-radius: 999px;
+    background: #ffffff;
+}
+
+body.analysis-setup-workspace-active .analysis-method-active .analysis-method-radio {
+    border-color: #1672ff;
+}
+
+body.analysis-setup-workspace-active .analysis-method-active .analysis-method-radio::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: inherit;
+    background: #1672ff;
+}
+
+body.analysis-setup-workspace-active .analysis-method-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    font-weight: 500;
+    font-size: 1.75rem;
+}
+
+body.analysis-setup-workspace-active .analysis-method-icon-community {
+    background: #e7efff;
+    color: #1672ff;
+}
+
+body.analysis-setup-workspace-active .analysis-method-icon-community::before {
+    content: "";
+    width: 28px;
+    height: 24px;
+    background: currentColor;
+    mask:
+        radial-gradient(circle 5px at 50% 5px, #000 98%, transparent) 50% 0 / 22px 12px no-repeat,
+        radial-gradient(12px 8px at 50% 100%, #000 98%, transparent) 50% 13px / 28px 14px no-repeat,
+        radial-gradient(circle 4px at 7px 9px, #000 98%, transparent) 0 5px / 14px 12px no-repeat,
+        radial-gradient(circle 4px at 27px 9px, #000 98%, transparent) 20px 5px / 14px 12px no-repeat,
+        radial-gradient(10px 7px at 7px 100%, #000 98%, transparent) 0 17px / 16px 10px no-repeat,
+        radial-gradient(10px 7px at 9px 100%, #000 98%, transparent) 18px 17px / 16px 10px no-repeat;
+}
+
+body.analysis-setup-workspace-active .analysis-method-icon-ngrams {
+    background: #e8f7ef;
+    color: #35ae74;
+}
+
+body.analysis-setup-workspace-active .analysis-method-icon-ngrams::before {
+    content: "";
+    width: 28px;
+    height: 24px;
+    border-radius: 6px;
+    background:
+        linear-gradient(currentColor 0 0) 0 2px / 22px 3px no-repeat,
+        linear-gradient(currentColor 0 0) 0 10px / 28px 3px no-repeat,
+        linear-gradient(currentColor 0 0) 0 18px / 17px 3px no-repeat;
+}
+
+body.analysis-setup-workspace-active .analysis-method-copy-block {
+    display: grid;
+    gap: 8px;
+}
+
+body.analysis-setup-workspace-active .analysis-help {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 32px 0 0;
+    padding: 16px 20px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #f5f8ff, #f7fbff);
+    color: #59677c;
+    font-size: 20px;
+    line-height: 1.55;
+}
+
+body.analysis-setup-workspace-active .analysis-help::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border: 2px solid #1672ff;
+    border-radius: 999px 999px 999px 4px;
+    transform: rotate(-45deg);
+}
+
+body.analysis-setup-workspace-active .analysis-help::after {
+    content: ">";
+    margin-left: auto;
+    color: #1266f1;
+    font-weight: 700;
+}
+
+.analysis-run-icon {
+    width: 18px;
+    height: 18px;
+    background: currentColor;
+    mask:
+        linear-gradient(#000 0 0) 1px 2px / 2px 14px no-repeat,
+        linear-gradient(#000 0 0) 1px 14px / 15px 2px no-repeat,
+        linear-gradient(135deg, transparent 43%, #000 44% 56%, transparent 57%) 5px 5px / 12px 8px no-repeat,
+        radial-gradient(circle, #000 62%, transparent 64%) 7px 9px / 4px 4px no-repeat,
+        radial-gradient(circle, #000 62%, transparent 64%) 13px 6px / 4px 4px no-repeat;
 }
 
 .analysis-run-button-content {
@@ -1270,7 +1541,7 @@ body.data-workspace-active .workflow {
 
 body.analysis-setup-workspace-active .workflow {
     min-height: auto;
-    padding-top: 10px;
+    padding-top: 0;
 }
 
 body.login-page .workflow {
@@ -1307,7 +1578,7 @@ body.upload-workspace-active .topbar-link {
     min-height: 24px;
     min-width: 64px;
     padding: 7px 12px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.upload-workspace-active .brand-lockup {
@@ -1322,7 +1593,7 @@ body.upload-workspace-active .brand-mark {
 }
 
 body.upload-workspace-active .brand-name {
-    font-size: 0.69rem;
+    font-size: 0.75rem;
 }
 
 body.upload-workspace-active .app-shell {
@@ -1355,15 +1626,15 @@ body.upload-workspace-active .dropzone {
 }
 
 body.upload-workspace-active .dropzone-label {
-    font-size: 0.43rem;
+    font-size: 0.75rem;
 }
 
 body.upload-workspace-active .dropzone-title {
-    font-size: 0.67rem;
+    font-size: 0.75rem;
 }
 
 body.upload-workspace-active .dropzone-caption {
-    font-size: 0.5rem;
+    font-size: 0.75rem;
 }
 
 body.upload-workspace-active .upload-actions {
@@ -1376,13 +1647,13 @@ body.upload-workspace-active .upload-actions .button {
 
 body.upload-workspace-active .button {
     padding: 7px 11px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.upload-workspace-active .status-message {
     margin-top: 10px;
     min-height: 12px;
-    font-size: 0.55rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .workflow {
@@ -1430,7 +1701,7 @@ body.data-workspace-active .topbar-link {
     min-height: 22px;
     min-width: 56px;
     padding: 4px 8px;
-    font-size: 0.6rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .topbar-link-primary {
@@ -1458,7 +1729,7 @@ body.data-workspace-active .section-heading {
 }
 
 body.data-workspace-active .panel-kicker {
-    font-size: 0.38rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .section-heading h3 {
@@ -1473,7 +1744,7 @@ body.data-workspace-active .workspace-actions {
 body.data-workspace-active .workspace-actions .button {
     min-height: 22px;
     padding: 4px 8px;
-    font-size: 0.6rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .data-export-toggle-button {
@@ -1484,7 +1755,7 @@ body.data-workspace-active .data-export-toggle-button {
 }
 
 body.data-workspace-active .data-export-toggle-icon {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .filter-bar {
@@ -1499,16 +1770,16 @@ body.data-workspace-active .filter-chip-row {
 
 body.data-workspace-active .filter-chip-row .data-back-to-analysis-link {
     margin-left: auto;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .filter-chip-row-label {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .filter-open-button {
     padding: 5px 9px;
-    font-size: 0.6rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .active-filters {
@@ -1523,7 +1794,7 @@ body.data-workspace-active .active-filter-chip {
 body.data-workspace-active .active-filter-text,
 body.data-workspace-active .active-filter-remove,
 body.data-workspace-active .filter-active-note {
-    font-size: 0.64rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .filter-active-note {
@@ -1540,12 +1811,12 @@ body.data-workspace-active .table-controls {
 body.data-workspace-active .preview-toggle {
     gap: 6px;
     padding: 5px 8px;
-    font-size: 0.66rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .table-row-status,
 body.data-workspace-active .table-slider-label {
-    font-size: 0.62rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .table-scroll-control {
@@ -1557,7 +1828,7 @@ body.data-workspace-active .table-empty {
     margin-top: 9px;
     padding: 10px 12px;
     border-radius: 10px;
-    font-size: 0.66rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .table-wrap {
@@ -1571,11 +1842,11 @@ body.data-workspace-active td {
     padding: 6px 8px;
     min-width: 88px;
     max-width: 176px;
-    font-size: 0.64rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active th {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.data-workspace-active .row-number-header,
@@ -1613,7 +1884,7 @@ body.analysis-results-workspace-active .topbar-link {
     min-height: 26px;
     min-width: 72px;
     padding: 7px 12px;
-    font-size: 0.74rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .brand-lockup {
@@ -1636,7 +1907,7 @@ body.analysis-results-workspace-active .analysis-results-copy {
 }
 
 body.analysis-results-workspace-active .analysis-results-kicker {
-    font-size: 0.42rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-results-title {
@@ -1644,7 +1915,7 @@ body.analysis-results-workspace-active .analysis-results-title {
 }
 
 body.analysis-results-workspace-active .analysis-results-subtitle {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
     line-height: 1.55;
 }
 
@@ -1664,7 +1935,7 @@ body.analysis-results-workspace-active .analysis-export-toggle-button {
     min-height: 31px;
     padding-top: 7px;
     padding-bottom: 7px;
-    font-size: 0.62rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-export-split {
@@ -1686,7 +1957,7 @@ body.analysis-results-workspace-active .analysis-export-menu {
 
 body.analysis-results-workspace-active .analysis-export-menu-item {
     padding: 6px 8px;
-    font-size: 0.58rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .filter-chip-row {
@@ -1695,12 +1966,12 @@ body.analysis-results-workspace-active .filter-chip-row {
 }
 
 body.analysis-results-workspace-active .filter-chip-row-label {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .filter-open-button {
     padding: 6px 10px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .active-filters {
@@ -1715,7 +1986,7 @@ body.analysis-results-workspace-active .active-filter-chip {
 body.analysis-results-workspace-active .active-filter-text,
 body.analysis-results-workspace-active .active-filter-remove,
 body.analysis-results-workspace-active .filter-active-note {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .filter-active-note {
@@ -1729,7 +2000,7 @@ body.analysis-results-workspace-active .analysis-empty-copy {
 body.analysis-results-workspace-active .analysis-empty-icon {
     width: 27px;
     height: 27px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-empty-title {
@@ -1737,13 +2008,13 @@ body.analysis-results-workspace-active .analysis-empty-title {
 }
 
 body.analysis-results-workspace-active .analysis-empty-text {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
     line-height: 1.55;
 }
 
 body.analysis-results-workspace-active .analysis-empty-actions .button {
     padding: 9px 16px;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-chart-copy {
@@ -1751,18 +2022,18 @@ body.analysis-results-workspace-active .analysis-chart-copy {
 }
 
 body.analysis-results-workspace-active .analysis-chart-title {
-    font-size: 0.62rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-chart-caption,
 body.analysis-results-workspace-active .analysis-chart-fallback-note {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
     line-height: 1.55;
 }
 
 body.analysis-results-workspace-active .analysis-plot-card h4 {
     margin-bottom: 6px;
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-plot-surface {
@@ -1776,7 +2047,7 @@ body.analysis-results-workspace-active .analysis-plot-surface-wide {
 
 body.analysis-results-workspace-active .analysis-axis-label,
 body.analysis-results-workspace-active .analysis-bar-value {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-bar {
@@ -1788,7 +2059,7 @@ body.analysis-results-workspace-active .analysis-bar-track {
 }
 
 body.analysis-results-workspace-active .analysis-card-label {
-    font-size: 0.46rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-card-value {
@@ -1801,12 +2072,12 @@ body.analysis-results-workspace-active .analysis-list {
 }
 
 body.analysis-results-workspace-active .analysis-item h4 {
-    font-size: 0.58rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-comment,
 body.analysis-results-workspace-active .analysis-sample {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
     line-height: 1.55;
 }
 
@@ -1816,7 +2087,7 @@ body.analysis-results-workspace-active .analysis-meta {
 
 body.analysis-results-workspace-active .analysis-meta span {
     padding: 3px 5px;
-    font-size: 0.5rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-examples {
@@ -1825,16 +2096,16 @@ body.analysis-results-workspace-active .analysis-examples {
 
 body.analysis-results-workspace-active .analysis-example-row {
     margin-bottom: 4px;
-    font-size: 0.46rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-example p {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
     line-height: 1.55;
 }
 
 body.analysis-results-workspace-active .analysis-ngram-panel h4 {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-ngram-list {
@@ -1843,7 +2114,7 @@ body.analysis-results-workspace-active .analysis-ngram-list {
 
 body.analysis-results-workspace-active .analysis-ngram-term,
 body.analysis-results-workspace-active .analysis-ngram-count {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 .analysis-results-hero {
@@ -1930,13 +2201,13 @@ body.analysis-results-workspace-active .analysis-ngram-count {
     grid-template-columns: 72px minmax(0, 1fr) 42px;
     width: 100%;
     border-radius: 15px;
-    box-shadow: 0 14px 28px rgba(35, 64, 50, 0.18);
+    box-shadow: 0 14px 28px rgba(31, 99, 204, 0.18);
     transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
 .analysis-export-split:hover {
     transform: translateY(-1px);
-    box-shadow: 0 16px 32px rgba(35, 64, 50, 0.2);
+    box-shadow: 0 16px 32px rgba(31, 99, 204, 0.2);
 }
 
 .analysis-export-main-button,
@@ -1980,7 +2251,7 @@ body.analysis-results-workspace-active .analysis-ngram-count {
 }
 
 .analysis-export-toggle-button span {
-    font-size: 0.9em;
+    font-size: 0.75rem;
     line-height: 1;
     transition: transform 160ms ease;
 }
@@ -2021,7 +2292,7 @@ body.analysis-results-workspace-active .analysis-ngram-count {
 .analysis-export-menu-item:hover,
 .analysis-export-menu-item:focus-visible,
 .analysis-export-menu-item-selected {
-    background: rgba(220, 233, 223, 0.72);
+    background: rgba(220, 234, 255, 0.72);
     color: var(--green);
 }
 
@@ -2056,7 +2327,7 @@ body.analysis-results-workspace-active .analysis-ngram-count {
     width: 54px;
     height: 54px;
     border-radius: 999px;
-    background: rgba(220, 233, 223, 0.58);
+    background: rgba(220, 234, 255, 0.58);
     color: var(--green);
     font-size: 1.4rem;
     font-weight: 700;
@@ -2126,8 +2397,8 @@ body.analysis-results-workspace-active .analysis-ngram-count {
     gap: 10px;
     padding: 10px 12px;
     border-radius: 999px;
-    background: rgba(220, 233, 223, 0.5);
-    border: 1px solid rgba(41, 75, 59, 0.14);
+    background: rgba(220, 234, 255, 0.5);
+    border: 1px solid rgba(36, 119, 248, 0.14);
 }
 
 .active-filter-chip-clear {
@@ -2173,16 +2444,16 @@ body.analysis-results-workspace-active .analysis-results-filter-bar .filter-chip
 }
 
 body.analysis-results-workspace-active .analysis-results-filter-bar .analysis-results-data-link {
-    font-size: 0.68rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-results-filter-bar .filter-chip-row-label {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-results-filter-bar .filter-open-button {
     padding: 5px 9px;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-results-filter-bar .active-filters {
@@ -2197,7 +2468,7 @@ body.analysis-results-workspace-active .analysis-results-filter-bar .active-filt
 body.analysis-results-workspace-active .analysis-results-filter-bar .active-filter-text,
 body.analysis-results-workspace-active .analysis-results-filter-bar .active-filter-remove,
 body.analysis-results-workspace-active .analysis-results-filter-bar .filter-active-note {
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 body.analysis-results-workspace-active .analysis-results-filter-bar .filter-active-note {
@@ -2263,7 +2534,7 @@ body.analysis-results-workspace-active .analysis-results-filter-bar .filter-acti
     gap: 10px;
     padding: 10px 14px;
     border-radius: 999px;
-    background: rgba(220, 233, 223, 0.45);
+    background: rgba(220, 234, 255, 0.45);
     color: var(--text);
     white-space: nowrap;
 }
@@ -2334,7 +2605,7 @@ body.data-workspace-active .table-wrap {
 }
 
 .table-wrap::-webkit-scrollbar-thumb {
-    background: rgba(41, 75, 59, 0.5);
+    background: rgba(36, 119, 248, 0.5);
     border-radius: 999px;
     border: 3px solid rgba(239, 226, 203, 0.65);
 }
@@ -2449,13 +2720,13 @@ tbody tr:last-child td {
 
 .analysis-method:hover {
     transform: translateY(-1px);
-    border-color: rgba(41, 75, 59, 0.35);
+    border-color: rgba(36, 119, 248, 0.35);
 }
 
 .analysis-method-active {
-    border-color: rgba(41, 75, 59, 0.52);
-    background: rgba(220, 233, 223, 0.34);
-    box-shadow: 0 10px 24px rgba(35, 64, 50, 0.08);
+    border-color: rgba(36, 119, 248, 0.52);
+    background: rgba(220, 234, 255, 0.34);
+    box-shadow: 0 10px 24px rgba(31, 99, 204, 0.08);
 }
 
 .analysis-method-title {
@@ -2479,8 +2750,8 @@ tbody tr:last-child td {
 }
 
 .analysis-message-success {
-    border-color: rgba(41, 75, 59, 0.18);
-    background: rgba(220, 233, 223, 0.4);
+    border-color: rgba(36, 119, 248, 0.18);
+    background: rgba(220, 234, 255, 0.4);
     color: var(--green);
 }
 
@@ -2562,7 +2833,7 @@ tbody tr:last-child td {
     background: transparent;
     color: var(--muted);
     font: inherit;
-    font-size: 0.52rem;
+    font-size: 0.75rem;
     font-weight: 800;
     cursor: pointer;
 }
@@ -2570,7 +2841,7 @@ tbody tr:last-child td {
 .analysis-chart-toggle-button-active {
     background: var(--green);
     color: #ffffff;
-    box-shadow: 0 4px 9px rgba(47, 93, 70, 0.16);
+    box-shadow: 0 4px 9px rgba(36, 119, 248, 0.16);
 }
 
 .analysis-chart-toggle-button:disabled {
@@ -2585,6 +2856,19 @@ tbody tr:last-child td {
     border: 1px solid rgba(89, 68, 42, 0.08);
 }
 
+.analysis-group-plot-shell {
+    min-width: min(100%, 760px);
+    min-height: calc(var(--group-plot-min-height, 360px) + 20px);
+    resize: both;
+    overflow: auto;
+}
+
+.analysis-group-plot-shell .analysis-plot-surface {
+    width: 100%;
+    min-height: var(--group-plot-min-height, 360px);
+    height: 100%;
+}
+
 .analysis-plot-shell-wide {
     overflow-x: auto;
     overflow-y: hidden;
@@ -2593,8 +2877,13 @@ tbody tr:last-child td {
 
 .analysis-plot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
     gap: 14px;
+}
+
+.analysis-ngram-plot-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+    align-items: start;
 }
 
 .analysis-plot-card {
@@ -2604,6 +2893,15 @@ tbody tr:last-child td {
     border: 1px solid rgba(89, 68, 42, 0.08);
 }
 
+.analysis-ngram-plot-card {
+    display: grid;
+    grid-template-rows: auto minmax(var(--ngram-plot-min-height, 320px), 1fr);
+    min-width: min(100%, 480px);
+    min-height: calc(var(--ngram-plot-min-height, 320px) + 58px);
+    resize: both;
+    overflow: auto;
+}
+
 .analysis-plot-card h4 {
     margin: 0 0 12px;
     font-size: 1rem;
@@ -2611,6 +2909,12 @@ tbody tr:last-child td {
 
 .analysis-plot-surface {
     min-height: 180px;
+}
+
+.analysis-ngram-plot-surface {
+    width: 100%;
+    min-height: var(--ngram-plot-min-height, 320px);
+    height: 100%;
 }
 
 .analysis-plot-surface-wide {
@@ -2674,14 +2978,14 @@ tbody tr:last-child td {
 .analysis-bar-track {
     height: 10px;
     border-radius: 999px;
-    background: rgba(220, 233, 223, 0.44);
+    background: rgba(220, 234, 255, 0.44);
     overflow: hidden;
 }
 
 .analysis-bar-fill {
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #355847, #587763);
+    background: linear-gradient(90deg, #2477F8, #73a9ff);
 }
 
 .analysis-bar-fill-noise {
@@ -2747,7 +3051,7 @@ tbody tr:last-child td {
 .analysis-meta span {
     padding: 6px 10px;
     border-radius: 999px;
-    background: rgba(220, 233, 223, 0.58);
+    background: rgba(220, 234, 255, 0.58);
     color: var(--green);
     font-size: 0.85rem;
 }
@@ -2783,7 +3087,7 @@ tbody tr:last-child td {
     min-height: 32px;
     padding: 0 12px;
     border-radius: 8px;
-    background: rgba(92, 133, 130, 0.9);
+    background: rgba(36, 119, 248, 0.9);
     color: #f8f2e8;
     font-size: 0.88rem;
     font-weight: 700;
@@ -2794,7 +3098,7 @@ tbody tr:last-child td {
 .analysis-example-row {
     display: inline-flex;
     align-items: center;
-    color: #33484a;
+    color: #1f4fa3;
     font-size: 0.92rem;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -2806,7 +3110,7 @@ tbody tr:last-child td {
     align-items: center;
     padding: 4px 8px;
     border-radius: 999px;
-    background: rgba(220, 233, 223, 0.58);
+    background: rgba(220, 234, 255, 0.58);
     color: var(--green);
     font-size: 0.76rem;
     font-weight: 700;
@@ -2825,7 +3129,7 @@ tbody tr:last-child td {
     min-height: 24px;
     min-width: 0;
     padding: 4px 8px;
-    font-size: 0.66rem;
+    font-size: 0.75rem;
     line-height: 1;
     border-radius: 999px;
     margin-left: auto;
@@ -2990,7 +3294,7 @@ tbody tr:last-child td {
     border-radius: 999px;
     border: 1px solid rgba(89, 68, 42, 0.12);
     background: rgba(255, 251, 245, 0.9);
-    color: #3e5657;
+    color: #1f4fa3;
     font-size: 0.92rem;
     font-weight: 700;
 }
@@ -2998,14 +3302,14 @@ tbody tr:last-child td {
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-stat-pill {
     gap: 4px;
     padding: 4px 7px;
-    font-size: 0.58rem;
+    font-size: 0.75rem;
 }
 
 .analysis-group-stat-icon {
     width: 15px;
     height: 12px;
     border-radius: 4px 4px 4px 2px;
-    background: rgba(92, 133, 130, 0.9);
+    background: rgba(36, 119, 248, 0.9);
     position: relative;
     flex: 0 0 auto;
 }
@@ -3017,7 +3321,7 @@ tbody tr:last-child td {
     bottom: -3px;
     width: 6px;
     height: 6px;
-    background: rgba(92, 133, 130, 0.9);
+    background: rgba(36, 119, 248, 0.9);
     clip-path: polygon(0 0, 100% 0, 0 100%);
 }
 
@@ -3032,7 +3336,7 @@ tbody tr:last-child td {
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-modal-terms {
     gap: 4px;
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-modal-terms span {
@@ -3075,7 +3379,7 @@ tbody tr:last-child td {
 }
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-modal-section-header h4 {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
 }
 
 .analysis-group-modal-section-header .button {
@@ -3086,7 +3390,7 @@ tbody tr:last-child td {
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-modal-section-header .button {
     padding: 5px 9px;
-    font-size: 0.62rem;
+    font-size: 0.75rem;
 }
 
 .analysis-group-modal-section-copy {
@@ -3101,7 +3405,7 @@ tbody tr:last-child td {
 }
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-modal-section-note {
-    font-size: 0.74rem;
+    font-size: 0.75rem;
 }
 
 .analysis-group-modal-list {
@@ -3131,7 +3435,7 @@ tbody tr:last-child td {
 }
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-example p {
-    font-size: 0.66rem;
+    font-size: 0.75rem;
     line-height: 1.4;
 }
 
@@ -3142,14 +3446,14 @@ tbody tr:last-child td {
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-example-pill {
     min-height: 26px;
     padding: 0 10px;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     letter-spacing: 0.06em;
 }
 
 .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-translate-button {
     min-height: 20px;
     padding: 3px 7px;
-    font-size: 0.56rem;
+    font-size: 0.75rem;
 }
 
 .analysis-ngram-grid {
@@ -3205,8 +3509,8 @@ tbody tr:last-child td {
 
 .analysis-item-active,
 .analysis-ngram-panel-active {
-    border-color: rgba(41, 75, 59, 0.28);
-    box-shadow: 0 14px 28px rgba(41, 75, 59, 0.12);
+    border-color: rgba(36, 119, 248, 0.28);
+    box-shadow: 0 14px 28px rgba(36, 119, 248, 0.12);
     transform: translateY(-2px);
 }
 
@@ -3352,8 +3656,48 @@ pre {
         grid-template-columns: 1fr;
     }
 
+    body.analysis-setup-workspace-active .analysis-panel {
+        padding: 24px 18px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-setup-heading {
+        gap: 16px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-control-row {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-question-section {
+        margin-top: 32px;
+        padding-bottom: 32px;
+    }
+
     body.analysis-setup-workspace-active .analysis-methods {
         grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-method {
+        grid-template-columns: 64px minmax(0, 1fr);
+        min-height: 132px;
+        padding: 22px 18px 22px 54px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-method-icon {
+        width: 58px;
+        height: 58px;
+        font-size: 1.35rem;
+    }
+
+    body.analysis-setup-workspace-active .analysis-help {
+        align-items: flex-start;
+        margin-top: 28px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-help::after {
+        display: none;
     }
 
     .analysis-group-modal-card {

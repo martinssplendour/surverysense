@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 
+import pandas as pd
+
 from app.core.constants import MODEL_LABELS
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
@@ -19,6 +21,8 @@ from app.features.results.models import (
 
 
 class ResultStoreSnapshotService:
+    PLACEHOLDER_VALUES = frozenset({"", "na", "n/a", "nan", "none", "null", "nil", "-", "--"})
+
     def build_snapshot(
         self,
         *,
@@ -67,6 +71,7 @@ class ResultStoreSnapshotService:
         return StoredAnalysisSnapshot(
             text_column_name=text_column_name,
             model_key=analysis_result.model_key,
+            original_response_count=int(analysis_result.original_response_count or 0),
             groups=groups,
             ngram_items=ngram_items,
             scatter_points=list(analysis_result.scatter_points),
@@ -88,6 +93,10 @@ class ResultStoreSnapshotService:
             allowed_columns={definition.column_name for definition in stored.available_filters},
         )
         filtered_row_numbers: frozenset[int] = frozenset(int(idx) + 1 for idx in filtered_df.index)
+        original_response_count = self._count_original_responses(
+            filtered_df,
+            text_column_name=snapshot.text_column_name,
+        )
 
         rebuilt_groups: list[AnalysisGroupRecord] = []
         surviving_total = 0
@@ -179,7 +188,8 @@ class ResultStoreSnapshotService:
             text_column_name=snapshot.text_column_name,
             filtered_row_count=int(len(filtered_df)),
             valid_document_count=surviving_total,
-            skipped_document_count=int(len(filtered_df)) - surviving_total,
+            original_response_count=original_response_count,
+            skipped_document_count=max(0, int(len(filtered_df)) - original_response_count),
             translated_document_count=0,
             warnings=[],
             error=None,
@@ -188,3 +198,18 @@ class ResultStoreSnapshotService:
             scatter_points=filtered_scatter,
             network_edges=filtered_network_edges,
         )
+
+    @classmethod
+    def _count_original_responses(cls, dataframe: pd.DataFrame, *, text_column_name: str) -> int:
+        if text_column_name not in dataframe.columns:
+            return 0
+
+        count = 0
+        for _row_index, raw_value in dataframe[text_column_name].items():
+            if pd.isna(raw_value):
+                continue
+            normalized = str(raw_value).strip()
+            if normalized.casefold() in cls.PLACEHOLDER_VALUES:
+                continue
+            count += 1
+        return count

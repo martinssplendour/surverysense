@@ -132,8 +132,10 @@ class AnalysisNgramBucketModel(BaseModel):
 
 
 class AnalysisScatterPointModel(BaseModel):
+    point_index: int = -1
     row_number: int
     text: str
+    source_text: str | None = None
     group_id: str
     group_label: str
     x: float
@@ -141,6 +143,8 @@ class AnalysisScatterPointModel(BaseModel):
 
 
 class AnalysisNetworkEdgeModel(BaseModel):
+    source_point_index: int | None = None
+    target_point_index: int | None = None
     source_row_number: int
     target_row_number: int
     weight: float
@@ -157,6 +161,7 @@ class AnalysisRunResponse(BaseModel):
     text_column_name: str
     filtered_row_count: int
     valid_document_count: int
+    original_response_count: int = 0
     skipped_document_count: int
     translated_document_count: int = 0
     warnings: list[str] = Field(default_factory=list)

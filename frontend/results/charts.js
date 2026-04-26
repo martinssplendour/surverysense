@@ -48,13 +48,11 @@ export function renderAnalysisChart(groups, plotPoints = [], networkEdges = []) 
         return;
     }
 
-    const subjectLabel = isCommunityView ? "community" : "group";
+    const subjectLabel = "group";
     renderGroupDistributionChart(groups, {
-        chartTitle: isCommunityView
-            ? "How responses are spread across communities"
-            : "How responses are spread across groups",
+        chartTitle: "How responses are spread across groups",
         chartCaption: `Hover to see the number of responses in each ${subjectLabel}. Click a bar to open the matching ${subjectLabel} responses.`,
-        yAxisLabel: isCommunityView ? "Topics" : "Group name",
+        yAxisLabel: "Groups",
         openAnalysisGroupModalByIndex: callbacks.openAnalysisGroupModalByIndex,
         controlsHtml,
     });

@@ -163,6 +163,33 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         self.assertIn("too expensive", evidence[0].context_phrases)
         self.assertIn("too expensive", str(evidence[0].to_prompt_payload()))
 
+    def test_evidence_builder_uses_first_ordered_documents_without_deduping(self) -> None:
+        builder = TopicLabelEvidenceBuilder(
+            max_groups=10,
+            max_examples_per_group=2,
+            max_terms_per_group=4,
+            max_chars_per_example=220,
+        )
+        group = AnalysisGroupRecord(
+            group_id="0",
+            label="Responses about resources",
+            count=3,
+            share=1.0,
+            terms=["resources"],
+            documents=[
+                AnalysisDocumentRecord(row_number=1, text="Repeated response"),
+                AnalysisDocumentRecord(row_number=2, text="Repeated response"),
+                AnalysisDocumentRecord(row_number=3, text="Resources mentioned many times"),
+            ],
+        )
+
+        evidence = builder.build_group_evidence([group])
+
+        self.assertEqual(
+            evidence[0].examples,
+            ["Repeated response", "Repeated response"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

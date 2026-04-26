@@ -9,13 +9,13 @@ import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
 
 
 const COMMUNITY_COLORS = [
-    "#2f5d46",
+    "#2477F8",
     "#9a5b2e",
     "#3d6790",
     "#7a6042",
-    "#6f7f4f",
+    "#6b8ff8",
     "#8b5a6b",
-    "#4d7974",
+    "#4b6fe8",
     "#a07a35",
 ];
 
@@ -50,12 +50,13 @@ function renderInteractiveNetworkChart(plotContainer, points, edges, groups, { o
         return false;
     }
 
+    const pointByIndex = new Map(points.map((point) => [Number(point.point_index), point]));
     const pointByRowNumber = new Map(points.map((point) => [Number(point.row_number), point]));
     const edgeX = [];
     const edgeY = [];
     for (const edge of edges) {
-        const source = pointByRowNumber.get(Number(edge.source_row_number));
-        const target = pointByRowNumber.get(Number(edge.target_row_number));
+        const source = pointByIndex.get(Number(edge.source_point_index)) || pointByRowNumber.get(Number(edge.source_row_number));
+        const target = pointByIndex.get(Number(edge.target_point_index)) || pointByRowNumber.get(Number(edge.target_row_number));
         if (!source || !target) {
             continue;
         }
@@ -81,7 +82,7 @@ function renderInteractiveNetworkChart(plotContainer, points, edges, groups, { o
             x: edgeX,
             y: edgeY,
             line: {
-                color: "rgba(47, 93, 70, 0.16)",
+                color: "rgba(36, 119, 248, 0.16)",
                 width: 1,
             },
             hoverinfo: "skip",
@@ -108,19 +109,28 @@ function renderInteractiveNetworkChart(plotContainer, points, edges, groups, { o
                 },
                 opacity: 0.88,
             },
-            customdata: groupPoints.map((point) => ([
+            customdata: groupPoints.map((point) => {
+                const sourceText = normalizeValue(point.source_text || point.text);
+                const fragmentText = normalizeValue(point.text);
+                const fragmentLabel = sourceText && fragmentText && sourceText !== fragmentText
+                    ? `Fragment: ${fragmentText}`
+                    : "";
+                return [
                 groupIndex,
                 point.row_number,
                 label,
-                normalizeValue(point.text),
+                sourceText,
                 group ? buildPercentLabel(group.share) : "",
                 group ? buildExampleRowLabel(group.examples) : "",
                 group ? normalizeValue(group.comment) : "",
-            ])),
+                fragmentLabel,
+                ];
+            }),
             hovertemplate: [
                 "<b>%{customdata[2]}</b>",
                 "Row: %{customdata[1]}",
                 "%{customdata[3]}",
+                "%{customdata[7]}",
                 "<extra></extra>",
             ].join("<br>"),
         });
@@ -142,7 +152,7 @@ function renderInteractiveNetworkChart(plotContainer, points, edges, groups, { o
             font: {
                 family: "\"Segoe UI\", Aptos, sans-serif",
                 color: "#3d352d",
-                size: 9,
+                size: 12,
             },
             xaxis: {
                 visible: false,
@@ -159,7 +169,7 @@ function renderInteractiveNetworkChart(plotContainer, points, edges, groups, { o
                 x: 0,
                 y: -0.08,
                 font: {
-                    size: 8,
+                    size: 12,
                 },
             },
             hovermode: "closest",

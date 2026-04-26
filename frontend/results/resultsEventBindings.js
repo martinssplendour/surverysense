@@ -70,7 +70,7 @@ export function bindResultsEvents() {
         void openWorkspace("analysis");
     });
     elements.analysisViewDataButton?.addEventListener("click", () => {
-        state.dataPreviewDataset = state.analysisResult?.model_key === "community"
+        state.dataPreviewDataset = state.analysisResult?.model_key && state.analysisResult?.model_key !== "ngrams"
             ? "community_analysis"
             : null;
         state.showOnlyVerbatim = false;

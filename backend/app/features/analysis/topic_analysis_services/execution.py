@@ -38,7 +38,13 @@ class TopicModelExecutionService:
             model_name=self.config.embedding_model,
         )
 
-    def execute(self, *, model_key: AnalysisModelKey, texts: list[str]) -> TopicModelExecution:
+    def execute(
+        self,
+        *,
+        model_key: AnalysisModelKey,
+        texts: list[str],
+        languages: list[str | None] | None = None,
+    ) -> TopicModelExecution:
         if model_key != AnalysisModelKey.COMMUNITY:
             raise ValueError(f"Unsupported analysis mode '{model_key.value}'.")
 
@@ -50,6 +56,7 @@ class TopicModelExecutionService:
                 max_neighbors=self.config.community_max_neighbors,
                 resolution=self.config.community_resolution,
                 mutual_neighbors=self.config.community_mutual_neighbors,
+                languages=languages,
             ),
             embeddings=embeddings,
             warnings=embedding_warnings,

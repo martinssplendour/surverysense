@@ -50,25 +50,34 @@
                 </section>
 
                 <section class="panel analysis-panel" id="analysis-panel" hidden>
-                    <div class="section-heading">
-                        <div>
+                    <div class="section-heading analysis-setup-heading">
+                        <div class="analysis-setup-copy">
                             <p class="panel-kicker">Analysis</p>
                             <h3>Analyze Data</h3>
+                            <p class="analysis-setup-subtitle">
+                                Choose one verbatim question, pick one analysis method, and run it. Active metadata filters are applied automatically.
+                            </p>
                         </div>
-                        <button type="button" class="button button-ghost" id="back-to-dashboard-analysis-btn">Back To Dashboard</button>
+                        <button type="button" class="button button-ghost analysis-back-dashboard-link" id="back-to-dashboard-analysis-btn"><span aria-hidden="true">&larr;</span> Back to dashboard</button>
                     </div>
 
-                    <div class="analysis-controls">
-                        <label class="filter-field filter-field-wide" for="analysis-column-select">
-                            <span class="filter-label">Verbatim Question</span>
-                            <select id="analysis-column-select"></select>
-                        </label>
-                        <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
+                    <div class="analysis-setup-section analysis-question-section">
+                        <span class="filter-label analysis-step-label">1. Select a question</span>
+                        <div class="analysis-control-row">
+                            <label class="filter-field filter-field-wide" for="analysis-column-select">
+                                <span class="visually-hidden">Verbatim Question</span>
+                                <select id="analysis-column-select"></select>
+                            </label>
+                            <button type="button" class="button button-primary analysis-run-button" id="run-analysis-btn">Run Analysis</button>
+                        </div>
                     </div>
 
-                    <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
+                    <div class="analysis-setup-section analysis-method-section">
+                        <p class="analysis-step-label">2. Choose an analysis method</p>
+                        <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
+                    </div>
                     <p class="analysis-help" id="analysis-help">
-                        Choose one verbatim question, pick one analysis method, and run it. Active metadata filters are applied automatically.
+                        Bar plots are used to show analysis result.
                     </p>
                     <div class="analysis-message" id="analysis-message" hidden></div>
                     <div class="analysis-summary" id="analysis-summary"></div>

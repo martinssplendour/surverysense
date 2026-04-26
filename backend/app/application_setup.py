@@ -265,6 +265,7 @@ def _build_topic_analysis_service(
         text_preparation_service=TopicAnalysisTextPreparationService(
             max_document_chars=settings.topic_max_document_chars,
             translation_service=translation_service,
+            input_translation_enabled=settings.topic_input_translation_enabled,
         ),
         keyword_service=keyword_service,
         narrative_service=narrative_service,

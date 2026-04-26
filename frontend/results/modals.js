@@ -293,9 +293,10 @@ function renderAnalysisGroupModal() {
 
     const count = Number(state.analysisGroupModalTotalCount || group.count || 0);
     const loadedCount = state.analysisGroupModalDocuments.length;
-    const percent = typeof group.share === "number" ? Math.round(group.share * 100) : 0;
     const modelKey = state.analysisResult?.model_key || state.selectedAnalysisModel;
-    const subjectLabel = modelKey === "community" ? "Community" : "Group";
+    const subjectLabel = modelKey === "community"
+        ? "Community"
+        : "Group";
     const contextItems = [
         group.translated && !group.ai_generated ? "Translated label" : "",
         Array.isArray(group.terms) && group.terms.length
@@ -316,7 +317,6 @@ function renderAnalysisGroupModal() {
     if (elements.analysisGroupMeta) {
         elements.analysisGroupMeta.innerHTML = renderAnalysisModalStatPills([
             { value: `${formatNumber(count)} responses` },
-            { value: percent ? `${percent}% usable` : "" },
         ]);
     }
     if (elements.analysisGroupTerms) {

@@ -210,7 +210,7 @@ function writeHtmlReportPreviewPage(previewWindow, { objectUrl, filename, format
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapePreviewHtml(formatLabel)} Report Preview</title>
     <style>
-        :root { color-scheme: light; --green: #294b3b; --text: #3d352d; --muted: #5e574f; --paper: #ffffff; --line: #d8cdbf; --soft: #f7f2ea; }
+        :root { color-scheme: light; --green: #2477F8; --text: #3d352d; --muted: #5e574f; --paper: #ffffff; --line: #d8cdbf; --soft: #f7f2ea; }
         * { box-sizing: border-box; }
         body { margin: 0; min-height: 100vh; display: grid; grid-template-rows: auto 1fr; font-family: Aptos, "Segoe UI", sans-serif; background: #ece4d8; color: var(--text); }
         .preview-toolbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; background: rgba(255,255,255,.96); border-bottom: 1px solid rgba(89,68,42,.14); box-shadow: 0 10px 30px rgba(58,44,27,.08); }

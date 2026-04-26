@@ -143,7 +143,7 @@ class TopicAnalysisOutputTranslationService:
         for group in groups:
             for example in group.examples:
                 example_text = example.text.strip()
-                if not example_text:
+                if not example_text or example.translated:
                     continue
                 example_records.append(example)
                 example_texts.append(example_text)

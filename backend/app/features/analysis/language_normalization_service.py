@@ -53,11 +53,16 @@ class EnglishTranslationService:
     def warm_up(self) -> None:
         return
 
+    def detect_languages(self, texts: list[str]) -> EnglishTranslationBatchResult:
+        return self._build_detection_only_result(texts)
+
     def translate(self, texts: list[str]) -> EnglishTranslationBatchResult:
         """Translate a batch of texts to English, returning original texts if translation is disabled or fails."""
         passthrough = self._build_passthrough_result(texts)
-        if not self.config.enabled or not texts:
+        if not texts:
             return passthrough
+        if not self.config.enabled:
+            return self._build_detection_only_result(texts)
 
         warnings: list[str] = []
         unique_texts = list(dict.fromkeys(texts))
@@ -87,6 +92,7 @@ class EnglishTranslationService:
         grouped_texts: dict[str, list[str]] = {}
         detection_fallback_count = 0
         failed_count = 0
+        unavailable_count = 0
 
         for text in pending_texts:
             detected_language = self._detect_language(text)
@@ -116,6 +122,7 @@ class EnglishTranslationService:
                     source_language,
                     type(exc).__name__,
                 )
+                unavailable_count += len(source_texts)
                 for text in source_texts:
                     translated_entries[text] = _TranslationCacheEntry(
                         translated_text=text,
@@ -164,6 +171,10 @@ class EnglishTranslationService:
             warnings.append(
                 f"Google Translate failed for {failed_count} response(s); analysis continued with the original text."
             )
+        if unavailable_count:
+            warnings.append(
+                f"English translation was unavailable for {unavailable_count} non-English response(s); those responses were embedded in their original language and may cluster by language instead of topic."
+            )
 
         return translated_entries
 
@@ -210,6 +221,26 @@ class EnglishTranslationService:
             translated_flags=[False] * len(texts),
             detected_languages=[None] * len(texts),
             warnings=list(warnings or []),
+            translated_count=0,
+        )
+
+    def _build_detection_only_result(self, texts: list[str]) -> EnglishTranslationBatchResult:
+        detected_languages: list[str | None] = []
+        warnings: list[str] = []
+        try:
+            for text in texts:
+                detected_languages.append(self._detect_language(text))
+        except ImportError:
+            warnings.append(
+                "Language detection is unavailable, so language-aware community safeguards were skipped."
+            )
+            detected_languages = [None] * len(texts)
+
+        return EnglishTranslationBatchResult(
+            texts=list(texts),
+            translated_flags=[False] * len(texts),
+            detected_languages=detected_languages,
+            warnings=warnings,
             translated_count=0,
         )
 

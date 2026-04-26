@@ -34,7 +34,7 @@ class TopicLabelPromptBuilder:
             "- 2 to 6 words, Title Case, plain English.\n"
             "- Be specific: 'Slow Delivery Times' not 'Delivery'; 'App Login Errors' not 'Technical Issues'.\n"
             "- Capture consistent sentiment where it is clear: 'Poor Customer Support' not 'Customer Support'.\n"
-            "- examples are the primary signal — base the label on what most of them share.\n"
+            "- examples are the primary signal — they are ordered representative responses from the cluster, so base the label on what most of them share.\n"
             "- frequent_phrases shows vocabulary recurring across many responses in the cluster; "
             "use it to confirm the dominant topic or spot qualifiers like 'too expensive'.\n"
             "- terms are keyword hints from the topic model; heuristic_label is a weak fallback — override both freely.\n"

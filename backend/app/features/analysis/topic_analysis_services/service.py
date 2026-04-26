@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 
@@ -180,6 +181,7 @@ class TopicAnalysisService:
         result = replace(
             base_result,
             valid_document_count=int(len(prepared.documents)),
+            original_response_count=int(prepared.original_response_count),
             skipped_document_count=int(prepared.skipped_row_count),
             warnings=warnings,
         )
@@ -196,7 +198,7 @@ class TopicAnalysisService:
         return replace(
             prepared_run.result,
             ok=True,
-            translated_document_count=translated_bucket_count,
+            translated_document_count=prepared_run.prepared.translated_document_count + translated_bucket_count,
             warnings=warnings,
             ngram_buckets=ngram_buckets,
         )
@@ -211,6 +213,10 @@ class TopicAnalysisService:
         execution = self.model_execution_service.execute(
             model_key=model_key,
             texts=list(prepared_run.prepared.texts),
+            languages=[
+                None if document.translated_to_english else document.detected_language
+                for document in prepared_run.prepared.documents
+            ],
         )
         warnings = list(prepared_run.result.warnings)
         warnings.extend(execution.warnings or [])
@@ -220,6 +226,7 @@ class TopicAnalysisService:
             documents=prepared_run.prepared.documents,
             assignments=execution.result.assignments,
             explicit_groups=execution.result.groups,
+            network_edges=execution.result.network_edges,
             model_key=model_key.value,
         )
         _, ai_warnings = self.output_translation_service.apply_ai_labels(
@@ -230,10 +237,12 @@ class TopicAnalysisService:
         warnings.extend(ai_warnings)
         translated_group_count, translation_warnings = self.output_translation_service.translate_group_outputs(groups)
         warnings.extend(translation_warnings)
+        groups, group_id_aliases = self._merge_duplicate_label_groups(groups)
         scatter_points, network_edges = self._build_community_plot_records(
             documents=prepared_run.prepared.documents,
             assignments=execution.result.assignments,
             groups=groups,
+            group_id_aliases=group_id_aliases,
             layout_positions=execution.result.layout_positions,
             network_edges=execution.result.network_edges,
         )
@@ -241,7 +250,7 @@ class TopicAnalysisService:
         return replace(
             prepared_run.result,
             ok=True,
-            translated_document_count=translated_group_count,
+            translated_document_count=prepared_run.prepared.translated_document_count + translated_group_count,
             warnings=warnings,
             groups=groups,
             scatter_points=scatter_points,
@@ -258,10 +267,12 @@ class TopicAnalysisService:
         documents: list[PreparedDocument],
         assignments: list[int],
         groups: list[AnalysisGroupRecord],
+        group_id_aliases: dict[str, str] | None = None,
         layout_positions: dict[int, tuple[float, float]],
         network_edges: list[tuple[int, int, float]],
     ) -> tuple[list[AnalysisScatterPointRecord], list[AnalysisNetworkEdgeRecord]]:
         group_labels = {str(group.group_id): group.label for group in groups}
+        aliases = {str(source): str(target) for source, target in (group_id_aliases or {}).items()}
         scatter_points: list[AnalysisScatterPointRecord] = []
         row_numbers_by_node: dict[int, int] = {}
         for node_index, (document, assignment) in enumerate(zip(documents, assignments)):
@@ -272,13 +283,16 @@ class TopicAnalysisService:
             position = layout_positions.get(node_index)
             if position is None:
                 continue
-            group_id = str(int(assignment))
+            original_group_id = str(int(assignment))
+            group_id = aliases.get(original_group_id, original_group_id)
             scatter_points.append(
                 AnalysisScatterPointRecord(
+                    point_index=int(node_index),
                     row_number=row_number,
                     text=document.text,
+                    source_text=document.original_text,
                     group_id=group_id,
-                    group_label=group_labels.get(group_id, f"Community {group_id}"),
+                    group_label=group_labels.get(group_id, f"Community {original_group_id}"),
                     x=float(position[0]),
                     y=float(position[1]),
                 )
@@ -292,9 +306,109 @@ class TopicAnalysisService:
                 continue
             edge_records.append(
                 AnalysisNetworkEdgeRecord(
+                    source_point_index=int(source_node),
+                    target_point_index=int(target_node),
                     source_row_number=source_row_number,
                     target_row_number=target_row_number,
                     weight=float(weight),
                 )
             )
         return scatter_points, edge_records
+
+    def _merge_duplicate_label_groups(
+        self,
+        groups: list[AnalysisGroupRecord],
+    ) -> tuple[list[AnalysisGroupRecord], dict[str, str]]:
+        if not groups:
+            return [], {}
+
+        grouped_by_label: dict[tuple[str, bool], list[AnalysisGroupRecord]] = {}
+        for group in groups:
+            normalized_label = self._normalize_group_label(group.label)
+            if not normalized_label:
+                normalized_label = str(group.group_id).strip()
+            key = (normalized_label, bool(group.is_noise))
+            grouped_by_label.setdefault(key, []).append(group)
+
+        aliases: dict[str, str] = {}
+        merged_groups: list[AnalysisGroupRecord] = []
+        for _key, matching_groups in grouped_by_label.items():
+            primary = matching_groups[0]
+            primary_id = str(primary.group_id)
+            for group in matching_groups:
+                aliases[str(group.group_id)] = primary_id
+
+            if len(matching_groups) == 1:
+                merged_groups.append(primary)
+                continue
+
+            documents = [
+                document
+                for group in matching_groups
+                for document in group.documents
+            ]
+            examples = [
+                example
+                for group in matching_groups
+                for example in group.examples
+            ]
+            terms = self._merge_unique_terms(
+                term
+                for group in matching_groups
+                for term in group.terms
+            )
+            count = sum(int(group.count or len(group.documents)) for group in matching_groups)
+
+            merged_groups.append(
+                AnalysisGroupRecord(
+                    group_id=primary_id,
+                    label=primary.label,
+                    source_label=primary.source_label,
+                    translated=any(group.translated for group in matching_groups),
+                    ai_generated=any(group.ai_generated for group in matching_groups),
+                    count=count,
+                    share=0.0,
+                    total_documents=0,
+                    terms=terms,
+                    examples=examples[: self.config.representative_examples_per_group],
+                    is_noise=primary.is_noise,
+                    documents=documents,
+                    label_translation_warnings=[
+                        warning
+                        for group in matching_groups
+                        for warning in group.label_translation_warnings
+                    ],
+                )
+            )
+
+        total_documents = max(1, sum(int(group.count or len(group.documents)) for group in merged_groups))
+        for group in merged_groups:
+            group.count = int(group.count or len(group.documents))
+            group.share = round(group.count / total_documents, 4)
+            group.total_documents = total_documents
+            group.comment = self.output_translation_service.narrative_service.build_comment(
+                label=group.label or "Group",
+                count=group.count,
+                total_documents=total_documents,
+                examples=list(group.examples),
+            )
+
+        merged_groups.sort(key=lambda group: (-int(group.count), str(group.group_id)))
+        return merged_groups, aliases
+
+    @staticmethod
+    def _normalize_group_label(label: str) -> str:
+        return re.sub(r"\s+", " ", str(label or "").strip().casefold())
+
+    @staticmethod
+    def _merge_unique_terms(terms: Iterable[str]) -> list[str]:
+        merged_terms: list[str] = []
+        seen: set[str] = set()
+        for term in terms:
+            normalized = re.sub(r"\s+", " ", str(term or "").strip())
+            key = normalized.casefold()
+            if not normalized or key in seen:
+                continue
+            seen.add(key)
+            merged_terms.append(normalized)
+        return merged_terms

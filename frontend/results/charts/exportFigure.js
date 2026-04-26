@@ -89,7 +89,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
         };
         overrides.font = {
             ...baseFont,
-            size: Math.max(Number(baseFont.size || 0), 11),
+            size: Math.max(Number(baseFont.size || 0), 12),
         };
         overrides.xaxis = {
             ...baseXAxis,

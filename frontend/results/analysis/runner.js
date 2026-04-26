@@ -176,7 +176,7 @@ function invalidateRowDatasetsAfterAnalysis() {
     state.dataPreviewDataset = null;
     state.transformedHasMore = Boolean(state.resultId);
     state.analysisHasMore = Boolean(state.resultId);
-    state.communityAnalysisHasMore = state.analysisResult?.model_key === "community";
+    state.communityAnalysisHasMore = state.analysisResult?.model_key && state.analysisResult?.model_key !== "ngrams";
 }
 
 function finishFailedAnalysis({ error, textColumnName, modelKey }) {
@@ -189,6 +189,7 @@ function finishFailedAnalysis({ error, textColumnName, modelKey }) {
         text_column_name: textColumnName,
         filtered_row_count: 0,
         valid_document_count: 0,
+        original_response_count: 0,
         skipped_document_count: 0,
         translated_document_count: 0,
         warnings: [],
