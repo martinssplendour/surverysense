@@ -31,6 +31,15 @@ def _load_standard_stopwords() -> frozenset[str]:
     else:
         words.update(str(word).casefold() for word in ENGLISH_STOP_WORDS)
 
+    words.update(
+        {
+            "better",
+            "looking",
+            "need",
+            "using",
+        }
+    )
+
     try:
         from nltk.corpus import stopwords
     except Exception:  # pragma: no cover - optional dependency
