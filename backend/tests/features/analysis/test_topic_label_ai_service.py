@@ -104,6 +104,9 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             self.assertIn('"group_id":"0"', prompt)
             self.assertNotIn('"group_id":"1"', prompt)
             self.assertIn('"frequent_phrases"', prompt)
+            self.assertIn('"top_unigrams"', prompt)
+            self.assertIn('"top_bigrams"', prompt)
+            self.assertIn('"document_count"', prompt)
             self.assertIn("Need more curriculum resources for mat", prompt)
             return _FakeHttpResponse(
                 {
@@ -486,6 +489,72 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         evidence = builder.build_group_evidence([group])
 
         self.assertEqual(evidence[0].terms, ["search filters"])
+
+    def test_evidence_builder_collects_capped_ngram_frequency_evidence(self) -> None:
+        builder = TopicLabelEvidenceBuilder(
+            max_groups=10,
+            max_examples_per_group=2,
+            max_terms_per_group=4,
+            max_chars_per_example=220,
+            max_unigrams=5,
+            max_bigrams=3,
+            max_trigrams=3,
+            min_ngram_document_count=4,
+        )
+        group = AnalysisGroupRecord(
+            group_id="0",
+            label="Search Filters",
+            count=5,
+            share=1.0,
+            documents=[
+                AnalysisDocumentRecord(row_number=1, text="Search filters make resources easy to find"),
+                AnalysisDocumentRecord(row_number=2, text="Search filters help find resources"),
+                AnalysisDocumentRecord(row_number=3, text="Search filters improve content discovery"),
+                AnalysisDocumentRecord(row_number=4, text="Search filters save time"),
+                AnalysisDocumentRecord(row_number=5, text="Classroom resources are helpful"),
+            ],
+        )
+
+        evidence = builder.build_group_evidence([group])
+
+        self.assertEqual(
+            [(item.term, item.count, item.document_count) for item in evidence[0].top_bigrams],
+            [("search filters", 4, 4)],
+        )
+        self.assertEqual(
+            [(item.term, item.document_count) for item in evidence[0].top_unigrams[:2]],
+            [("filters", 4), ("search", 4)],
+        )
+        self.assertEqual(evidence[0].top_trigrams, [])
+
+    def test_evidence_builder_adapts_ngram_document_threshold_for_small_clusters(self) -> None:
+        builder = TopicLabelEvidenceBuilder(
+            max_groups=10,
+            max_examples_per_group=2,
+            max_terms_per_group=4,
+            max_chars_per_example=220,
+            max_unigrams=5,
+            max_bigrams=3,
+            max_trigrams=3,
+            min_ngram_document_count=4,
+        )
+        group = AnalysisGroupRecord(
+            group_id="0",
+            label="Easy Navigation",
+            count=2,
+            share=1.0,
+            documents=[
+                AnalysisDocumentRecord(row_number=1, text="Easy navigation helps teachers find resources"),
+                AnalysisDocumentRecord(row_number=2, text="Easy navigation saves teachers time"),
+            ],
+        )
+
+        evidence = builder.build_group_evidence([group])
+
+        self.assertIn(
+            ("easy navigation", 2),
+            [(item.term, item.document_count) for item in evidence[0].top_bigrams],
+        )
 
     def test_evidence_builder_uses_first_ordered_documents_without_deduping(self) -> None:
         builder = TopicLabelEvidenceBuilder(

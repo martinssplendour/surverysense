@@ -6,6 +6,7 @@ from collections import Counter
 from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
     TopicLabelEvidenceGroup,
+    TopicLabelNgramEvidence,
 )
 from app.features.analysis.topic_analysis_services.keyword_service import TopicAnalysisKeywordService
 
@@ -87,6 +88,10 @@ class TopicLabelEvidenceBuilder:
         max_examples_per_group: int,
         max_terms_per_group: int,
         max_chars_per_example: int,
+        max_unigrams: int = 5,
+        max_bigrams: int = 3,
+        max_trigrams: int = 3,
+        min_ngram_document_count: int = 4,
         keyword_service: TopicAnalysisKeywordService | None = None,
     ) -> None:
         self.max_groups = max_groups
@@ -94,6 +99,10 @@ class TopicLabelEvidenceBuilder:
         self.max_terms_per_group = max_terms_per_group
         self.max_context_phrases_per_group = max(1, max_terms_per_group)
         self.max_chars_per_example = max_chars_per_example
+        self.max_unigrams = max(0, int(max_unigrams))
+        self.max_bigrams = max(0, int(max_bigrams))
+        self.max_trigrams = max(0, int(max_trigrams))
+        self.min_ngram_document_count = max(1, int(min_ngram_document_count))
         self.keyword_service = keyword_service or TopicAnalysisKeywordService()
 
     def build_group_evidence(self, groups: list[AnalysisGroupRecord]) -> list[TopicLabelEvidenceGroup]:
@@ -116,6 +125,9 @@ class TopicLabelEvidenceBuilder:
                     share_percent=round(float(group.share) * 100, 1),
                     terms=self.collect_terms(group),
                     context_phrases=self.collect_context_phrases(group),
+                    top_unigrams=self.collect_top_ngrams(group, ngram_size=1, top_n=self.max_unigrams),
+                    top_bigrams=self.collect_top_ngrams(group, ngram_size=2, top_n=self.max_bigrams),
+                    top_trigrams=self.collect_top_ngrams(group, ngram_size=3, top_n=self.max_trigrams),
                     examples=self.collect_examples(group),
                 )
             )
@@ -142,6 +154,55 @@ class TopicLabelEvidenceBuilder:
     def collect_terms(self, group: AnalysisGroupRecord) -> list[str]:
         max_terms = max(1, self.max_terms_per_group)
         return self.keyword_service.sanitize_terms(group.terms, top_n=max_terms)
+
+    def collect_top_ngrams(
+        self,
+        group: AnalysisGroupRecord,
+        *,
+        ngram_size: int,
+        top_n: int,
+    ) -> list[TopicLabelNgramEvidence]:
+        ngram_size = max(1, int(ngram_size))
+        top_n = max(0, int(top_n))
+        if top_n <= 0:
+            return []
+
+        texts = self._collect_group_document_texts(group)
+        if not texts:
+            return []
+
+        min_document_count = min(self.min_ngram_document_count, max(1, len(texts)))
+        counts: Counter[str] = Counter()
+        document_counts: Counter[str] = Counter()
+        for text in texts:
+            tokens = self.keyword_service.tokenize_terms(text)
+            if len(tokens) < ngram_size:
+                continue
+
+            document_terms: set[str] = set()
+            for index in range(len(tokens) - ngram_size + 1):
+                term = " ".join(tokens[index: index + ngram_size])
+                normalized = self._normalize_ngram(term, ngram_size=ngram_size)
+                if not normalized:
+                    continue
+                counts[normalized] += 1
+                document_terms.add(normalized)
+
+            for term in document_terms:
+                document_counts[term] += 1
+
+        ranked_terms = sorted(
+            (
+                (term, int(counts[term]), int(document_counts[term]))
+                for term in counts
+                if int(document_counts[term]) >= min_document_count
+            ),
+            key=lambda item: (-item[2], -item[1], item[0]),
+        )
+        return [
+            TopicLabelNgramEvidence(term=term, count=count, document_count=document_count)
+            for term, count, document_count in ranked_terms[:top_n]
+        ]
 
     def collect_context_phrases(self, group: AnalysisGroupRecord) -> list[str]:
         # Count how many distinct documents each 2-3 gram appears in.
@@ -195,6 +256,27 @@ class TopicLabelEvidenceBuilder:
             if len(texts) >= self.MAX_CONTEXT_DOCUMENTS:
                 break
         return texts
+
+    def _collect_group_document_texts(self, group: AnalysisGroupRecord) -> list[str]:
+        texts: list[str] = []
+        documents = list(group.documents) or list(group.examples)
+        for document in documents:
+            text = str(document.text or getattr(document, "source_text", None) or "").strip()
+            if not text:
+                continue
+            texts.append(text)
+            if len(texts) >= self.MAX_CONTEXT_DOCUMENTS:
+                break
+        return texts
+
+    def _normalize_ngram(self, term: str, *, ngram_size: int) -> str:
+        cleaned_terms = self.keyword_service.sanitize_terms([term], top_n=1)
+        if not cleaned_terms:
+            return ""
+        normalized = cleaned_terms[0]
+        if len(normalized.split()) != ngram_size:
+            return ""
+        return normalized
 
     def _trim_context_phrase(self, tokens: list[str]) -> str:
         start = 0

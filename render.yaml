@@ -36,3 +36,11 @@ services:
         value: "0.62"
       - key: TOPIC_COMMUNITY_MAX_NEIGHBORS
         value: "12"
+      - key: TOPIC_AI_LABELING_MAX_UNIGRAMS
+        value: "5"
+      - key: TOPIC_AI_LABELING_MAX_BIGRAMS
+        value: "3"
+      - key: TOPIC_AI_LABELING_MAX_TRIGRAMS
+        value: "3"
+      - key: TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT
+        value: "4"

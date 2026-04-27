@@ -34,6 +34,10 @@ class TopicAiLabelingConfig:
     max_examples_per_group: int
     max_terms_per_group: int
     max_chars_per_example: int
+    max_unigrams: int = 5
+    max_bigrams: int = 3
+    max_trigrams: int = 3
+    min_ngram_document_count: int = 4
     batch_size: int = 5
     max_retries: int = 1
     retry_base_seconds: float = 0.75
@@ -99,6 +103,10 @@ class TopicAiLabelService:
             max_examples_per_group=config.max_examples_per_group,
             max_terms_per_group=config.max_terms_per_group,
             max_chars_per_example=config.max_chars_per_example,
+            max_unigrams=config.max_unigrams,
+            max_bigrams=config.max_bigrams,
+            max_trigrams=config.max_trigrams,
+            min_ngram_document_count=config.min_ngram_document_count,
         )
         self.prompt_builder = TopicLabelPromptBuilder()
         self.client = GeminiTopicLabelClient(
@@ -323,7 +331,11 @@ class TopicAiLabelService:
         return not matching_tokens and len(content_tokens) <= 2
 
     def _evidence_tokens(self, group: TopicLabelEvidenceGroup) -> set[str]:
-        evidence_parts = [group.current_label, *group.terms, *group.context_phrases, *group.examples]
+        ngram_terms = [
+            item.term
+            for item in [*group.top_unigrams, *group.top_bigrams, *group.top_trigrams]
+        ]
+        evidence_parts = [group.current_label, *group.terms, *group.context_phrases, *ngram_terms, *group.examples]
         return {
             token
             for part in evidence_parts

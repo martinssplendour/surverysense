@@ -165,6 +165,9 @@ class TopicAnalysisKeywordService:
             counts.update(self._tokenize(text))
         return [term for term, count in counts.most_common() if count > 0][:top_n]
 
+    def tokenize_terms(self, text: str) -> list[str]:
+        return self._tokenize(text)
+
     def top_ngrams(self, texts: list[str], *, ngram_size: int, top_n: int) -> list[dict[str, int | str]]:
         counts: Counter[str] = Counter()
         for text in texts:
