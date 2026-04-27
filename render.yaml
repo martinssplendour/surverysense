@@ -36,12 +36,6 @@ services:
         value: "0.62"
       - key: TOPIC_COMMUNITY_MAX_NEIGHBORS
         value: "12"
-      - key: TOPIC_SINGLE_WORD_AI_VALIDATION_ENABLED
-        value: "true"
-      - key: TOPIC_SINGLE_WORD_AI_VALIDATION_BATCH_SIZE
-        value: "100"
-      - key: TOPIC_SINGLE_WORD_AI_VALIDATION_TIMEOUT_SECONDS
-        value: "30"
       - key: TOPIC_AI_LABELING_MAX_UNIGRAMS
         value: "5"
       - key: TOPIC_AI_LABELING_MAX_BIGRAMS

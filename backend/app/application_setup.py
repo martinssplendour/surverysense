@@ -17,10 +17,6 @@ from app.features.analysis.language_normalization_service import (
     EnglishTranslationConfig,
     EnglishTranslationService,
 )
-from app.features.analysis.single_word_response_validation_service import (
-    GeminiSingleWordResponseValidationService,
-    SingleWordValidationConfig,
-)
 from app.features.analysis.topic_analysis_services import (
     CommunityDetectionAnalysisService,
     NgramAnalysisService,
@@ -270,15 +266,6 @@ def _build_topic_analysis_service(
             max_document_chars=settings.topic_max_document_chars,
             translation_service=translation_service,
             input_translation_enabled=settings.topic_input_translation_enabled,
-            single_word_validation_service=GeminiSingleWordResponseValidationService(
-                config=SingleWordValidationConfig(
-                    enabled=settings.topic_single_word_ai_validation_enabled,
-                    gemini_api_key=settings.gemini_api_key,
-                    gemini_model=settings.gemini_model,
-                    timeout_seconds=settings.topic_single_word_ai_validation_timeout_seconds,
-                    batch_size=settings.topic_single_word_ai_validation_batch_size,
-                )
-            ),
         ),
         keyword_service=keyword_service,
         narrative_service=narrative_service,

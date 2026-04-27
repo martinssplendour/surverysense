@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pandas as pd
 from app.core.exceptions import TopicAnalysisDependencyError
 from app.features.analysis.language_normalization_service import EnglishTranslationBatchResult
-from app.features.analysis.single_word_response_validation_service import SingleWordValidationResult
 from app.features.analysis.topic_analysis_services import (
     CommunityDetectionAnalysisService,
     NgramAnalysisService,
@@ -190,30 +189,6 @@ class _FakeEnglishTranslationService:
         )
 
 
-class _FakeSingleWordValidationService:
-    def __init__(
-        self,
-        *,
-        drop_words: set[str] | None = None,
-        warnings: list[str] | None = None,
-        fail: bool = False,
-    ) -> None:
-        self.drop_words = set(drop_words or set())
-        self.warnings = list(warnings or [])
-        self.fail = fail
-        self.calls: list[list[str]] = []
-
-    def classify(self, words: list[str]) -> SingleWordValidationResult:
-        self.calls.append(list(words))
-        if self.fail:
-            raise TimeoutError("single-word validation timeout")
-        return SingleWordValidationResult(
-            drop_words=set(self.drop_words),
-            warnings=list(self.warnings),
-            checked_word_count=len(set(words)),
-        )
-
-
 class _FakeAiLabelService:
     def __init__(self, labels_by_group_id: dict[str, str], warnings: list[str] | None = None) -> None:
         self.labels_by_group_id = labels_by_group_id
@@ -322,7 +297,7 @@ class TopicAnalysisTextPreparationServiceTests(unittest.TestCase):
         self.assertEqual(prepared.documents[1].detected_language, "en")
         self.assertEqual(translation_service.calls, [])
 
-    def test_prepare_batches_single_word_responses_for_ai_validation(self) -> None:
+    def test_prepare_skips_single_word_responses_before_embedding(self) -> None:
         dataframe = pd.DataFrame(
             {
                 "verbatim": [
@@ -334,60 +309,17 @@ class TopicAnalysisTextPreparationServiceTests(unittest.TestCase):
                 ]
             }
         )
-        validation_service = _FakeSingleWordValidationService(drop_words={"cvv", "ccc"})
 
-        service = TopicAnalysisTextPreparationService(
-            max_document_chars=200,
-            single_word_validation_service=validation_service,
-        )
+        service = TopicAnalysisTextPreparationService(max_document_chars=200)
         prepared = service.prepare(dataframe, text_column_name="verbatim")
 
-        self.assertEqual(validation_service.calls, [["cvv", "cost", "ccc", "cost"]])
         self.assertEqual(
             prepared.texts,
-            ["cost", "Need clearer resources", "cost"],
+            ["Need clearer resources"],
         )
-        self.assertEqual(prepared.skipped_row_count, 2)
-        self.assertEqual(prepared.original_response_count, 3)
-        self.assertIn("Skipped 2 invalid single-word response(s) before analysis.", prepared.warnings)
-
-    def test_prepare_skips_single_word_ai_validation_when_no_single_words_exist(self) -> None:
-        dataframe = pd.DataFrame(
-            {
-                "verbatim": [
-                    "Need clearer resources",
-                    "More pricing information",
-                ]
-            }
-        )
-        validation_service = _FakeSingleWordValidationService(fail=True)
-
-        service = TopicAnalysisTextPreparationService(
-            max_document_chars=200,
-            single_word_validation_service=validation_service,
-        )
-        prepared = service.prepare(dataframe, text_column_name="verbatim")
-
-        self.assertEqual(validation_service.calls, [])
-        self.assertEqual(
-            prepared.texts,
-            ["Need clearer resources", "More pricing information"],
-        )
-        self.assertEqual(prepared.warnings, [])
-
-    def test_prepare_keeps_single_word_responses_when_ai_validation_fails(self) -> None:
-        dataframe = pd.DataFrame({"verbatim": ["CVV", "cost"]})
-        validation_service = _FakeSingleWordValidationService(fail=True)
-
-        service = TopicAnalysisTextPreparationService(
-            max_document_chars=200,
-            single_word_validation_service=validation_service,
-        )
-        prepared = service.prepare(dataframe, text_column_name="verbatim")
-
-        self.assertEqual(prepared.texts, ["CVV", "cost"])
-        self.assertEqual(prepared.skipped_row_count, 0)
-        self.assertIn("Single-word response validation was skipped", " ".join(prepared.warnings))
+        self.assertEqual(prepared.skipped_row_count, 4)
+        self.assertEqual(prepared.original_response_count, 1)
+        self.assertIn("Skipped 4 single-word response(s) before analysis.", prepared.warnings)
 
     def test_prepare_sentencizes_multi_sentence_responses_for_embedding(self) -> None:
         dataframe = pd.DataFrame(
@@ -1189,7 +1121,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                 max_document_chars=300,
                 translation_service=_FakeEnglishTranslationService(
                     {
-                        "aula": "in the classroom",
+                        "mi aula": "in the classroom",
                     }
                 ),
             )
@@ -1197,9 +1129,9 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         dataframe = pd.DataFrame(
             {
                 "verbatim": [
-                    "aula",
-                    "aula",
-                    "aula",
+                    "mi aula",
+                    "mi aula",
+                    "mi aula",
                 ],
             }
         )

@@ -87,9 +87,6 @@ TOPIC_EMBEDDING_FALLBACK_PROVIDER=openai
 OPENAI_API_KEY=...
 NLTK_DATA=./nltk_data
 TOPIC_INPUT_TRANSLATION_ENABLED=false
-TOPIC_SINGLE_WORD_AI_VALIDATION_ENABLED=true
-TOPIC_SINGLE_WORD_AI_VALIDATION_BATCH_SIZE=100
-TOPIC_SINGLE_WORD_AI_VALIDATION_TIMEOUT_SECONDS=30
 TOPIC_TRANSLATION_ENABLED=true
 TOPIC_TRANSLATION_SOURCE_LANGUAGE=auto
 TOPIC_TRANSLATION_TARGET_LANGUAGE=en
@@ -123,6 +120,8 @@ TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT=4
 ```
 
 `TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT` is adaptive for small clusters. For example, a two-response cluster can still send phrases that appear in both responses, while larger clusters require the configured minimum document count.
+
+Single-word verbatim responses are skipped before embeddings and clustering. This removes low-information rows such as `CVV`, `CCC`, or `hjhh`; it also removes valid one-word answers, so verbatim columns should contain sentence-style feedback for analysis.
 
 For multilingual datasets, `TOPIC_INPUT_TRANSLATION_ENABLED=true` translates non-English responses before embeddings and clustering. Leave it `false` for faster analysis with original-language embeddings; the app still applies language-aware safeguards, but language-only clusters are more likely than with input translation enabled.
 

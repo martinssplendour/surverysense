@@ -61,9 +61,6 @@ class Settings:
     topic_translation_source_language: str = os.getenv("TOPIC_TRANSLATION_SOURCE_LANGUAGE", "auto").strip()
     topic_translation_target_language: str = os.getenv("TOPIC_TRANSLATION_TARGET_LANGUAGE", "en").strip()
     topic_translation_batch_size: int = int(os.getenv("TOPIC_TRANSLATION_BATCH_SIZE", "8"))
-    topic_single_word_ai_validation_enabled: bool = os.getenv("TOPIC_SINGLE_WORD_AI_VALIDATION_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
-    topic_single_word_ai_validation_batch_size: int = int(os.getenv("TOPIC_SINGLE_WORD_AI_VALIDATION_BATCH_SIZE", "100"))
-    topic_single_word_ai_validation_timeout_seconds: int = int(os.getenv("TOPIC_SINGLE_WORD_AI_VALIDATION_TIMEOUT_SECONDS", "30"))
     topic_ai_labeling_enabled: bool = os.getenv("TOPIC_AI_LABELING_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
     topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "30"))
     topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "15"))
