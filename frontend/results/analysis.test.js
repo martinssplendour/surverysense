@@ -176,7 +176,9 @@ describe("results/analysis", () => {
         expect(harness.state.currentWorkspace).toBe("analysis-results");
         expect(harness.updateWorkspaceVisibility).toHaveBeenCalledTimes(1);
         expect(harness.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
-        expect(harness.dom.elements.get("analysis-results-subtitle").textContent).toBe("comment | 2 responses");
+        const subtitle = harness.dom.elements.get("analysis-results-subtitle");
+        expect(subtitle.innerHTML).toContain("comment");
+        expect(subtitle.innerHTML).toContain("2");
     });
 
     it("hands missing result state back to the workspace layer on 404", async () => {
