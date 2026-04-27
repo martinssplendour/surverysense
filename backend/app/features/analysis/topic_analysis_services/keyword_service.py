@@ -10,7 +10,6 @@ from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisNgramItemRecord,
 )
 
-
 CURATED_MULTILINGUAL_STOPWORDS = frozenset(
     {
         # Spanish function words. NLTK's multilingual corpus is optional in this
