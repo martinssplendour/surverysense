@@ -340,9 +340,3 @@ function findTopNgramItem(result) {
         .sort((left, right) => Number(right.document_count || right.count || 0) - Number(left.document_count || left.count || 0))[0] || null;
 }
 
-function displayAnalysisMethodLabel(modelKey) {
-    if (modelKey === "community") {
-        return "Topic Groups";
-    }
-    return displayAnalysisMode(modelKey);
-}
