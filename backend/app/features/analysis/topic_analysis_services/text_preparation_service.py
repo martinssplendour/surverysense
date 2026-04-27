@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import logging
 import re
 
 import pandas as pd
 
 from app.core.exceptions import TopicAnalysisInputError
 from app.features.analysis.language_normalization_service import EnglishTranslationService
+from app.features.analysis.single_word_response_validation_service import (
+    GeminiSingleWordResponseValidationService,
+)
 from app.features.analysis.topic_analysis_services.config import (
     PreparedDocument,
     PreparedTextDataset,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class TopicAnalysisTextPreparationService:
@@ -38,10 +44,12 @@ class TopicAnalysisTextPreparationService:
         max_document_chars: int,
         translation_service: EnglishTranslationService | None = None,
         input_translation_enabled: bool = True,
+        single_word_validation_service: GeminiSingleWordResponseValidationService | None = None,
     ) -> None:
         self.max_document_chars = max(200, max_document_chars)
         self.translation_service = translation_service
         self.input_translation_enabled = bool(input_translation_enabled)
+        self.single_word_validation_service = single_word_validation_service
 
     def warm_up(self) -> None:
         if self.translation_service is not None:
@@ -51,29 +59,49 @@ class TopicAnalysisTextPreparationService:
         if text_column_name not in dataframe.columns:
             raise TopicAnalysisInputError(f"Column '{text_column_name}' is not available in the analysis dataset.")
 
+        candidate_rows: list[tuple[int, str]] = []
         raw_documents: list[tuple[int, str, str]] = []
         warnings: list[str] = []
         original_response_count = 0
         skipped_count = 0
+        empty_or_placeholder_count = 0
+        invalid_single_word_count = 0
         truncated_count = 0
 
         for row_index, raw_value in dataframe[text_column_name].items():
             normalized = self._normalize_value(raw_value)
             if not normalized:
                 skipped_count += 1
+                empty_or_placeholder_count += 1
                 continue
 
-            original_response_count += 1
             if len(normalized) > self.max_document_chars:
                 normalized = normalized[: self.max_document_chars].rstrip()
                 truncated_count += 1
 
             row_number = self._resolve_row_number(row_index)
+            candidate_rows.append((row_number, normalized))
+
+        drop_single_words, validation_warnings = self._validate_single_word_responses(candidate_rows)
+        warnings.extend(validation_warnings)
+
+        for row_number, normalized in candidate_rows:
+            single_word_key = self._single_word_key(normalized)
+            if single_word_key and single_word_key in drop_single_words:
+                skipped_count += 1
+                invalid_single_word_count += 1
+                continue
+
+            original_response_count += 1
             for sentence in self._sentencize_for_embedding(normalized):
                 raw_documents.append((row_number, sentence, normalized))
 
-        if skipped_count:
-            warnings.append(f"Skipped {skipped_count} empty or NaN row(s) before analysis.")
+        if empty_or_placeholder_count:
+            warnings.append(f"Skipped {empty_or_placeholder_count} empty or NaN row(s) before analysis.")
+        if invalid_single_word_count:
+            warnings.append(
+                f"Skipped {invalid_single_word_count} invalid single-word response(s) before analysis."
+            )
         if truncated_count:
             warnings.append(
                 f"Trimmed {truncated_count} long response(s) to {self.max_document_chars} characters to keep the analysis stable."
@@ -138,6 +166,44 @@ class TopicAnalysisTextPreparationService:
         if normalized.casefold() in self.PLACEHOLDER_VALUES:
             return ""
         return normalized
+
+    def _validate_single_word_responses(self, candidate_rows: list[tuple[int, str]]) -> tuple[set[str], list[str]]:
+        validation_service = self.single_word_validation_service
+        if validation_service is None or not candidate_rows:
+            return set(), []
+
+        single_words = [
+            single_word
+            for _row_number, text in candidate_rows
+            for single_word in [self._single_word_key(text)]
+            if single_word
+        ]
+        if not single_words:
+            return set(), []
+
+        try:
+            result = validation_service.classify(single_words)
+        except Exception as exc:
+            logger.warning(
+                "Single-word response validation failed during text preparation (%s: %s).",
+                type(exc).__name__,
+                exc,
+            )
+            return set(), [
+                "Single-word response validation was skipped because Gemini was unavailable; those responses were kept."
+            ]
+        return set(result.drop_words), list(result.warnings)
+
+    @classmethod
+    def _single_word_key(cls, text: str) -> str:
+        tokens = [
+            token.strip("_'").casefold()
+            for token in cls.WORD_PATTERN.findall(str(text or ""))
+            if token.strip("_'")
+        ]
+        if len(tokens) != 1:
+            return ""
+        return tokens[0]
 
     @classmethod
     def _sentencize_for_embedding(cls, text: str) -> list[str]:
