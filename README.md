@@ -167,13 +167,14 @@ The repo includes `render.yaml`.
 Render build/start behavior:
 
 ```bash
-build: cd backend && pip install -r requirements.txt
+build: cd backend && pip install -r requirements.txt && python -m nltk.downloader -d ./nltk_data stopwords
 start: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
 Important:
 
 - Python is pinned via `.python-version`
+- NLTK stopwords are downloaded during the Render build and exposed with `NLTK_DATA=./nltk_data`
 - topic embeddings use Gemini/OpenAI API providers by default, avoiding large model downloads during build
 - frontend assets are served by FastAPI from the top-level `frontend/` directory
 

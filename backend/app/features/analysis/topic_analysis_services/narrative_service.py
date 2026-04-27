@@ -57,7 +57,7 @@ class TopicAnalysisNarrativeService:
         return f"{label} appears in {count} response(s), representing {share}% of the filtered sample. {reference_text}"
 
     def _build_phrase(self, *, texts: list[str], terms: list[str], prefer_terms: bool = False) -> str:
-        fallback_terms = [term.replace("_", " ").strip() for term in terms[:2] if term]
+        fallback_terms = self.keyword_service.sanitize_terms(terms, top_n=2)
         if prefer_terms and fallback_terms:
             return self._normalize_phrase(" ".join(fallback_terms))
 

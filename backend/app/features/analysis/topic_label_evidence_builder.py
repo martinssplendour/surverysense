@@ -7,6 +7,7 @@ from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisGroupRecord,
     TopicLabelEvidenceGroup,
 )
+from app.features.analysis.topic_analysis_services.keyword_service import TopicAnalysisKeywordService
 
 
 class TopicLabelEvidenceBuilder:
@@ -79,12 +80,21 @@ class TopicLabelEvidenceBuilder:
         }
     )
 
-    def __init__(self, *, max_groups: int, max_examples_per_group: int, max_terms_per_group: int, max_chars_per_example: int) -> None:
+    def __init__(
+        self,
+        *,
+        max_groups: int,
+        max_examples_per_group: int,
+        max_terms_per_group: int,
+        max_chars_per_example: int,
+        keyword_service: TopicAnalysisKeywordService | None = None,
+    ) -> None:
         self.max_groups = max_groups
         self.max_examples_per_group = max_examples_per_group
         self.max_terms_per_group = max_terms_per_group
         self.max_context_phrases_per_group = max(1, max_terms_per_group)
         self.max_chars_per_example = max_chars_per_example
+        self.keyword_service = keyword_service or TopicAnalysisKeywordService()
 
     def build_group_evidence(self, groups: list[AnalysisGroupRecord]) -> list[TopicLabelEvidenceGroup]:
         evidence_groups: list[TopicLabelEvidenceGroup] = []
@@ -130,16 +140,8 @@ class TopicLabelEvidenceBuilder:
         return examples
 
     def collect_terms(self, group: AnalysisGroupRecord) -> list[str]:
-        terms: list[str] = []
         max_terms = max(1, self.max_terms_per_group)
-        for term in group.terms:
-            normalized = re.sub(r"\s+", " ", str(term).strip())
-            if not normalized:
-                continue
-            terms.append(normalized)
-            if len(terms) >= max_terms:
-                break
-        return terms
+        return self.keyword_service.sanitize_terms(group.terms, top_n=max_terms)
 
     def collect_context_phrases(self, group: AnalysisGroupRecord) -> list[str]:
         # Count how many distinct documents each 2-3 gram appears in.

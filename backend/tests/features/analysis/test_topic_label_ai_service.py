@@ -465,6 +465,28 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         self.assertIn("too expensive", evidence[0].context_phrases)
         self.assertIn("too expensive", str(evidence[0].to_prompt_payload()))
 
+    def test_evidence_builder_filters_stopword_only_terms(self) -> None:
+        builder = TopicLabelEvidenceBuilder(
+            max_groups=10,
+            max_examples_per_group=2,
+            max_terms_per_group=4,
+            max_chars_per_example=220,
+        )
+        group = AnalysisGroupRecord(
+            group_id="0",
+            label="Search Organization",
+            count=3,
+            share=1.0,
+            terms=["para", "los", "search filters", "que las"],
+            documents=[
+                AnalysisDocumentRecord(row_number=1, text="Better search filters would help"),
+            ],
+        )
+
+        evidence = builder.build_group_evidence([group])
+
+        self.assertEqual(evidence[0].terms, ["search filters"])
+
     def test_evidence_builder_uses_first_ordered_documents_without_deduping(self) -> None:
         builder = TopicLabelEvidenceBuilder(
             max_groups=10,

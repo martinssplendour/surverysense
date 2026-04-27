@@ -437,6 +437,34 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
 
         self.assertEqual(terms, ["support", "schools", "class"])
 
+    def test_top_terms_remove_spanish_function_words(self) -> None:
+        service = TopicAnalysisKeywordService()
+
+        terms = service.top_terms(
+            [
+                "para los que las recursos busqueda organizacion recursos",
+                "los recursos para organizacion y busqueda",
+            ],
+            top_n=10,
+        )
+
+        self.assertEqual(terms, ["recursos", "busqueda", "organizacion"])
+
+    def test_label_fallback_does_not_use_stopword_only_terms(self) -> None:
+        keyword_service = TopicAnalysisKeywordService()
+        narrative_service = TopicAnalysisNarrativeService(keyword_service)
+
+        label = narrative_service.build_label(
+            texts=[],
+            terms=["para", "los", "que las"],
+            is_noise=False,
+            fallback_prefix="Group",
+            fallback_id="7",
+            prefer_terms=True,
+        )
+
+        self.assertEqual(label, "Group 7")
+
 
 class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
     def test_run_uses_leiden_when_available(self) -> None:
