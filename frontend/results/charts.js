@@ -80,8 +80,8 @@ export function clearAnalysisChart() {
 
 function buildCommunityChartToggle(activeView, hasNetworkPlot) {
     const options = [
-        { key: "bar", label: "Bar Plot", disabled: false },
-        { key: "network", label: "Community Graph", disabled: !hasNetworkPlot },
+        { key: "bar", label: "Bar chart", disabled: false },
+        { key: "network", label: "Topic map", disabled: !hasNetworkPlot },
     ];
     return `
         <div class="analysis-chart-toggle" role="group" aria-label="Community chart view">

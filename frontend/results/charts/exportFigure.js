@@ -125,9 +125,10 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
     if (kind === "group") {
         overrides.margin = {
             ...baseMargin,
-            l: Math.max(Number(baseMargin.l || 0), 184),
+            l: Math.max(Number(baseMargin.l || 0), 360),
+            r: Math.max(Number(baseMargin.r || 0), 110),
             t: Math.max(Number(baseMargin.t || 0), 44),
-            b: Math.max(Number(baseMargin.b || 0), 58),
+            b: Math.max(Number(baseMargin.b || 0), 76),
         };
         overrides.xaxis = {
             ...baseXAxis,
@@ -152,7 +153,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             tickangle: 0,
             title: {
                 ...(baseYAxis && typeof baseYAxis.title === "object" ? baseYAxis.title : {}),
-                text: "Topic names",
+                text: "",
                 font: {
                     ...((baseYAxis && typeof baseYAxis.title === "object" && typeof baseYAxis.title.font === "object")
                         ? baseYAxis.title.font
@@ -162,7 +163,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             },
             tickfont: {
                 ...(baseYAxis.tickfont || {}),
-                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 13.5),
+                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 14),
             },
         };
     }
@@ -188,7 +189,9 @@ function limitAnalysisExportData(data, definition) {
             y: Array.isArray(trace.y)
                 ? trace.y
                     .slice(0, REPORT_EXPORT_MAX_BARS)
-                    .map((label) => clampExportPlotLabel(label, kind === "group" ? 20 : 18))
+                    .map((label) => kind === "group"
+                        ? wrapFullExportPlotLabel(label, 34)
+                        : clampExportPlotLabel(label, 18))
                 : trace.y,
             customdata: Array.isArray(trace.customdata) ? trace.customdata.slice(0, REPORT_EXPORT_MAX_BARS) : trace.customdata,
             text: Array.isArray(trace.text) ? trace.text.slice(0, REPORT_EXPORT_MAX_BARS) : trace.text,
@@ -207,6 +210,35 @@ function clampExportPlotLabel(label, maxLineLength = 18) {
 }
 
 
+function wrapFullExportPlotLabel(label, maxLineLength = 34) {
+    const words = `${label || ""}`
+        .replaceAll("<br>", " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .split(" ")
+        .filter(Boolean);
+    if (!words.length) {
+        return "Untitled";
+    }
+
+    const lines = [];
+    let currentLine = "";
+    for (const word of words) {
+        const nextLine = currentLine ? `${currentLine} ${word}` : word;
+        if (nextLine.length <= maxLineLength || !currentLine) {
+            currentLine = nextLine;
+            continue;
+        }
+        lines.push(currentLine);
+        currentLine = word;
+    }
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    return lines.join("<br>");
+}
+
+
 function resolveAnalysisExportHeight({ data, definition, fallbackHeight }) {
     const kind = definition?.kind || "";
     if (kind !== "group" && kind !== "ngram") {
@@ -221,7 +253,11 @@ function resolveAnalysisExportHeight({ data, definition, fallbackHeight }) {
         return fallbackHeight;
     }
 
-    const barHeight = kind === "ngram" ? 48 : 52;
+    if (kind === "group") {
+        return Math.max(1170, Math.min(fallbackHeight, barCount * 78 + 230));
+    }
+
+    const barHeight = 48;
     return Math.max(560, Math.min(fallbackHeight, barCount * barHeight + 180));
 }
 

@@ -36,7 +36,13 @@ export function buildAnalysisExportFilters() {
 
 export function resolveAnalysisExportDimensions({ definition, fallbackWidth, fallbackHeight }) {
     const kind = definition?.kind || "";
-    if (kind === "group" || kind === "ngram") {
+    if (kind === "group") {
+        return {
+            width: 1080,
+            height: Math.max(1170, fallbackHeight),
+        };
+    }
+    if (kind === "ngram") {
         return {
             width: 900,
             height: Math.max(900, fallbackHeight),

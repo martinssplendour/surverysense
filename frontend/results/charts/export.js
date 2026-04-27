@@ -1,6 +1,9 @@
 // Exports analysis results as PDF, DOCX, or PPTX by capturing Plotly chart images and posting them to the backend.
 import { RESULT_STORAGE_KEY, elements, state } from "../shared.js";
-import { displayColumnLabel, parseDownloadFilename } from "../shared/utils.js";
+import {
+    displayColumnLabel,
+    parseDownloadFilename,
+} from "../shared/utils.js";
 import { captureAnalysisChartImage, getPlotly } from "./exportFigure.js";
 import {
     buildAnalysisChartDefinitions,
@@ -232,13 +235,13 @@ function writeHtmlReportPreviewPage(previewWindow, { objectUrl, filename, format
         .chart-block { margin: 16px 0 24px; text-align: center; }
         .chart-block h2 { margin: 0 0 6px; font-size: 16px; color: var(--green); }
         .chart-block p { margin: 0 0 10px; color: #625b52; font-size: 12px; font-style: italic; line-height: 1.35; }
-        .chart-block img { max-width: 100%; max-height: 420px; object-fit: contain; }
+        .chart-block img { max-width: 100%; max-height: 620px; object-fit: contain; }
         .slide { width: 960px; height: 540px; padding: 44px 72px; background: #f7f2ea; box-shadow: 0 18px 56px rgba(58,44,27,.18); border: 1px solid rgba(89,68,42,.12); position: relative; overflow: hidden; }
         .slide-title { margin: 0 0 18px; color: #2f2b26; font-size: 28px; line-height: 1.12; letter-spacing: -.03em; }
         .slide-subtitle { max-width: 620px; margin: 0; color: #6d6359; font-size: 14px; line-height: 1.45; }
         .slide-cover { display: flex; flex-direction: column; justify-content: center; }
         .slide-cover .slide-title { max-width: 640px; font-size: 35px; }
-        .slide-chart img { max-width: 760px; max-height: 390px; object-fit: contain; display: block; margin-top: 12px; }
+        .slide-chart img { max-width: 912px; max-height: 507px; object-fit: contain; display: block; margin-top: 12px; }
         .slide-caption { color: #6d6359; font-size: 13px; margin: -6px 0 12px; }
         .slide-summary-grid { display: grid; gap: 16px; max-width: 680px; }
         .slide-summary-item h3 { margin: 0 0 5px; font-size: 20px; line-height: 1.15; }
@@ -528,6 +531,11 @@ async function captureRenderedAnalysisCharts() {
         return [];
     }
 
+    if (Array.isArray(state.analysisResult?.groups) && state.analysisResult.groups.length) {
+        const generatedGroupChart = await captureGeneratedGroupBarChart(plotly);
+        return generatedGroupChart ? [generatedGroupChart] : [];
+    }
+
     const plotSurfaces = Array.from(elements.analysisChart.querySelectorAll(".analysis-plot-surface"));
     if (!plotSurfaces.length) {
         return [];
@@ -571,4 +579,138 @@ async function captureRenderedAnalysisCharts() {
     );
 
     return images.filter(Boolean);
+}
+
+
+async function captureGeneratedGroupBarChart(plotly) {
+    const groups = Array.isArray(state.analysisResult?.groups)
+        ? [...state.analysisResult.groups]
+            .sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
+            .slice(0, 12)
+        : [];
+    if (!groups.length) {
+        return null;
+    }
+
+    const definition = buildAnalysisChartDefinitions(1)[0] || {
+        title: "Top themes",
+        caption: "Distribution of responses across the top themes.",
+        kind: "group",
+    };
+    const dimensions = resolveAnalysisExportDimensions({
+        definition,
+        fallbackWidth: 1200,
+        fallbackHeight: Math.max(1170, groups.length * 78 + 230),
+    });
+    const plotSurface = document.createElement("div");
+    plotSurface.style.position = "fixed";
+    plotSurface.style.left = "-10000px";
+    plotSurface.style.top = "0";
+    plotSurface.style.pointerEvents = "none";
+    plotSurface.style.width = `${dimensions.width}px`;
+    plotSurface.style.height = `${dimensions.height}px`;
+    document.body.appendChild(plotSurface);
+
+    try {
+        await plotly.newPlot(
+            plotSurface,
+            buildGeneratedGroupBarData(groups),
+            buildGeneratedGroupBarLayout(groups, dimensions),
+            {
+                displaylogo: false,
+                responsive: false,
+                staticPlot: true,
+            },
+        );
+        return {
+            title: definition.title || "Top themes",
+            caption: definition.caption || "Distribution of responses across the top themes.",
+            image_data_url: await captureAnalysisChartImage(plotly, plotSurface, {
+                width: dimensions.width,
+                height: dimensions.height,
+                definition,
+            }),
+        };
+    } catch (error) {
+        console.warn("[Verbatim App] Failed to generate the export bar chart; the report will skip that chart.", error);
+        return null;
+    } finally {
+        if (typeof plotly.purge === "function") {
+            plotly.purge(plotSurface);
+        }
+        plotSurface.remove();
+    }
+}
+
+
+function buildGeneratedGroupBarData(groups) {
+    return [
+        {
+            type: "bar",
+            orientation: "h",
+            y: groups.map((group) => group.label || "Unlabelled theme"),
+            x: groups.map((group) => Number(group.count || 0)),
+            text: groups.map((group) => String(Number(group.count || 0))),
+            textposition: "outside",
+            cliponaxis: false,
+            marker: {
+                color: groups.map((group) => group.is_noise ? "#9aa4b2" : "#2477F8"),
+                line: {
+                    color: groups.map((group) => group.is_noise ? "#818b98" : "#1b5dcc"),
+                    width: 1,
+                },
+            },
+            hovertemplate: [
+                "<b>%{y}</b>",
+                "Responses: %{x}",
+                "<extra></extra>",
+            ].join("<br>"),
+        },
+    ];
+}
+
+
+function buildGeneratedGroupBarLayout(groups, { width, height }) {
+    const maxCount = Math.max(...groups.map((group) => Number(group.count || 0)), 1);
+    return {
+        width,
+        height,
+        autosize: false,
+        margin: {
+            t: 30,
+            r: 110,
+            b: 86,
+            l: 360,
+        },
+        paper_bgcolor: "rgba(0, 0, 0, 0)",
+        plot_bgcolor: "#ffffff",
+        font: {
+            family: "\"Segoe UI\", Aptos, sans-serif",
+            color: "#172033",
+            size: 12,
+        },
+        uniformtext: {
+            minsize: 13,
+            mode: "show",
+        },
+        bargap: 0.28,
+        xaxis: {
+            title: {
+                text: "Responses",
+            },
+            gridcolor: "rgba(89, 104, 128, 0.12)",
+            zeroline: false,
+            range: [0, Math.ceil(maxCount * 1.1)],
+            fixedrange: true,
+        },
+        yaxis: {
+            automargin: true,
+            autorange: "reversed",
+            tickangle: 0,
+            tickfont: {
+                size: 14,
+            },
+            fixedrange: true,
+        },
+    };
 }

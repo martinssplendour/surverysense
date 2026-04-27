@@ -19,14 +19,14 @@ class SentenceEmbeddingService:
     def __init__(
         self,
         *,
-        cache_size: int = 4096,
+        cache_size: int = 512,
         max_retries: int = 1,
         retry_base_seconds: float = 0.75,
     ) -> None:
         self.cache_size = max(0, int(cache_size or 0))
         self.max_retries = max(0, int(max_retries or 0))
         self.retry_base_seconds = max(0.0, float(retry_base_seconds or 0.0))
-        self._cache: OrderedDict[str, tuple[float, ...]] = OrderedDict()
+        self._cache: OrderedDict[str, Any] = OrderedDict()
         self._cache_lock = Lock()
 
     @staticmethod
@@ -73,7 +73,7 @@ class SentenceEmbeddingService:
                 "numpy is required for embedding-based analysis."
             ) from exc
 
-        embeddings = np.asarray(vectors, dtype=float)
+        embeddings = np.asarray(vectors, dtype=np.float32)
         if embeddings.ndim != 2:
             raise TopicAnalysisDependencyError("Embedding provider returned an invalid embedding shape.")
 
@@ -169,7 +169,7 @@ class SentenceEmbeddingService:
             )
             for text in texts
         ]
-        vectors: list[list[float] | None] = [None] * len(texts)
+        vectors: list[Any | None] = [None] * len(texts)
         missing: OrderedDict[str, str] = OrderedDict()
 
         with self._cache_lock:
@@ -179,7 +179,7 @@ class SentenceEmbeddingService:
                     missing.setdefault(key, text)
                     continue
                 self._cache.move_to_end(key)
-                vectors[index] = list(cached_vector)
+                vectors[index] = cached_vector.copy()
 
         if missing:
             fetched_vectors = self._encode_uncached(
@@ -195,16 +195,13 @@ class SentenceEmbeddingService:
                 raise TopicAnalysisDependencyError(
                     f"{self._display_provider(provider)} embeddings response returned an unexpected number of vectors."
                 )
-            fetched_by_key = {
-                key: [float(value) for value in vector]
-                for key, vector in zip(missing.keys(), fetched_vectors)
-            }
+            fetched_by_key = dict(zip(missing.keys(), fetched_vectors))
             self._store_cached_vectors(fetched_by_key)
             for index, key in enumerate(cache_keys):
                 if vectors[index] is None:
-                    vectors[index] = list(fetched_by_key[key])
+                    vectors[index] = fetched_by_key[key]
 
-        return self._normalise_embedding_array([vector or [] for vector in vectors])
+        return self._normalise_embedding_array([vector if vector is not None else [] for vector in vectors])
 
     def _encode_uncached(
         self,
@@ -409,12 +406,21 @@ class SentenceEmbeddingService:
             f"{self._display_provider(provider)} embeddings request failed ({response.status_code}): {message}"
         )
 
-    def _store_cached_vectors(self, vectors_by_key: dict[str, list[float]]) -> None:
+    def _store_cached_vectors(self, vectors_by_key: dict[str, Any]) -> None:
         if self.cache_size <= 0:
             return
+        try:
+            import numpy as np
+        except Exception as exc:  # pragma: no cover - dependency error path
+            raise TopicAnalysisDependencyError(
+                "numpy is required for embedding-based analysis."
+            ) from exc
+
         with self._cache_lock:
             for key, vector in vectors_by_key.items():
-                self._cache[key] = tuple(float(value) for value in vector)
+                cached_vector = np.asarray(vector, dtype=np.float32)
+                cached_vector.setflags(write=False)
+                self._cache[key] = cached_vector
                 self._cache.move_to_end(key)
             while len(self._cache) > self.cache_size:
                 self._cache.popitem(last=False)

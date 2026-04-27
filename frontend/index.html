@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verbatim App</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260427f">
+    <link rel="stylesheet" href="/static/styles.css?v=20260427j">
 </head>
 <body class="upload-workspace-active">
     <header class="topbar">
@@ -15,7 +15,16 @@
             </div>
         </div>
         <div class="topbar-actions">
-            <button type="button" class="button button-primary topbar-link topbar-link-primary" id="upload-data-btn" hidden>Upload Data</button>
+            <button type="button" class="button button-primary topbar-link topbar-link-primary" id="upload-data-btn" hidden>
+                <span class="topbar-upload-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" focusable="false">
+                        <path d="M16 16l-4-4-4 4"></path>
+                        <path d="M12 12v9"></path>
+                        <path d="M20.4 17.4a5 5 0 0 0-2.4-9.4h-1.3A7 7 0 0 0 3 9.6 4.5 4.5 0 0 0 5.5 18H7"></path>
+                    </svg>
+                </span>
+                Upload Data
+            </button>
             <a class="button button-ghost topbar-link topbar-link-secondary" href="/auth/logout">Sign Out</a>
         </div>
     </header>
@@ -122,35 +131,36 @@
                 </section>
 
                 <section class="panel analysis-results-panel" id="analysis-results-panel" hidden>
-                    <div class="analysis-results-hero">
+                    <div class="analysis-results-header">
                         <div class="analysis-results-copy">
-                            <p class="analysis-results-kicker">Results</p>
-                            <h2 class="analysis-results-title">Analysis Output</h2>
+                            <h2 class="analysis-results-title">Analysis Results</h2>
                             <p class="analysis-results-subtitle" id="analysis-results-subtitle">
                                 Run an analysis to see charts, distributions, and representative responses here.
                             </p>
                         </div>
-                        <div class="workspace-actions analysis-results-actions">
-                            <div class="analysis-results-action-stack">
-                                <button type="button" class="button button-ghost analysis-results-change-button" id="back-to-analysis-setup-btn">Change Question or Method</button>
-                                <div class="analysis-export-split" aria-label="Report actions">
-                                    <button type="button" class="button button-primary analysis-export-preview-button" id="preview-analysis-report-btn">Preview</button>
-                                    <button type="button" class="button button-primary analysis-export-main-button" id="download-analysis-report-btn">Download Report</button>
-                                    <button
-                                        type="button"
-                                        class="button button-primary analysis-export-toggle-button"
-                                        id="analysis-export-toggle-btn"
-                                        aria-haspopup="menu"
-                                        aria-expanded="false"
-                                        aria-label="Choose report format"
-                                    >
-                                        <span aria-hidden="true">&#9662;</span>
-                                    </button>
-                                    <div class="analysis-export-menu" id="analysis-export-menu" role="menu" hidden>
-                                        <button type="button" class="analysis-export-menu-item" data-export-format="pdf" role="menuitemradio">PDF</button>
-                                        <button type="button" class="analysis-export-menu-item" data-export-format="docx" role="menuitemradio">Doc</button>
-                                        <button type="button" class="analysis-export-menu-item" data-export-format="pptx" role="menuitemradio">Slides</button>
-                                    </div>
+                        <div class="analysis-results-actions">
+                            <button type="button" class="button button-ghost analysis-results-change-button" id="back-to-analysis-setup-btn">
+                                <span class="analysis-action-icon analysis-action-icon-edit" aria-hidden="true"></span>
+                                Change question or method
+                                <span class="analysis-action-chevron" aria-hidden="true">&#8964;</span>
+                            </button>
+                            <div class="analysis-export-split" aria-label="Report actions">
+                                <button type="button" class="button button-primary analysis-export-preview-button" id="preview-analysis-report-btn">Preview</button>
+                                <button type="button" class="button button-primary analysis-export-main-button" id="download-analysis-report-btn">Download Report</button>
+                                <button
+                                    type="button"
+                                    class="button button-primary analysis-export-toggle-button"
+                                    id="analysis-export-toggle-btn"
+                                    aria-haspopup="menu"
+                                    aria-expanded="false"
+                                    aria-label="Choose report format"
+                                >
+                                    <span aria-hidden="true">&#9662;</span>
+                                </button>
+                                <div class="analysis-export-menu" id="analysis-export-menu" role="menu" hidden>
+                                    <button type="button" class="analysis-export-menu-item" data-export-format="pdf" role="menuitemradio">PDF</button>
+                                    <button type="button" class="analysis-export-menu-item" data-export-format="docx" role="menuitemradio">Doc</button>
+                                    <button type="button" class="analysis-export-menu-item" data-export-format="pptx" role="menuitemradio">Slides</button>
                                 </div>
                             </div>
                         </div>
@@ -181,6 +191,15 @@
                     <div class="analysis-chart" id="analysis-chart" hidden></div>
                     <div class="analysis-list" id="analysis-list"></div>
                     <div class="analysis-ngram-grid" id="analysis-ngram-grid"></div>
+                    <p class="analysis-secure-note">
+                        <span class="upload-secure-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" focusable="false">
+                                <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+                                <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                            </svg>
+                        </span>
+                        Your data is private and secure
+                    </p>
                 </section>
 
                 <section class="panel preview-panel" id="data-panel" hidden>
@@ -359,6 +378,6 @@
 
     <script src="/static/upload.js?v=20260427a" defer></script>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
-    <script type="module" src="/static/results.js?v=20260423c"></script>
+    <script type="module" src="/static/results.js?v=20260427a"></script>
 </body>
 </html>

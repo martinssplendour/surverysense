@@ -100,11 +100,9 @@ class PptxReportBuilder:
         width_inches, height_inches = self.chart_image_service.fit_image_to_bounds(
             width=chart.width,
             height=chart.height,
-            max_width=_PPTX_CONTENT_WIDTH * 0.8,
+            max_width=_PPTX_CONTENT_WIDTH,
             max_height=_PPTX_SLIDE_HEIGHT - content_top - 0.45,
         )
-        width_inches *= 0.9
-        height_inches *= 0.9
         left = max(0.25, _PPTX_CONTENT_LEFT - 0.12)
         top = max(content_top, (_PPTX_SLIDE_HEIGHT - height_inches) / 2)
         slide.shapes.add_picture(

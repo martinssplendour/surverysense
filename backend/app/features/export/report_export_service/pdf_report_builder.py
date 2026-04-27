@@ -49,7 +49,7 @@ class PdfReportBuilder:
                 if chart.caption:
                     story.append(Paragraph(self.content_service.escape(chart.caption), styles["plot_caption"]))
                 story.append(Spacer(1, 8))
-                story.append(self._build_chart_image(chart, max_width=document.width, max_height=320))
+                story.append(self._build_chart_image(chart, max_width=document.width, max_height=416))
                 if index < len(charts) - 1:
                     story.append(Spacer(1, 18))
             story.append(PageBreak())

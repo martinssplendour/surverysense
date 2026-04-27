@@ -40,7 +40,7 @@ class CommunityDetectionAnalysisService:
                 "networkx and numpy are required for community detection analysis."
             ) from exc
 
-        embedding_array = np.asarray(embeddings, dtype=float)
+        embedding_array = np.asarray(embeddings, dtype=np.float32)
         if embedding_array.ndim != 2:
             raise TopicAnalysisDependencyError("Community detection received invalid embedding data.")
 
@@ -56,7 +56,7 @@ class CommunityDetectionAnalysisService:
             )
 
         warnings: list[str] = []
-        cluster_embeddings = self._reduce_for_clustering(embedding_array, np, warnings=warnings)
+        cluster_embeddings, used_reduction = self._reduce_for_clustering(embedding_array, np, warnings=warnings)
         normalized_embeddings = self._normalize_rows(cluster_embeddings, np)
         graph = nx.Graph()
         graph.add_nodes_from(range(document_count))
@@ -94,7 +94,13 @@ class CommunityDetectionAnalysisService:
                 assignments=[self.NOISE_GROUP_ID for _index in range(document_count)],
                 warnings=warnings,
                 groups={str(self.NOISE_GROUP_ID): TopicModelGroupDefinition(is_noise=True)},
-                layout_positions=self._build_layout_positions(embedding_array, graph, nx, np),
+                layout_positions=self._build_layout_positions(
+                    embedding_array,
+                    graph,
+                    nx,
+                    np,
+                    reduced_embeddings=cluster_embeddings if used_reduction else None,
+                ),
             )
 
         ordered_communities, detector_warning = self._detect_communities(
@@ -132,7 +138,13 @@ class CommunityDetectionAnalysisService:
             warnings=warnings,
             groups=explicit_groups,
             network_edges=self._build_network_edges(graph),
-            layout_positions=self._build_layout_positions(embedding_array, graph, nx, np),
+            layout_positions=self._build_layout_positions(
+                embedding_array,
+                graph,
+                nx,
+                np,
+                reduced_embeddings=cluster_embeddings if used_reduction else None,
+            ),
         )
 
     @classmethod
@@ -411,7 +423,7 @@ class CommunityDetectionAnalysisService:
         )
 
     @staticmethod
-    def _reduce_for_clustering(embedding_array: Any, np: Any, *, warnings: list[str] | None = None) -> Any:
+    def _reduce_for_clustering(embedding_array: Any, np: Any, *, warnings: list[str] | None = None) -> tuple[Any, bool]:
         """UMAP reduction to 15 dims before graph construction.
 
         Only applied when the embedding space is high-dimensional enough to benefit
@@ -420,17 +432,17 @@ class CommunityDetectionAnalysisService:
         """
         n_docs, n_dims = int(embedding_array.shape[0]), int(embedding_array.shape[1])
         if n_docs < 10 or n_dims <= 15:
-            return embedding_array
+            return embedding_array, False
         if CommunityDetectionAnalysisService._has_incompatible_umap_runtime():
             if warnings is not None:
                 warnings.append(
                     "UMAP clustering reduction was skipped because the installed umap-learn and scikit-learn versions are incompatible, so community detection used the original embeddings."
                 )
-            return embedding_array
+            return embedding_array, False
         try:
             import umap as umap_lib
         except ImportError:  # pragma: no cover - optional dependency
-            return embedding_array
+            return embedding_array, False
 
         n_components = min(30, n_docs - 2)
         n_neighbors = min(15, n_docs - 1)
@@ -443,13 +455,13 @@ class CommunityDetectionAnalysisService:
             low_memory=False,
         )
         try:
-            return reducer.fit_transform(embedding_array)
+            return np.asarray(reducer.fit_transform(embedding_array), dtype=np.float32), True
         except Exception:  # pragma: no cover - depends on optional dependency versions
             if warnings is not None:
                 warnings.append(
                     "UMAP clustering reduction was skipped because dimensionality reduction failed, so community detection used the original embeddings."
             )
-            return embedding_array
+            return embedding_array, False
 
     @staticmethod
     def _has_incompatible_umap_runtime() -> bool:
@@ -481,12 +493,14 @@ class CommunityDetectionAnalysisService:
             return None
         return parsed_parts[0], parsed_parts[1]
 
-    @staticmethod
+    @classmethod
     def _build_layout_positions(
+        cls,
         embedding_array: Any,
         graph: Any,
         nx: Any,
         np: Any,
+        reduced_embeddings: Any | None = None,
     ) -> dict[int, tuple[float, float]]:
         """2D layout for scatter visualization.
 
@@ -495,6 +509,10 @@ class CommunityDetectionAnalysisService:
         layout (circular when no edges, spring otherwise) for small or low-dim data.
         """
         n_docs, n_dims = int(embedding_array.shape[0]), int(embedding_array.shape[1])
+        if reduced_embeddings is not None:
+            positions = cls._positions_from_reduced_embeddings(reduced_embeddings, np)
+            if positions:
+                return positions
 
         if (
             n_docs >= 4
@@ -540,6 +558,16 @@ class CommunityDetectionAnalysisService:
             out=np.zeros_like(embedding_array),
             where=norms != 0,
         )
+
+    @staticmethod
+    def _positions_from_reduced_embeddings(reduced_embeddings: Any, np: Any) -> dict[int, tuple[float, float]]:
+        reduced_array = np.asarray(reduced_embeddings, dtype=np.float32)
+        if reduced_array.ndim != 2 or int(reduced_array.shape[0]) == 0 or int(reduced_array.shape[1]) < 2:
+            return {}
+        return {
+            i: (round(float(reduced_array[i, 0]), 6), round(float(reduced_array[i, 1]), 6))
+            for i in range(int(reduced_array.shape[0]))
+        }
 
     @staticmethod
     def _top_candidate_indices(similarities: Any, *, neighbor_limit: int, np: Any) -> Any:

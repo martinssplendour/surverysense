@@ -4,6 +4,11 @@ services:
     env: python
     buildCommand: cd backend && pip install -r requirements.txt
     startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildFilter:
+      paths:
+        - backend/**
+        - frontend/**
+        - render.yaml
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
@@ -20,7 +25,7 @@ services:
       - key: TOPIC_EMBEDDING_RETRY_BASE_SECONDS
         value: "0.75"
       - key: TOPIC_EMBEDDING_CACHE_SIZE
-        value: "4096"
+        value: "512"
       - key: TOPIC_EMBEDDING_FALLBACK_PROVIDER
         value: openai
       - key: TOPIC_EMBEDDING_FALLBACK_MODEL

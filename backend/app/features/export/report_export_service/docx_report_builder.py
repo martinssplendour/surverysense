@@ -59,7 +59,7 @@ class DocxReportBuilder:
                         run.font.color.rgb = RGBColor(98, 91, 82)
                 image_paragraph = document.add_paragraph()
                 image_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                image_paragraph.add_run().add_picture(BytesIO(chart.image_bytes), width=DocxInches(6.45))
+                image_paragraph.add_run().add_picture(BytesIO(chart.image_bytes), width=DocxInches(7.2))
 
         document.add_heading(self.content_service.build_summary_heading(request), level=1)
         group_sections = self.content_service.build_group_summary_sections(request)

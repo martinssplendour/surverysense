@@ -1,5 +1,12 @@
 import { ANALYSIS_MODE_OPTIONS, elements, state } from "../shared.js";
-import { displayColumnLabel, escapeHtml, formatNumber } from "../shared/utils.js";
+import {
+    buildPercentLabel,
+    displayAnalysisMode,
+    displayColumnLabel,
+    escapeHtml,
+    formatNumber,
+    normalizeValue,
+} from "../shared/utils.js";
 import {
     clearAnalysisChart,
     renderAnalysisChart,
@@ -93,8 +100,7 @@ export function renderAnalysisOutput() {
     }
 
     setAnalysisEmptyState(false);
-    elements.analysisSummary.innerHTML = "";
-    elements.analysisSummary.hidden = true;
+    renderAnalysisInsightSummary(result);
     clearAnalysisMessage();
 
     if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
@@ -185,11 +191,27 @@ export function renderAnalysisResultsHeader() {
 
     const result = state.analysisResult;
     const originalResponseCount = Number(result.original_response_count || result.valid_document_count || 0);
-    const details = [
-        displayColumnLabel(result.text_column_name || ""),
-        `${formatNumber(originalResponseCount)} responses`,
-    ];
-    elements.analysisResultsSubtitle.textContent = details.join(" | ");
+    const questionLabel = displayColumnLabel(result.text_column_name || "");
+    const methodLabel = displayAnalysisMethodLabel(result.model_key || state.selectedAnalysisModel);
+    elements.analysisResultsSubtitle.textContent = `${questionLabel} | ${formatNumber(originalResponseCount)} responses`;
+    elements.analysisResultsSubtitle.innerHTML = `
+        <span class="analysis-results-meta-item">
+            <span class="analysis-results-meta-icon analysis-results-meta-icon-question" aria-hidden="true"></span>
+            <span>Question:</span>
+            <strong>${escapeHtml(questionLabel)}</strong>
+        </span>
+        <span class="analysis-results-meta-separator" aria-hidden="true"></span>
+        <span class="analysis-results-meta-item">
+            <span class="analysis-results-meta-icon analysis-results-meta-icon-method" aria-hidden="true"></span>
+            <span>Method:</span>
+            <strong>${escapeHtml(methodLabel)}</strong>
+        </span>
+        <span class="analysis-results-meta-separator" aria-hidden="true"></span>
+        <span class="analysis-results-meta-item">
+            <span>Responses:</span>
+            <strong>${formatNumber(originalResponseCount)}</strong>
+        </span>
+    `;
 }
 
 export function renderAnalysisMessage(kind, message) {
@@ -211,4 +233,95 @@ function setAnalysisEmptyState(show) {
     if (elements.analysisEmptyState) {
         elements.analysisEmptyState.hidden = !show;
     }
+}
+
+function renderAnalysisInsightSummary(result) {
+    if (!elements.analysisSummary) {
+        return;
+    }
+
+    const groups = Array.isArray(result.groups)
+        ? [...result.groups].sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
+        : [];
+    if (groups.length) {
+        elements.analysisSummary.hidden = false;
+        elements.analysisSummary.innerHTML = buildTopGroupInsight(groups[0]);
+        return;
+    }
+
+    const topNgramItem = findTopNgramItem(result);
+    if (topNgramItem) {
+        elements.analysisSummary.hidden = false;
+        elements.analysisSummary.innerHTML = buildTopNgramInsight(topNgramItem);
+        return;
+    }
+
+    elements.analysisSummary.innerHTML = "";
+    elements.analysisSummary.hidden = true;
+}
+
+function buildTopGroupInsight(group) {
+    const label = normalizeValue(group.label) || "Top Theme";
+    const count = Number(group.count || 0);
+    const percent = buildPercentLabel(group.share);
+    const percentText = percent === "Not available" ? "" : ` (${percent})`;
+    const insightCopy = percent === "Not available"
+        ? `${formatNumber(count)} response(s) mention this theme.`
+        : `${percent} of responses mention this theme.`;
+
+    return `
+        <article class="analysis-insight-card">
+            <div class="analysis-insight-icon" aria-hidden="true">
+                <span></span>
+            </div>
+            <div class="analysis-insight-copy">
+                <p class="analysis-insight-kicker">Top Insight</p>
+                <h3>${escapeHtml(label)} is the most common theme.</h3>
+                <p>${escapeHtml(insightCopy)}</p>
+            </div>
+            <div class="analysis-insight-divider" aria-hidden="true"></div>
+            <div class="analysis-insight-theme">
+                <p>Top theme</p>
+                <h4>${escapeHtml(label)}</h4>
+                <span>${formatNumber(count)} mentions${escapeHtml(percentText)}</span>
+            </div>
+        </article>
+    `;
+}
+
+function buildTopNgramInsight(item) {
+    const term = normalizeValue(item.term) || "Repeated Language";
+    const count = Number(item.document_count || item.count || 0);
+    return `
+        <article class="analysis-insight-card">
+            <div class="analysis-insight-icon" aria-hidden="true">
+                <span></span>
+            </div>
+            <div class="analysis-insight-copy">
+                <p class="analysis-insight-kicker">Top Insight</p>
+                <h3>${escapeHtml(term)} is the most repeated phrase.</h3>
+                <p>${formatNumber(count)} response(s) include this word or phrase.</p>
+            </div>
+            <div class="analysis-insight-divider" aria-hidden="true"></div>
+            <div class="analysis-insight-theme">
+                <p>Top phrase</p>
+                <h4>${escapeHtml(term)}</h4>
+                <span>${formatNumber(count)} responses</span>
+            </div>
+        </article>
+    `;
+}
+
+function findTopNgramItem(result) {
+    const buckets = Array.isArray(result.ngram_buckets) ? result.ngram_buckets : [];
+    return buckets
+        .flatMap((bucket) => Array.isArray(bucket.items) ? bucket.items : [])
+        .sort((left, right) => Number(right.document_count || right.count || 0) - Number(left.document_count || left.count || 0))[0] || null;
+}
+
+function displayAnalysisMethodLabel(modelKey) {
+    if (modelKey === "community") {
+        return "Topic Groups";
+    }
+    return displayAnalysisMode(modelKey);
 }
