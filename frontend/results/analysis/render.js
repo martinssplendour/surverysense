@@ -1,7 +1,6 @@
 import { ANALYSIS_MODE_OPTIONS, elements, state } from "../shared.js";
 import {
     buildPercentLabel,
-    displayAnalysisMode,
     displayColumnLabel,
     escapeHtml,
     formatNumber,
