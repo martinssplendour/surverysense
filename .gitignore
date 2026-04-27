@@ -28,12 +28,14 @@ backend/client_secret_*.json
 htmlcov/
 .pytest_cache/
 .tox/
+*.log
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+.claude/
 
 # OS
 .DS_Store
@@ -42,7 +44,13 @@ Thumbs.db
 # Large data files (use git-lfs or keep locally)
 *.csv
 *.xlsx
+*.zip
 !backend/tests/fixtures/**/*.csv
+
+# Local analysis/report artifacts
+junk/
+.review-friday/
+demo/*.pptx
 
 # Model weights downloaded at runtime
 backend/models/
