@@ -71,7 +71,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
     const baseYAxis = baseLayout?.yaxis || {};
 
     const overrides = {
-        paper_bgcolor: "#fffaf2",
+        paper_bgcolor: "#ffffff",
         title: {
             ...(baseLayout?.title || {}),
             text: "",
@@ -125,10 +125,14 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
     if (kind === "group") {
         overrides.margin = {
             ...baseMargin,
-            l: Math.max(Number(baseMargin.l || 0), 360),
-            r: Math.max(Number(baseMargin.r || 0), 110),
+            l: Math.max(Number(baseMargin.l || 0), 292),
+            r: Math.max(Number(baseMargin.r || 0), 46),
             t: Math.max(Number(baseMargin.t || 0), 44),
             b: Math.max(Number(baseMargin.b || 0), 76),
+        };
+        overrides.font = {
+            ...baseFont,
+            size: Math.max(Number(baseFont.size || 0), 16),
         };
         overrides.xaxis = {
             ...baseXAxis,
@@ -144,7 +148,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             },
             tickfont: {
                 ...(baseXAxis.tickfont || {}),
-                size: Math.max(Number(baseXAxis?.tickfont?.size || 0), 15),
+                size: Math.max(Number(baseXAxis?.tickfont?.size || 0), 16),
             },
         };
         overrides.yaxis = {
@@ -163,7 +167,7 @@ function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             },
             tickfont: {
                 ...(baseYAxis.tickfont || {}),
-                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 14),
+                size: Math.max(Number(baseYAxis?.tickfont?.size || 0), 18),
             },
         };
     }

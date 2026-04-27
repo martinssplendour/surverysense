@@ -23,9 +23,11 @@ const COMMUNITY_COLORS = [
 export function renderCommunityNetworkChart(points, edges, groups, { controlsHtml, openAnalysisGroupModalByIndex }) {
     elements.analysisChart.hidden = false;
     elements.analysisChart.innerHTML = `
-        <div class="analysis-chart-copy">
-            <h4 class="analysis-chart-title">Community detection network</h4>
-            <p class="analysis-chart-caption">Each dot is a response. Lines connect responses that were similar enough to influence community detection. Click a dot to open that community.</p>
+        <div class="analysis-theme-card-header">
+            <div class="analysis-chart-copy">
+                <h4 class="analysis-chart-title">Community detection network</h4>
+                <p class="analysis-chart-caption">Each dot is a response. Lines connect responses that were similar enough to influence community detection. Click a dot to open that community.</p>
+            </div>
             ${controlsHtml}
         </div>
         <div class="analysis-plot-shell">

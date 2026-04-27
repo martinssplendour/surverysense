@@ -8,7 +8,7 @@ from docx.shared import Inches as DocxInches
 from docx.shared import Pt as DocxPt
 from docx.shared import RGBColor
 
-from app.features.export.report_export_service._constants import _REPORT_TITLE_RGB
+from app.features.export.report_export_service._constants import _REPORT_BODY_RGB, _REPORT_TITLE_RGB
 from app.features.export.report_export_service.chart_image import DecodedChartImage
 
 
@@ -37,6 +37,7 @@ class DocxReportBuilder:
         for run in metadata.runs:
             run.font.name = "Aptos"
             run.font.size = DocxPt(10)
+            run.font.color.rgb = RGBColor(*_REPORT_TITLE_RGB)
 
         document.add_paragraph()
 
@@ -56,12 +57,12 @@ class DocxReportBuilder:
                         run.italic = True
                         run.font.name = "Aptos"
                         run.font.size = DocxPt(9)
-                        run.font.color.rgb = RGBColor(98, 91, 82)
+                        run.font.color.rgb = RGBColor(*_REPORT_BODY_RGB)
                 image_paragraph = document.add_paragraph()
                 image_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 image_paragraph.add_run().add_picture(BytesIO(chart.image_bytes), width=DocxInches(7.2))
 
-        document.add_heading(self.content_service.build_summary_heading(request), level=1)
+        self._add_section_heading(document, self.content_service.build_summary_heading(request))
         group_sections = self.content_service.build_group_summary_sections(request)
         if group_sections:
             for section in group_sections[:8]:
@@ -70,33 +71,47 @@ class DocxReportBuilder:
                 heading_run.bold = True
                 heading_run.font.name = "Aptos"
                 heading_run.font.size = DocxPt(11)
+                heading_run.font.color.rgb = RGBColor(*_REPORT_TITLE_RGB)
 
                 paragraph = document.add_paragraph()
                 run = paragraph.add_run(section.summary)
                 run.font.name = "Aptos"
                 run.font.size = DocxPt(10)
+                run.font.color.rgb = RGBColor(*_REPORT_BODY_RGB)
         else:
             for line in self.content_service.build_summary_lines(request):
                 paragraph = document.add_paragraph()
                 run = paragraph.add_run(line)
                 run.font.name = "Aptos"
                 run.font.size = DocxPt(10)
+                run.font.color.rgb = RGBColor(*_REPORT_BODY_RGB)
 
         representative_sections = self.content_service.build_representative_sections(request)
         if representative_sections:
-            document.add_heading(self.content_service.build_representative_heading(), level=1)
+            self._add_section_heading(document, self.content_service.build_representative_heading())
             for label, examples in representative_sections:
                 group_heading = document.add_paragraph()
                 group_run = group_heading.add_run(label)
                 group_run.bold = True
                 group_run.font.name = "Aptos"
                 group_run.font.size = DocxPt(11)
+                group_run.font.color.rgb = RGBColor(*_REPORT_TITLE_RGB)
                 for index, example in enumerate(examples, start=1):
                     paragraph = document.add_paragraph()
                     run = paragraph.add_run(f"{index}. {example}")
                     run.font.name = "Aptos"
                     run.font.size = DocxPt(10)
+                    run.font.color.rgb = RGBColor(*_REPORT_BODY_RGB)
 
         output = BytesIO()
         document.save(output)
         return output.getvalue()
+
+    @staticmethod
+    def _add_section_heading(document: Document, text: str) -> None:
+        heading = document.add_heading(level=1)
+        heading_run = heading.add_run(text)
+        heading_run.bold = True
+        heading_run.font.name = "Aptos Display"
+        heading_run.font.size = DocxPt(16)
+        heading_run.font.color.rgb = RGBColor(*_REPORT_TITLE_RGB)

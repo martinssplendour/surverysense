@@ -76,7 +76,7 @@ export function buildAnalysisChartDefinitions(surfaceCount) {
     return [
         {
             title: chartTitle || `${displayAnalysisMode(result.model_key)} distribution`,
-            caption: chartCaption,
+            caption: "",
             kind: "group",
         },
     ];

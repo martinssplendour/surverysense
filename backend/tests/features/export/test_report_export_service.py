@@ -98,6 +98,14 @@ class AnalysisReportExportServiceTests(TestCase):
         self.assertEqual(artifact.media_type, "application/pdf")
         self.assertTrue(artifact.content.startswith(b"%PDF"))
 
+    def test_pdf_report_styles_use_blue_headings_and_black_body_text(self) -> None:
+        styles = self.service.pdf_builder._build_styles()
+
+        for style_name in ("title", "subtitle", "section", "chart_title", "plot_title"):
+            self.assertEqual(styles[style_name].textColor.hexval(), "0x2477f8")
+        for style_name in ("plot_caption", "body"):
+            self.assertEqual(styles[style_name].textColor.hexval(), "0x000000")
+
     def test_export_report_builds_docx_document_with_expected_sections(self) -> None:
         self.request.format = "docx"
 
@@ -115,6 +123,8 @@ class AnalysisReportExportServiceTests(TestCase):
             self.assertIn("Representative documents (groups and top 3 responses)", document_xml)
             self.assertIn("Requests for resources", document_xml)
             self.assertIn("Give us clearer guidance and more classroom resources.", document_xml)
+            self.assertIn('w:val="2477F8"', document_xml)
+            self.assertIn('w:val="000000"', document_xml)
 
     def test_export_report_builds_pptx_document_with_expected_sections(self) -> None:
         self.request.format = "pptx"
@@ -137,6 +147,9 @@ class AnalysisReportExportServiceTests(TestCase):
             self.assertIn("Representative documents (groups and top 3 responses)", slide_xml)
             self.assertIn("Requests for resources", slide_xml)
             self.assertIn("Give us clearer guidance and more classroom resources.", slide_xml)
+            self.assertIn('val="FFFFFF"', slide_xml)
+            self.assertIn('val="2477F8"', slide_xml)
+            self.assertIn('val="000000"', slide_xml)
 
     def test_export_report_builds_ngram_representative_sections_when_store_available(self) -> None:
         class FakeResultStoreService:

@@ -17,7 +17,7 @@ from reportlab.platypus import (
     Spacer,
 )
 
-from app.features.export.report_export_service._constants import _REPORT_TITLE_COLOR
+from app.features.export.report_export_service._constants import _REPORT_BODY_COLOR, _REPORT_TITLE_COLOR
 from app.features.export.report_export_service.chart_image import DecodedChartImage
 
 
@@ -101,7 +101,7 @@ class PdfReportBuilder:
                 fontName="Helvetica",
                 fontSize=12,
                 leading=14,
-                textColor=colors.HexColor("#5e574f"),
+                textColor=colors.HexColor(_REPORT_TITLE_COLOR),
                 spaceAfter=0,
             ),
             "section": ParagraphStyle(
@@ -117,7 +117,7 @@ class PdfReportBuilder:
                 parent=base["Heading3"],
                 fontName="Helvetica-Bold",
                 fontSize=12,
-                textColor=colors.HexColor("#3d352d"),
+                textColor=colors.HexColor(_REPORT_TITLE_COLOR),
                 spaceAfter=2,
             ),
             "plot_title": ParagraphStyle(
@@ -125,7 +125,7 @@ class PdfReportBuilder:
                 parent=base["Heading3"],
                 fontName="Helvetica-Bold",
                 fontSize=12,
-                textColor=colors.HexColor("#3d352d"),
+                textColor=colors.HexColor(_REPORT_TITLE_COLOR),
                 spaceAfter=2,
             ),
             "plot_caption": ParagraphStyle(
@@ -134,7 +134,7 @@ class PdfReportBuilder:
                 fontName="Helvetica-Oblique",
                 fontSize=12,
                 leading=12,
-                textColor=colors.HexColor("#6d655b"),
+                textColor=colors.HexColor(_REPORT_BODY_COLOR),
                 spaceAfter=6,
             ),
             "body": ParagraphStyle(
@@ -143,7 +143,7 @@ class PdfReportBuilder:
                 fontName="Helvetica",
                 fontSize=12,
                 leading=14,
-                textColor=colors.HexColor("#3d352d"),
+                textColor=colors.HexColor(_REPORT_BODY_COLOR),
             ),
         }
 
@@ -159,7 +159,9 @@ class PdfReportBuilder:
     @staticmethod
     def _decorate_page(canvas, document) -> None:
         canvas.saveState()
-        canvas.setStrokeColor(colors.HexColor("#d8cdbf"))
+        canvas.setFillColor(colors.white)
+        canvas.rect(0, 0, document.pagesize[0], document.pagesize[1], stroke=0, fill=1)
+        canvas.setStrokeColor(colors.white)
         canvas.setFillColor(colors.HexColor("#2477F8"))
         canvas.setFont("Helvetica", 12)
         canvas.drawRightString(document.pagesize[0] - 42, 20, f"Page {document.page}")

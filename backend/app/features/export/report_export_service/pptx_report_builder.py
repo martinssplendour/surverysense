@@ -74,7 +74,7 @@ class PptxReportBuilder:
         subtitle_paragraph = subtitle_frame.paragraphs[0]
         subtitle_paragraph.text = self.content_service.build_subtitle(request)
         subtitle_paragraph.font.size = PptxPt(10)
-        subtitle_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_DETAIL_RGB)
+        subtitle_paragraph.font.color.rgb = PptxRGBColor(*_PPTX_TEXT_RGB)
         subtitle_paragraph.alignment = PP_ALIGN.LEFT
 
     def _build_chart_slide(self, presentation: Presentation, chart: DecodedChartImage) -> None:

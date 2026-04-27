@@ -54,8 +54,10 @@ function buildThemeRow(group, index, maxCount) {
     return `
         <button type="button" class="analysis-theme-row" data-analysis-group-index="${index}">
             <span class="analysis-theme-name">${escapeHtml(label)}</span>
-            <span class="analysis-theme-bar-track" aria-hidden="true">
-                <span class="analysis-theme-bar-fill${noiseClass}" style="width:${width}%"></span>
+            <span class="analysis-theme-bar-cell" aria-hidden="true">
+                <span class="analysis-theme-bar-track">
+                    <span class="analysis-theme-bar-fill${noiseClass}" style="width:${width}%"></span>
+                </span>
             </span>
             <span class="analysis-theme-count">${formatNumber(count)}</span>
             <span class="analysis-theme-percent">${escapeHtml(percentLabel)}</span>
