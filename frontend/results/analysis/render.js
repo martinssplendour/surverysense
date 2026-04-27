@@ -192,19 +192,11 @@ export function renderAnalysisResultsHeader() {
     const result = state.analysisResult;
     const originalResponseCount = Number(result.original_response_count || result.valid_document_count || 0);
     const questionLabel = displayColumnLabel(result.text_column_name || "");
-    const methodLabel = displayAnalysisMethodLabel(result.model_key || state.selectedAnalysisModel);
-    elements.analysisResultsSubtitle.textContent = `${questionLabel} | ${formatNumber(originalResponseCount)} responses`;
     elements.analysisResultsSubtitle.innerHTML = `
         <span class="analysis-results-meta-item">
             <span class="analysis-results-meta-icon analysis-results-meta-icon-question" aria-hidden="true"></span>
             <span>Question:</span>
             <strong>${escapeHtml(questionLabel)}</strong>
-        </span>
-        <span class="analysis-results-meta-separator" aria-hidden="true"></span>
-        <span class="analysis-results-meta-item">
-            <span class="analysis-results-meta-icon analysis-results-meta-icon-method" aria-hidden="true"></span>
-            <span>Method:</span>
-            <strong>${escapeHtml(methodLabel)}</strong>
         </span>
         <span class="analysis-results-meta-separator" aria-hidden="true"></span>
         <span class="analysis-results-meta-item">
@@ -245,14 +237,14 @@ function renderAnalysisInsightSummary(result) {
         : [];
     if (groups.length) {
         elements.analysisSummary.hidden = false;
-        elements.analysisSummary.innerHTML = buildTopGroupInsight(groups[0]);
+        elements.analysisSummary.innerHTML = buildTopGroupInsight(groups[0], result, groups);
         return;
     }
 
     const topNgramItem = findTopNgramItem(result);
     if (topNgramItem) {
         elements.analysisSummary.hidden = false;
-        elements.analysisSummary.innerHTML = buildTopNgramInsight(topNgramItem);
+        elements.analysisSummary.innerHTML = buildTopNgramInsight(topNgramItem, result);
         return;
     }
 
@@ -260,11 +252,10 @@ function renderAnalysisInsightSummary(result) {
     elements.analysisSummary.hidden = true;
 }
 
-function buildTopGroupInsight(group) {
+function buildTopGroupInsight(group, result, allGroups) {
     const label = normalizeValue(group.label) || "Top Theme";
     const count = Number(group.count || 0);
     const percent = buildPercentLabel(group.share);
-    const percentText = percent === "Not available" ? "" : ` (${percent})`;
     const insightCopy = percent === "Not available"
         ? `${formatNumber(count)} response(s) mention this theme.`
         : `${percent} of responses mention this theme.`;
@@ -275,21 +266,16 @@ function buildTopGroupInsight(group) {
                 <span></span>
             </div>
             <div class="analysis-insight-copy">
-                <p class="analysis-insight-kicker">Top Insight</p>
-                <h3>${escapeHtml(label)} is the most common theme.</h3>
+                <p class="analysis-insight-kicker">Top Theme</p>
+                <h3>${escapeHtml(label)}</h3>
                 <p>${escapeHtml(insightCopy)}</p>
             </div>
-            <div class="analysis-insight-divider" aria-hidden="true"></div>
-            <div class="analysis-insight-theme">
-                <p>Top theme</p>
-                <h4>${escapeHtml(label)}</h4>
-                <span>${formatNumber(count)} mentions${escapeHtml(percentText)}</span>
-            </div>
+            ${buildInsightRing(result)}
         </article>
     `;
 }
 
-function buildTopNgramInsight(item) {
+function buildTopNgramInsight(item, result) {
     const term = normalizeValue(item.term) || "Repeated Language";
     const count = Number(item.document_count || item.count || 0);
     return `
@@ -298,17 +284,52 @@ function buildTopNgramInsight(item) {
                 <span></span>
             </div>
             <div class="analysis-insight-copy">
-                <p class="analysis-insight-kicker">Top Insight</p>
-                <h3>${escapeHtml(term)} is the most repeated phrase.</h3>
+                <p class="analysis-insight-kicker">Top Phrase</p>
+                <h3>${escapeHtml(term)}</h3>
                 <p>${formatNumber(count)} response(s) include this word or phrase.</p>
             </div>
-            <div class="analysis-insight-divider" aria-hidden="true"></div>
-            <div class="analysis-insight-theme">
-                <p>Top phrase</p>
-                <h4>${escapeHtml(term)}</h4>
-                <span>${formatNumber(count)} responses</span>
-            </div>
+            ${buildInsightRing(result)}
         </article>
+    `;
+}
+
+function buildInsightRing(result) {
+    const skipped = Number(result.skipped_document_count || 0);
+    const analyzed = Number(result.original_response_count || result.valid_document_count || 0);
+    const total = skipped + analyzed;
+
+    const r = 26;
+    const circ = 2 * Math.PI * r;
+    const analyzedArc = total > 0 ? (analyzed / total) * circ : circ;
+
+    return `
+        <div class="analysis-insight-divider" aria-hidden="true"></div>
+        <div class="air-panel">
+            <div class="air-donut">
+                <svg viewBox="0 0 68 68" aria-hidden="true">
+                    <circle class="air-track" cx="34" cy="34" r="${r}" />
+                    <circle class="air-fill" cx="34" cy="34" r="${r}"
+                        stroke-dasharray="${analyzedArc.toFixed(2)} ${circ.toFixed(2)}"
+                        transform="rotate(-90 34 34)" />
+                </svg>
+                <div class="air-center">
+                    <span class="air-count">${formatNumber(skipped)}</span>
+                    <span class="air-sub">skipped</span>
+                </div>
+            </div>
+            <div class="air-legend">
+                <div class="air-legend-row">
+                    <span class="air-dot air-dot--analyzed"></span>
+                    <span class="air-legend-num">${formatNumber(analyzed)}</span>
+                    <span class="air-legend-label">Analysed</span>
+                </div>
+                <div class="air-legend-row">
+                    <span class="air-dot air-dot--skipped"></span>
+                    <span class="air-legend-num">${formatNumber(skipped)}</span>
+                    <span class="air-legend-label">Skipped</span>
+                </div>
+            </div>
+        </div>
     `;
 }
 
