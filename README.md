@@ -85,6 +85,8 @@ TOPIC_EMBEDDING_MAX_RETRIES=1
 TOPIC_EMBEDDING_CACHE_SIZE=4096
 TOPIC_EMBEDDING_FALLBACK_PROVIDER=openai
 OPENAI_API_KEY=...
+NLTK_DATA=./nltk_data
+TOPIC_INPUT_TRANSLATION_ENABLED=false
 TOPIC_TRANSLATION_ENABLED=true
 TOPIC_TRANSLATION_SOURCE_LANGUAGE=auto
 TOPIC_TRANSLATION_TARGET_LANGUAGE=en
@@ -107,6 +109,19 @@ TOPIC_AI_LABELING_RETRY_BASE_SECONDS=0.75
 ```
 
 To use OpenAI embeddings as the primary provider, set `TOPIC_EMBEDDING_PROVIDER=openai`, `OPENAI_API_KEY=...`, and optionally `TOPIC_EMBEDDING_MODEL=text-embedding-3-small`. If Gemini is primary and `OPENAI_API_KEY` is present, OpenAI can be used as the fallback when Gemini returns quota/rate errors.
+
+AI topic labels use representative responses plus capped n-gram frequency evidence. The default n-gram caps keep prompts focused:
+
+```bash
+TOPIC_AI_LABELING_MAX_UNIGRAMS=5
+TOPIC_AI_LABELING_MAX_BIGRAMS=3
+TOPIC_AI_LABELING_MAX_TRIGRAMS=3
+TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT=4
+```
+
+`TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT` is adaptive for small clusters. For example, a two-response cluster can still send phrases that appear in both responses, while larger clusters require the configured minimum document count.
+
+For multilingual datasets, `TOPIC_INPUT_TRANSLATION_ENABLED=true` translates non-English responses before embeddings and clustering. Leave it `false` for faster analysis with original-language embeddings; the app still applies language-aware safeguards, but language-only clusters are more likely than with input translation enabled.
 
 Useful session settings:
 
@@ -180,8 +195,11 @@ Important:
 
 - Python is pinned via `.python-version`
 - NLTK stopwords are downloaded during the Render build and exposed with `NLTK_DATA=./nltk_data`
+- Render should include the AI n-gram labeling env vars listed above when testing label quality
 - topic embeddings use Gemini/OpenAI API providers by default, avoiding large model downloads during build
 - frontend assets are served by FastAPI from the top-level `frontend/` directory
+
+After deploying config changes that affect labels or clustering, rerun the analysis in the app. Existing in-memory analysis results are not rewritten automatically.
 
 ## Testing
 
