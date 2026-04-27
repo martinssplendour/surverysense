@@ -711,6 +711,38 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(len(result.assignments), 10)
         self.assertIn("UMAP clustering reduction was skipped", " ".join(result.warnings))
 
+    def test_run_reuses_umap_clustering_projection_for_layout(self) -> None:
+        class _CountingReducer:
+            fit_calls = 0
+
+            def __init__(self, **kwargs) -> None:
+                self.n_components = int(kwargs["n_components"])
+
+            def fit_transform(self, embeddings):
+                type(self).fit_calls += 1
+                return [
+                    [float(row_index + component_index) for component_index in range(self.n_components)]
+                    for row_index, _embedding in enumerate(embeddings)
+                ]
+
+        fake_umap = types.ModuleType("umap")
+        fake_umap.UMAP = _CountingReducer
+        service = CommunityDetectionAnalysisService()
+        embeddings = [[float(index), *([0.0] * 15)] for index in range(10)]
+
+        with (
+            patch.object(CommunityDetectionAnalysisService, "_has_incompatible_umap_runtime", return_value=False),
+            patch.dict(sys.modules, {"umap": fake_umap}),
+        ):
+            result = service.run(
+                embeddings,
+                similarity_threshold=0.99,
+                max_neighbors=3,
+            )
+
+        self.assertEqual(_CountingReducer.fit_calls, 1)
+        self.assertEqual(result.layout_positions[0], (0.0, 1.0))
+
 
 class SentenceEmbeddingServiceTests(unittest.TestCase):
     def test_warm_up_is_noop_for_hosted_embedding_providers(self) -> None:
@@ -760,6 +792,7 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
         self.assertAlmostEqual(float(embeddings[0][0]), 0.6)
         self.assertAlmostEqual(float(embeddings[0][1]), 0.8)
         self.assertAlmostEqual(float(embeddings[1][1]), 1.0)
+        self.assertEqual(embeddings.dtype.name, "float32")
 
     def test_encode_uses_openai_embeddings_and_preserves_response_order(self) -> None:
         def fake_post(*args, **kwargs):
@@ -902,6 +935,9 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
         self.assertEqual([len(batch) for batch in calls], [1])
         self.assertEqual(first_embeddings.shape[0], 2)
         self.assertEqual(second_embeddings.shape[0], 1)
+        cached_vector = next(iter(service._cache.values()))
+        self.assertEqual(cached_vector.dtype.name, "float32")
+        self.assertFalse(cached_vector.flags.writeable)
 
     def test_model_execution_uses_fallback_embeddings_when_primary_provider_fails(self) -> None:
         _FakeFallbackEmbeddingService.calls = []
@@ -1189,7 +1225,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                 translation_service=translation_service,
             ),
             community_detection_service=_FakeCommunityDetectionService(),
-            ai_label_service=_FakeAiLabelService({"0": "Teaching Support"}),
+            ai_label_service=_FakeAiLabelService({"0": "Teaching Support Feedback"}),
         )
         dataframe = pd.DataFrame(
             {
@@ -1210,13 +1246,13 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         )
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.groups[0].label, "Teaching Support")
+        self.assertEqual(result.groups[0].label, "Teaching Support Feedback")
         # source_label is the English heuristic label built from input-translated texts
         self.assertIsNotNone(result.groups[0].source_label)
         self.assertIn("teaching support", result.groups[0].source_label.casefold())
         self.assertTrue(result.groups[0].ai_generated)
         self.assertFalse(result.groups[0].translated)
-        self.assertTrue(all("Teaching Support" not in batch for batch in translation_service.calls))
+        self.assertTrue(all("Teaching Support Feedback" not in batch for batch in translation_service.calls))
         self.assertIn("AI generated clearer labels", " ".join(result.warnings))
 
     def test_run_embeds_original_cleaned_text_but_keeps_filtered_topic_terms(self) -> None:
@@ -1368,7 +1404,8 @@ class TopicAnalysisServiceTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertFalse(result.groups[0].ai_generated)
-        self.assertEqual(result.groups[0].label, "Requests for classroom materials")
+        self.assertEqual(result.groups[0].label, "Classroom Materials")
+        self.assertNotIn("Requests for", result.groups[0].label)
         self.assertIn("AI topic labeling was skipped", " ".join(result.warnings))
 
     def test_invalid_column_returns_structured_error_response(self) -> None:

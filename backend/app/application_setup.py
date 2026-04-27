@@ -288,6 +288,9 @@ def _build_topic_analysis_service(
                 max_examples_per_group=settings.topic_ai_labeling_max_examples,
                 max_terms_per_group=settings.topic_ai_labeling_max_terms,
                 max_chars_per_example=settings.topic_ai_labeling_max_chars_per_example,
+                batch_size=settings.topic_ai_labeling_batch_size,
+                max_retries=settings.topic_ai_labeling_max_retries,
+                retry_base_seconds=settings.topic_ai_labeling_retry_base_seconds,
             )
         ),
     )

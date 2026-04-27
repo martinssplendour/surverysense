@@ -82,7 +82,7 @@ function setFile(file) {
 
     if (!file) {
         elements.fileInput.value = "";
-        elements.fileLabel.textContent = "Select a CSV file or drag it here";
+        elements.fileLabel.textContent = "Drag and drop your CSV file here";
         elements.fileMeta.textContent = "Accepted format: .csv";
         elements.processButton.disabled = true;
         elements.processButton.innerHTML = "Process File";

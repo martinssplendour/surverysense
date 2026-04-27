@@ -1553,25 +1553,73 @@ body.login-page .workflow {
     padding-top: 10px;
 }
 
-body.upload-workspace-active .workflow {
-    min-height: auto;
-    padding-top: 12px;
+.upload-icon {
+    display: grid;
+    place-items: center;
+    width: 45px;
+    height: 45px;
+    margin-bottom: 9px;
+    border-radius: 999px;
+    background: #eaf2ff;
+    color: #2477F8;
+}
+
+.upload-icon svg {
     display: block;
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.upload-secure-icon svg {
+    display: block;
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+body.upload-workspace-active {
+    display: block;
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+    color: #172033;
+}
+
+body.upload-workspace-active .workflow {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: calc(100vh - 64px);
+    min-height: 0;
+    padding-top: 0;
 }
 
 body.upload-workspace-active .topbar {
-    top: 12px;
-    left: 18px;
-    right: 18px;
-    gap: 12px;
-    padding: 6px 10px 8px;
-    border-radius: 16px;
+    top: 0;
+    left: 0;
+    right: 0;
+    gap: 16px;
+    min-height: 64px;
+    padding: 0 48px;
+    border: 1px solid #e5e9f0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+    backdrop-filter: none;
 }
 
 body.upload-workspace-active .topbar::after {
-    left: 10px;
-    right: 10px;
-    bottom: -8px;
+    display: none;
 }
 
 body.upload-workspace-active .topbar-actions {
@@ -1579,85 +1627,257 @@ body.upload-workspace-active .topbar-actions {
 }
 
 body.upload-workspace-active .topbar-link {
-    min-height: 24px;
-    min-width: 64px;
-    padding: 7px 12px;
-    font-size: 0.75rem;
+    min-height: 38px;
+    min-width: 82px;
+    padding: 9px 17px;
+    font-size: 0.86rem;
+}
+
+body.upload-workspace-active .topbar-link-secondary {
+    border-color: #e1e6ef;
+    color: #172033;
+    box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
 }
 
 body.upload-workspace-active .brand-lockup {
-    gap: 10px;
+    gap: 14px;
 }
 
 body.upload-workspace-active .brand-mark {
-    width: 25px;
-    height: 25px;
+    width: 29px;
+    height: 29px;
     border-radius: 8px;
-    font-size: 0.78rem;
+    color: #ffffff;
+    font-family: "Segoe UI Variable Text", Inter, "Segoe UI", Arial, sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
 }
 
 body.upload-workspace-active .brand-name {
-    font-size: 0.75rem;
+    color: #172033;
+    font-size: 0.95rem;
+    letter-spacing: 0;
 }
 
 body.upload-workspace-active .app-shell {
-    width: min(520px, calc(100vw - 28px));
+    width: 100%;
+    max-width: none;
     aspect-ratio: auto;
-    min-height: auto;
-    max-height: none;
-    margin: 0 auto;
-    display: block;
-    grid-template-rows: none;
-    padding: 13px;
-    border-radius: 18px;
+    height: 100vh;
+    min-height: 0;
+    max-height: 100vh;
+    margin: 0;
+    padding: 64px 24px 0;
+    display: grid;
+    border: 0;
+    border-radius: 0;
+    background:
+        linear-gradient(180deg, rgba(247, 249, 252, 0.94), rgba(255, 255, 255, 0.96) 70%),
+        #ffffff;
+    box-shadow: none;
+    backdrop-filter: none;
+    overflow: hidden;
 }
 
 body.upload-workspace-active .upload-view {
-    min-height: auto;
-    padding: 8px 0 0;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 20px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
 }
 
 body.upload-workspace-active .upload-card {
-    width: min(360px, 100%);
-    padding: 14px;
-    border-radius: 14px;
+    width: min(483px, calc(100vw - 48px));
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #e7ebf2;
+    border-radius: 13px;
+    background: #ffffff;
+    box-shadow: 0 21px 63px rgba(23, 32, 51, 0.12);
+}
+
+body.upload-workspace-active .upload-card-main {
+    display: grid;
+    justify-items: center;
+    padding: 22px 24px 14px;
+}
+
+body.upload-workspace-active .upload-icon {
+    display: grid;
+    place-items: center;
+    width: 45px;
+    height: 45px;
+    margin-bottom: 9px;
+    border-radius: 999px;
+    background: #eaf2ff;
+    color: #2477F8;
+}
+
+body.upload-workspace-active .upload-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+body.upload-workspace-active .upload-title {
+    margin: 0 0 17px;
+    color: #172033;
+    font-size: clamp(0.97rem, 1.4vw, 1.19rem);
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.18;
 }
 
 body.upload-workspace-active .dropzone {
-    gap: 5px;
-    padding: 19px 14px;
-    border-radius: 12px;
+    width: 100%;
+    min-height: 116px;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    padding: 19px 17px 16px;
+    border: 1.5px dashed #8ab8ff;
+    border-radius: 9px;
+    background: #fbfdff;
+    color: #172033;
+    transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
-body.upload-workspace-active .dropzone-label {
-    font-size: 0.75rem;
+body.upload-workspace-active .dropzone:hover,
+body.upload-workspace-active .dropzone.is-dragover {
+    transform: translateY(-1px);
+    border-color: #2477F8;
+    background: #f7fbff;
+    box-shadow: inset 0 0 0 1px rgba(36, 119, 248, 0.08);
+}
+
+body.upload-workspace-active .csv-file-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 29px;
+    height: 35px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #2477F8, #1f63cc);
+    color: #ffffff;
+    font-size: 0.54rem;
+    font-weight: 800;
+    line-height: 1;
 }
 
 body.upload-workspace-active .dropzone-title {
-    font-size: 0.75rem;
+    max-width: 100%;
+    margin-top: 4px;
+    color: #172033;
+    font-size: 0.73rem;
+    line-height: 1.35;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+body.upload-workspace-active .dropzone-divider {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+    width: min(168px, 80%);
+    color: #697386;
+    font-size: 0.6rem;
+}
+
+body.upload-workspace-active .dropzone-divider::before,
+body.upload-workspace-active .dropzone-divider::after {
+    content: "";
+    height: 1px;
+    background: #e3e8f1;
+}
+
+body.upload-workspace-active .dropzone-browse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 27px;
+    min-width: 83px;
+    padding: 0 13px;
+    border: 1.5px solid #2477F8;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #2477F8;
+    font-size: 0.63rem;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(36, 119, 248, 0.08);
 }
 
 body.upload-workspace-active .dropzone-caption {
-    font-size: 0.75rem;
+    margin-top: 9px;
+    color: #697386;
+    font-size: 0.59rem;
+    line-height: 1.4;
+    text-align: center;
 }
 
 body.upload-workspace-active .upload-actions {
-    margin-top: 11px;
+    width: 100%;
+    justify-content: center;
+    margin-top: 12px;
 }
 
 body.upload-workspace-active .upload-actions .button {
-    min-width: 74px;
+    min-width: 105px;
 }
 
 body.upload-workspace-active .button {
-    padding: 7px 11px;
-    font-size: 0.75rem;
+    padding: 8px 13px;
+    font-size: 0.63rem;
+}
+
+body.upload-workspace-active .button-primary {
+    color: #ffffff;
 }
 
 body.upload-workspace-active .status-message {
-    margin-top: 10px;
-    min-height: 12px;
-    font-size: 0.75rem;
+    width: 100%;
+    margin-top: 8px;
+    min-height: 13px;
+    font-size: 0.59rem;
+}
+
+body.upload-workspace-active .status-neutral {
+    color: #697386;
+}
+
+body.upload-workspace-active .upload-secure-note {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
+    color: #697386;
+    font-size: 0.6rem;
+}
+
+body.upload-workspace-active .upload-secure-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 13px;
+    height: 13px;
+    color: #2477F8;
+}
+
+body.upload-workspace-active .upload-secure-icon svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
 }
 
 body.analysis-results-workspace-active .workflow {
@@ -3791,6 +4011,72 @@ pre {
         right: 0;
         min-width: 0;
     }
+
+    body.upload-workspace-active .app-shell {
+        width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        padding: 64px 16px 0;
+        overflow: hidden;
+    }
+
+    body.upload-workspace-active .workflow {
+        height: calc(100vh - 64px);
+        min-height: 0;
+    }
+
+    body.upload-workspace-active .topbar {
+        flex-direction: row;
+        align-items: center;
+        min-height: 64px;
+        padding: 0 18px;
+    }
+
+    body.upload-workspace-active .topbar-actions {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    body.upload-workspace-active .topbar-link {
+        width: auto;
+        min-width: 78px;
+        padding: 8px 14px;
+    }
+
+    body.upload-workspace-active .brand-name {
+        font-size: 0.9rem;
+    }
+
+    body.upload-workspace-active .upload-view {
+        height: 100%;
+        min-height: 0;
+        gap: 14px;
+        padding: 0;
+    }
+
+    body.upload-workspace-active .upload-card {
+        width: min(483px, 100%);
+        border-radius: 13px;
+    }
+
+    body.upload-workspace-active .upload-card-main {
+        padding: 20px 17px 13px;
+    }
+
+    body.upload-workspace-active .dropzone {
+        min-height: 112px;
+        padding: 17px 14px 15px;
+    }
+
+    body.upload-workspace-active .upload-actions .button {
+        width: min(154px, 100%);
+    }
+
+    body.upload-workspace-active .upload-secure-note {
+        padding: 0 8px;
+        text-align: center;
+    }
 }
 
 @media (min-width: 861px) and (max-width: 1400px) {
@@ -3808,8 +4094,8 @@ pre {
     }
 
     body.upload-workspace-active .app-shell {
-        width: min(960px, calc(100vw - 28px), calc(100vh - 34px));
-        max-height: calc(100vh - 34px);
+        width: 100%;
+        max-height: none;
     }
 
     .dashboard-primary-action {
@@ -3861,8 +4147,8 @@ pre {
     }
 
     body.upload-workspace-active .app-shell {
-        width: min(820px, calc(100vw - 24px), calc(100vh - 24px));
-        max-height: calc(100vh - 24px);
+        width: 100%;
+        max-height: none;
     }
 
     .dashboard-upload-filename {

@@ -39,6 +39,7 @@ class TopicLabelPromptBuilder:
             "use it to confirm the dominant topic or spot qualifiers like 'too expensive'.\n"
             "- terms are keyword hints from the topic model; heuristic_label is a weak fallback — override both freely.\n"
             "- If the examples genuinely cover multiple unrelated topics, label it 'Mixed Responses'.\n"
+            "- Never use placeholders or vague labels such as 'Blah Blah Blah', 'Other', 'Miscellaneous', 'General Feedback', or 'Responses'.\n"
             "- No quotes, numbers, or explanations in the label.\n\n"
             f"Evidence:{evidence_blob}"
         )
