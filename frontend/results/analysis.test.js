@@ -101,15 +101,26 @@ async function loadAnalysisHarness({ fetchImpl }) {
     vi.doMock("./data/rows.js", () => ({
         parseJson: async (response) => response.json(),
     }));
+    vi.doMock("./modals.js", () => ({
+        closeAnalysisGroupModal,
+        openAnalysisGroupModalByIndex: vi.fn(),
+        openAnalysisNgramModal: vi.fn(),
+    }));
+    vi.doMock("./workspace/workspaceFilterBar.js", () => ({
+        renderFilterBar,
+    }));
 
     const analysis = await import("./analysis.js");
+    const { on } = await import("./events/bus.js");
     const { state } = await import("./shared.js");
-    analysis.configureResultsAnalysis({
-        closeAnalysisGroupModal,
-        handleMissingResultState,
-        renderFilterBar,
-        updateWorkspaceVisibility,
+
+    on("workspace:missing-result", ({ message }) => {
+        handleMissingResultState(message);
     });
+    on("workspace:visibility:update", () => {
+        updateWorkspaceVisibility();
+    });
+
     return {
         analysis,
         closeAnalysisGroupModal,

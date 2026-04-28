@@ -49,7 +49,9 @@ Thumbs.db
 
 # Local analysis/report artifacts
 junk/
+.qodo/
 .review-friday/
+.smoke-uvicorn-*.log
 demo/*.pptx
 
 # Model weights downloaded at runtime

@@ -1,0 +1,109 @@
+body.dashboard-workspace-active {
+    display: grid;
+    place-items: center;
+    padding: 24px 0;
+}
+
+body.upload-workspace-active {
+    display: grid;
+    place-items: center;
+    padding: 24px 0;
+}
+
+body.login-page {
+    display: grid;
+    place-items: center;
+    padding: clamp(28px, 5vw, 56px) 18px;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(36, 119, 248, 0.08), transparent 34%),
+        #ffffff;
+}
+
+.app-shell {
+    width: min(1120px, calc(100vw - 40px));
+    margin: 108px auto 32px;
+    padding: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+}
+
+body.login-page .app-shell {
+    width: min(520px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+body.upload-workspace-active .app-shell {
+    width: min(1100px, calc(100vw - 40px), calc(100vh - 56px));
+    aspect-ratio: 1 / 1;
+    min-height: auto;
+    max-height: calc(100vh - 56px);
+    margin: 0 auto;
+    display: grid;
+    grid-template-rows: auto 1fr;
+}
+
+body.dashboard-workspace-active .app-shell {
+    width: min(700px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 14px;
+    border-radius: 18px;
+}
+
+body.data-workspace-active .app-shell {
+    width: min(1640px, calc(100vw - 18px));
+    margin: 56px auto 8px;
+    padding: 4px 8px 10px;
+    border-radius: 22px;
+}
+
+body.analysis-setup-workspace-active {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+    padding: 76px 16px 48px;
+    background: #ffffff;
+}
+
+body.analysis-setup-workspace-active .app-shell {
+    position: static;
+    top: auto;
+    left: auto;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    transform: none;
+}
+
+body.analysis-results-workspace-active .app-shell {
+    width: min(1640px, calc(100vw - 18px));
+    margin: 54px auto 8px;
+    padding: 2px 12px 12px;
+    border-radius: 22px;
+}
+
+.workflow {
+    position: relative;
+    min-height: 760px;
+    padding-top: 24px;
+}
+
+body.dashboard-workspace-active .workflow {
+    min-height: auto;
+    padding-top: 10px;
+}

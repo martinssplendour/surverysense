@@ -9,9 +9,6 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -22,17 +19,23 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           pip install ruff mypy
 
+      - name: Architecture guardrails
+        run: python scripts/check_architecture.py
+
       - name: Ruff
-        run: python -m ruff check app tests
+        run: python -m ruff check backend/app backend/tests
 
       - name: Mypy
         run: python -m mypy
 
       - name: Backend tests
-        run: python -m unittest
+        run: python -m unittest discover -s backend/tests -t backend
+
+      - name: Frontend static smoke test
+        run: python scripts/smoke_frontend_static.py
 
   frontend:
     runs-on: ubuntu-latest
@@ -52,7 +55,7 @@ jobs:
         run: npm install
 
       - name: ESLint
-        run: npm run lint
+        run: npm run lint -- --max-warnings=0
 
       - name: Frontend tests
         run: npm test

@@ -26,6 +26,7 @@ The app is designed for small-team internal use. It runs on a single Render web 
 .
 ├── backend/     FastAPI app, analysis pipeline, auth, export logic
 ├── frontend/    HTML, CSS, and browser-side JS
+├── scripts/     local repo maintenance and smoke-test helpers
 ├── render.yaml  Render deployment config
 └── .python-version
 ```
@@ -206,11 +207,13 @@ After deploying config changes that affect labels or clustering, rerun the analy
 
 ## Testing
 
-Backend:
+Backend checks from the repo root:
 
 ```bash
-cd backend
-python -m unittest discover -s tests
+python scripts/check_architecture.py
+python -m ruff check backend/app backend/tests
+python -m mypy
+python -m unittest discover -s backend/tests -t backend
 ```
 
 Frontend syntax checks:
@@ -222,6 +225,26 @@ node --check ../frontend/results/charts.js
 node --check ../frontend/results/modals.js
 node --check ../frontend/upload.js
 ```
+
+Frontend lint and unit tests:
+
+```bash
+cd frontend
+npm run lint -- --max-warnings=0
+npm test
+```
+
+Static frontend smoke test from the repo root:
+
+```bash
+python scripts/smoke_frontend_static.py
+```
+
+The smoke test starts the FastAPI app locally, verifies anonymous users land on `/login`, then recursively checks the CSS import graph and browser ES module graph.
+
+## Local Artifacts
+
+The repo ignores local caches, generated reports, temporary review folders, logs, and large ad hoc exports. Keep throwaway work in ignored locations such as `junk/`, `.qodo/`, `.review-friday/`, or local `*.zip`/`*.log` files so the tracked tree stays focused on source, tests, docs, and deployment config.
 
 ## Known Constraints
 

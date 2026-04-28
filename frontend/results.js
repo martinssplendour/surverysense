@@ -12,7 +12,6 @@ import {
 import { configureResultsRows, parseJson } from "./results/data/rows.js";
 import {
     clearAnalysisMessage,
-    configureResultsAnalysis,
     getActiveAnalysisRequest,
     runAnalysis,
     renderAnalysisExportControls,
@@ -21,7 +20,6 @@ import {
     renderAnalysisPanel,
 } from "./results/analysis.js";
 import {
-    closeAnalysisGroupModal,
     openAnalysisGroupModalByIndex,
     openAnalysisNgramModal,
 } from "./results/modals.js";
@@ -37,7 +35,6 @@ import {
     renderFilterBar,
     renderPreviewTable,
     syncSliderRange,
-    updateWorkspaceVisibility,
 } from "./results/workspace/workspace.js";
 import { bindResultsEvents } from "./results/resultsEventBindings.js";
 
@@ -68,12 +65,6 @@ import { bindResultsEvents } from "./results/resultsEventBindings.js";
         getActiveAnalysisRequest,
         renderFilterBar,
         runAnalysis,
-    });
-    configureResultsAnalysis({
-        closeAnalysisGroupModal,
-        handleMissingResultState,
-        renderFilterBar,
-        updateWorkspaceVisibility,
     });
     configureResultsColumnRoles({
         handleMissingResultState,

@@ -1,11 +1,11 @@
-import { elements } from "./shared.js";
+import { elements } from "../../shared.js";
 import {
     buildExampleRowLabel,
     buildPercentLabel,
     escapeHtml,
     normalizeValue,
-} from "./shared/utils.js";
-import { getPlotly, queueAnalysisPlotResize } from "./plotlyRuntime.js";
+} from "../../shared/utils.js";
+import { getPlotly, queueAnalysisPlotResize } from "../plotlyRuntime.js";
 
 
 const COMMUNITY_COLORS = [

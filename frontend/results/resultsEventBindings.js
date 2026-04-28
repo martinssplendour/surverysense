@@ -1,3 +1,4 @@
+// Public event-binding entry point: wires DOM events to feature APIs without owning behavior.
 import { bindAnalysisEvents } from "./events/analysisEvents.js";
 import { bindDataExportEvents } from "./events/dataExportEvents.js";
 import { bindFilterTableEvents } from "./events/filterTableEvents.js";

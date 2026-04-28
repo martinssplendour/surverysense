@@ -1,7 +1,12 @@
+import importX from "eslint-plugin-import-x";
+
 export default [
     {
         files: ["**/*.js"],
         ignores: ["node_modules/**"],
+        plugins: {
+            import: importX,
+        },
         languageOptions: {
             ecmaVersion: "latest",
             sourceType: "module",
@@ -31,6 +36,11 @@ export default [
             "no-var": "error",
             "prefer-const": "error",
             "object-shorthand": ["error", "always"],
+            "no-console": ["warn", {
+                allow: ["warn", "error"],
+            }],
+            "no-param-reassign": "error",
+            "import/no-cycle": "error",
             "no-unused-vars": ["error", {
                 args: "none",
                 caughtErrors: "none",

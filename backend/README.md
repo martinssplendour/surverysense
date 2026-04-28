@@ -18,9 +18,13 @@ are set.
 
 ## Tests
 
+From the repo root:
+
 ```bash
-cd backend
-python -m unittest discover -s tests
+python scripts/check_architecture.py
+python -m ruff check backend/app backend/tests
+python -m mypy
+python -m unittest discover -s backend/tests -t backend
 ```
 
 ## Render

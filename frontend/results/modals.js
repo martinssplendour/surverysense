@@ -1,4 +1,4 @@
-// Stable facade for analysis response drilldown modal modules.
+// Public drilldown modal facade: expose analysis response modal APIs from one stable path.
 export {
     closeAnalysisGroupModal,
     openAnalysisGroupModalByIndex,

@@ -1,5 +1,5 @@
-import { elements } from "./shared.js";
-import { escapeHtml, formatNumber, normalizeValue } from "./shared/utils.js";
+import { elements } from "../../shared.js";
+import { escapeHtml, formatNumber, normalizeValue } from "../../shared/utils.js";
 
 
 const MAX_ITEMS_PER_NGRAM_CHART = 10;

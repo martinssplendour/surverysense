@@ -1,0 +1,10 @@
+:root {
+    --line: rgba(89, 68, 42, 0.14);
+    --text: #2a241f;
+    --muted: #6f675d;
+    --green: #2477F8;
+    --danger: #9a4a3f;
+    --shadow: 0 28px 60px rgba(73, 56, 34, 0.14);
+    --radius-xl: 28px;
+    --radius-md: 14px;
+}

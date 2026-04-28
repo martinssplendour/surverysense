@@ -1,10 +1,10 @@
-import { elements } from "./shared.js";
+import { elements } from "../../shared.js";
 import {
     buildPercentLabel,
     escapeHtml,
     formatNumber,
     normalizeValue,
-} from "./shared/utils.js";
+} from "../../shared/utils.js";
 
 
 export function renderGroupDistributionChart(groups, { controlsHtml = "", openAnalysisGroupModalByIndex }) {

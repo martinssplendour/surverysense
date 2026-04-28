@@ -1,4 +1,8 @@
-import { state } from "../shared.js";
+import {
+    applyDatasetPayload as applyDatasetPayloadState,
+    resetDatasetState,
+    state,
+} from "../shared.js";
 
 
 export function getDatasetLoadedCount(dataset) {
@@ -26,60 +30,12 @@ export function getDatasetTotalCount(dataset) {
 
 
 export function resetDatasetRows(dataset) {
-    if (dataset === "community_analysis") {
-        state.communityAnalysisRows = [];
-        state.communityAnalysisHasMore = false;
-        state.communityAnalysisLoading = false;
-        state.communityAnalysisTotalRows = 0;
-        state.communityAnalysisUnfilteredTotalRows = 0;
-        return;
-    }
-
-    if (dataset === "transformed") {
-        state.transformedRows = [];
-        state.transformedHasMore = false;
-        state.transformedLoading = false;
-        state.transformedTotalRows = 0;
-        return;
-    }
-
-    state.analysisRows = [];
-    state.analysisHasMore = false;
-    state.analysisLoading = false;
-    state.analysisTotalRows = 0;
+    resetDatasetState(dataset);
 }
 
 
 export function applyRowsPayload(dataset, payload) {
-    if (dataset === "community_analysis") {
-        state.communityAnalysisRows = Array.isArray(payload.rows) ? payload.rows : [];
-        state.communityAnalysisHasMore = Boolean(payload.has_more);
-        state.communityAnalysisTotalRows = Number(payload.total_row_count || 0);
-        state.communityAnalysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-        if (Array.isArray(payload.column_names)) {
-            state.communityAnalysisColumnNames = payload.column_names;
-        }
-        return;
-    }
-
-    if (dataset === "transformed") {
-        state.transformedRows = Array.isArray(payload.rows) ? payload.rows : [];
-        state.transformedHasMore = Boolean(payload.has_more);
-        state.transformedTotalRows = Number(payload.total_row_count || 0);
-        state.transformedUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-        if (Array.isArray(payload.column_names) && payload.column_names.length) {
-            state.transformedColumnNames = payload.column_names;
-        }
-        return;
-    }
-
-    state.analysisRows = Array.isArray(payload.rows) ? payload.rows : [];
-    state.analysisHasMore = Boolean(payload.has_more);
-    state.analysisTotalRows = Number(payload.total_row_count || 0);
-    state.analysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-    if (Array.isArray(payload.column_names) && payload.column_names.length) {
-        state.analysisColumnNames = payload.column_names;
-    }
+    applyDatasetPayloadState(dataset, payload);
 }
 
 

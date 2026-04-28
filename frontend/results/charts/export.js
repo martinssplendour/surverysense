@@ -1,4 +1,4 @@
-// Stable facade for analysis report export modules.
+// Public report-export facade: expose chart report preview/download helpers from one stable path.
 export {
     configureChartExport,
     downloadAnalysisReport,

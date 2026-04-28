@@ -1,0 +1,37 @@
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI Variable Text", Inter, "Segoe UI", Arial, sans-serif;
+    color: var(--text);
+    background: #ffffff;
+}
+
+button,
+input,
+table,
+summary {
+    font: inherit;
+}
+
+.brand-name,
+.brand-tagline,
+.eyebrow,
+.panel-kicker,
+.status-message,
+.dropzone-label,
+.dropzone-caption,
+.detail-label {
+    margin: 0;
+}
+
+.view {
+    animation: fade-up 360ms ease;
+}

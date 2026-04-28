@@ -22,14 +22,15 @@ ignore = [
 [tool.mypy]
 python_version = "3.12"
 files = [
-    "app/main.py",
-    "app/application_setup.py",
-    "app/features/common/route_context.py",
-    "app/features/analysis/routes.py",
-    "app/features/analysis/topic_analysis_services/service.py",
-    "app/features/ingestion/routes.py",
-    "app/features/results/routes.py",
+    "backend/app/main.py",
+    "backend/app/application_setup.py",
+    "backend/app/features/common/route_context.py",
+    "backend/app/features/analysis/routes.py",
+    "backend/app/features/analysis/topic_analysis_services/service.py",
+    "backend/app/features/ingestion/routes.py",
+    "backend/app/features/results/routes.py",
 ]
+mypy_path = "backend"
 check_untyped_defs = true
 disallow_incomplete_defs = true
 no_implicit_optional = true

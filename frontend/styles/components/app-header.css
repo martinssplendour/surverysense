@@ -1,4 +1,77 @@
-/* Canonical app header: keep logo and account actions identical across every workspace. */
+.topbar {
+    position: fixed;
+    top: 24px;
+    left: 32px;
+    right: 32px;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 12px 18px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 16px 34px rgba(73, 56, 34, 0.08);
+    backdrop-filter: blur(16px);
+    border-bottom: none;
+}
+
+.topbar::after {
+    content: "";
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: -12px;
+    height: 1px;
+    background: var(--line);
+}
+
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+#upload-data-btn {
+    margin-right: 10px;
+}
+
+.topbar-actions a.topbar-link {
+    border-radius: 999px;
+}
+
+.brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.brand-mark {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #2477F8, #1b5dcc);
+    color: #f5ecdf;
+    font-family: Georgia, Cambria, serif;
+    font-size: 1.55rem;
+    font-weight: 700;
+}
+
+.brand-name {
+    font-size: 1.38rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.brand-tagline {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
 body[class] .topbar {
     top: 0;
     left: 0;
@@ -84,4 +157,3 @@ body.upload-workspace-active .app-shell {
 body.upload-workspace-active .workflow {
     height: calc(100vh - 52px);
 }
-

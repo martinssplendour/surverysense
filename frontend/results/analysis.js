@@ -1,6 +1,4 @@
-// Re-export the split analysis modules so the rest of the app can keep importing
-// from a stable top-level path.
-export { configureResultsAnalysis } from "./analysisCallbacks.js";
+// Public analysis facade: re-export split analysis modules through a stable top-level path.
 export {
     clearAnalysisMessage,
     renderAnalysisControls,

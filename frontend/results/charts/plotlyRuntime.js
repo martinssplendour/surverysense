@@ -1,4 +1,4 @@
-import { elements } from "./shared.js";
+import { elements } from "../shared.js";
 
 
 export function purgePlotlyCharts(container) {

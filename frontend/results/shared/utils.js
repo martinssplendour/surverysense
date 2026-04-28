@@ -1,5 +1,5 @@
 // Pure utility functions: HTML escaping, number formatting, column label display, and Plotly label wrapping.
-import { ANALYSIS_MODE_OPTIONS } from "../shared.js";
+import { ANALYSIS_MODE_OPTIONS } from "./constants.js";
 
 export function summaryMetric(kind, label, value) {
     return `

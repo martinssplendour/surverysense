@@ -1,4 +1,4 @@
-// Shared re-exports for the results page runtime.
+// Public shared facade: expose constants, DOM references, and global results state.
 export {
     ANALYSIS_MODE_OPTIONS,
     FULL_DATA_INITIAL_VISIBLE_ROW_TARGET,
@@ -7,6 +7,18 @@ export {
     INITIAL_VISIBLE_ROW_TARGET,
     RESULT_STORAGE_KEY,
     ROW_PAGE_SIZE,
-} from "./constants.js";
+} from "./shared/constants.js";
 export { elements } from "./shared/elements.js";
-export { state } from "./shared/state.js";
+export {
+    applyDatasetPayload,
+    resetDatasetState,
+    resetState,
+    setActiveFilters,
+    setAnalysisResult,
+    setAnalysisRunning,
+    setAnalysisSelection,
+    setCurrentWorkspace,
+    setResultIdentity,
+    setSelectedFilter,
+    state,
+} from "./shared/state.js";

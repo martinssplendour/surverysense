@@ -1,5 +1,6 @@
 import { elements, state } from "../shared.js";
 import { clearDataExportMessage, renderDataExportControls } from "../dataExport.js";
+import { on } from "../events/bus.js";
 import { formatNumber, summaryMetric } from "../shared/utils.js";
 import {
     currentPreviewDataset,
@@ -10,6 +11,10 @@ import { renderAnalysisOutput, renderAnalysisPanel } from "../analysis.js";
 import { closeAnalysisGroupModal } from "../modals.js";
 import { renderFilterBar } from "./workspaceFilterBar.js";
 import { renderPreviewTable, syncSliderRange } from "./workspacePreviewTable.js";
+
+on("workspace:visibility:update", () => {
+    updateWorkspaceVisibility();
+});
 
 export function renderDashboard(payload) {
     const filename = typeof payload.filename === "string" && payload.filename.trim()

@@ -1,5 +1,4 @@
-// Re-export the split workspace modules so existing imports keep working while
-// persistence and view orchestration live in smaller files.
+// Public workspace facade: expose workspace navigation, persistence, filter, and preview APIs.
 export {
     closeFilterModal,
     openFilterModal,

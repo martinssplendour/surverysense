@@ -6,14 +6,14 @@ import {
     renderAnalysisChart,
     renderNgramCharts,
 } from "../charts.js";
-import { callbacks } from "../analysisCallbacks.js";
+import { renderFilterBar } from "../workspace/workspaceFilterBar.js";
 import { renderAnalysisExportControls } from "./renderControls.js";
 import { renderAnalysisInsightSummary } from "./renderInsightSummary.js";
 import { renderAnalysisResultsHeader } from "./renderResultsHeader.js";
 
 export function renderAnalysisOutput() {
     renderAnalysisResultsHeader();
-    callbacks.renderFilterBar();
+    renderFilterBar();
     renderAnalysisExportControls();
 
     if (!state.analysisResult) {

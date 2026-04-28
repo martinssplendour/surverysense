@@ -1,31 +1,36 @@
-@import url("./styles/00-foundation.css");
-@import url("./styles/01-upload.css");
-@import url("./styles/02-auth.css");
-@import url("./styles/03-dashboard.css");
-@import url("./styles/04-data-export-modals.css");
-@import url("./styles/05-analysis-setup.css");
-@import url("./styles/06-workspace-cross-view-overrides.css");
-@import url("./styles/06-upload-workspace.css");
-@import url("./styles/06-workspace-view-overrides.css");
-@import url("./styles/06-data-workspace-overrides.css");
-@import url("./styles/06-analysis-results-overrides.css");
-@import url("./styles/07-analysis-results.css");
-@import url("./styles/08-data-table-filters.css");
-@import url("./styles/09-analysis-controls.css");
-@import url("./styles/09-analysis-chart-shell.css");
-@import url("./styles/09-analysis-ngram.css");
-@import url("./styles/09-analysis-chart-fallback.css");
-@import url("./styles/09-analysis-examples.css");
-@import url("./styles/09-analysis-group-modal.css");
-@import url("./styles/09-analysis-ngram-panels.css");
-@import url("./styles/09-analysis-samples-motion.css");
-@import url("./styles/10-responsive-base.css");
-@import url("./styles/11-analysis-results-layout.css");
-@import url("./styles/11-analysis-results-actions.css");
-@import url("./styles/11-analysis-insight-summary.css");
-@import url("./styles/11-analysis-results-filter-bar.css");
-@import url("./styles/11-analysis-theme-list.css");
-@import url("./styles/11-analysis-results-responsive.css");
-@import url("./styles/12-data-view-polish.css");
-@import url("./styles/13-canonical-header.css");
-@import url("./styles/14-final-responsive.css");
+@layer tokens, base, layout, app-base, responsive-base, app-post-responsive, responsive-results, responsive-shell, utilities;
+
+@import url("./styles/00-tokens.css") layer(tokens);
+@import url("./styles/01-base.css") layer(base);
+@import url("./styles/02-layout.css") layer(layout);
+
+@import url("./styles/features/upload.css") layer(app-base);
+@import url("./styles/features/auth.css") layer(app-base);
+@import url("./styles/features/dashboard.css") layer(app-base);
+@import url("./styles/components/data-export-menu.css") layer(app-base);
+@import url("./styles/features/analysis-setup.css") layer(app-base);
+@import url("./styles/features/workspace.css") layer(app-base);
+@import url("./styles/features/analysis-results.css") layer(app-base);
+@import url("./styles/features/data-table.css") layer(app-base);
+@import url("./styles/components/analysis-controls.css") layer(app-base);
+@import url("./styles/components/analysis-chart-shell.css") layer(app-base);
+@import url("./styles/components/analysis-ngram.css") layer(app-base);
+@import url("./styles/components/analysis-chart-fallback.css") layer(app-base);
+@import url("./styles/components/analysis-examples.css") layer(app-base);
+@import url("./styles/components/analysis-group-modal.css") layer(app-base);
+@import url("./styles/components/analysis-ngram-panels.css") layer(app-base);
+@import url("./styles/components/analysis-samples-motion.css") layer(app-base);
+@import url("./styles/responsive.css");
+@import url("./styles/features/analysis-results-layout.css") layer(app-post-responsive);
+@import url("./styles/components/analysis-results-actions.css") layer(app-post-responsive);
+@import url("./styles/components/analysis-insight-summary.css") layer(app-post-responsive);
+@import url("./styles/components/analysis-results-filter-bar.css") layer(app-post-responsive);
+@import url("./styles/components/analysis-theme-list.css") layer(app-post-responsive);
+@import url("./styles/features/data-workspace.css") layer(app-post-responsive);
+@import url("./styles/components/app-header.css") layer(app-post-responsive);
+
+@layer utilities {
+    [hidden] {
+        display: none;
+    }
+}

@@ -1,8 +1,9 @@
 import { RESULT_STORAGE_KEY, state } from "../shared.js";
 import { displayAnalysisMode } from "../shared/utils.js";
 import { parseJson } from "../data/rows.js";
-import { callbacks } from "../analysisCallbacks.js";
 import { resetDatasetRows } from "../data/rowsDatasetState.js";
+import { emit } from "../events/bus.js";
+import { closeAnalysisGroupModal } from "../modals.js";
 import {
     renderAnalysisControls,
     renderAnalysisMessage,
@@ -11,6 +12,12 @@ import {
 
 let activeAnalysisAbortController = null;
 
+/**
+ * Updates the selected analysis column from the column select control.
+ *
+ * @param {Event} event Select change event.
+ * @returns {void}
+ */
 export function handleAnalysisColumnChange(event) {
     const target = event.target;
     if (!(target instanceof HTMLSelectElement)) {
@@ -22,6 +29,12 @@ export function handleAnalysisColumnChange(event) {
     renderAnalysisOutput();
 }
 
+/**
+ * Updates the selected analysis model from a method button click.
+ *
+ * @param {Event} event Click event from the analysis method container.
+ * @returns {void}
+ */
 export function handleAnalysisMethodClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -41,10 +54,20 @@ export function handleAnalysisMethodClick(event) {
     renderAnalysisOutput();
 }
 
+/**
+ * Runs analysis for the current selected controls.
+ *
+ * @returns {Promise<void>}
+ */
 export async function handleRunAnalysis() {
     await runAnalysis({ scrollIntoView: true });
 }
 
+/**
+ * Returns the analysis request currently represented by visible state.
+ *
+ * @returns {{ textColumnName: string, modelKey: string }} Active analysis request fields.
+ */
 export function getActiveAnalysisRequest() {
     return {
         textColumnName: state.analysisResult?.text_column_name || state.selectedAnalysisColumn || "",
@@ -52,6 +75,12 @@ export function getActiveAnalysisRequest() {
     };
 }
 
+/**
+ * Executes an analysis request and renders the resulting workspace state.
+ *
+ * @param {{ scrollIntoView?: boolean, preserveCurrentOutput?: boolean, requestedColumn?: string, requestedModel?: string }} [options] Run options.
+ * @returns {Promise<void>}
+ */
 export async function runAnalysis({
     scrollIntoView = false,
     preserveCurrentOutput = false,
@@ -106,7 +135,7 @@ export async function runAnalysis({
 }
 
 function beginAnalysisRun({ textColumnName, modelKey, preserveCurrentOutput }) {
-    callbacks.closeAnalysisGroupModal();
+    closeAnalysisGroupModal();
     state.selectedAnalysisColumn = textColumnName;
     state.selectedAnalysisModel = modelKey || state.selectedAnalysisModel;
     state.analysisRunning = true;
@@ -141,7 +170,9 @@ async function handleAnalysisResponse(response) {
     }
     const payload = await parseJson(response);
     if (response.status === 404) {
-        callbacks.handleMissingResultState(payload.detail || "The processed result is no longer available.");
+        emit("workspace:missing-result", {
+            message: payload.detail || "The processed result is no longer available.",
+        });
         return null;
     }
     if (!response.ok) {
@@ -161,7 +192,7 @@ function finishSuccessfulAnalysis({
     state.selectedAnalysisModel = payload.model_key || modelKey;
     invalidateRowDatasetsAfterAnalysis();
     state.currentWorkspace = "analysis-results";
-    callbacks.updateWorkspaceVisibility();
+    emit("workspace:visibility:update");
     renderAnalysisOutput();
     if (scrollIntoView) {
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -200,6 +231,6 @@ function finishFailedAnalysis({ error, textColumnName, modelKey }) {
         network_edges: [],
     };
     state.currentWorkspace = "analysis-results";
-    callbacks.updateWorkspaceVisibility();
+    emit("workspace:visibility:update");
     renderAnalysisOutput();
 }
