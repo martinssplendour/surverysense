@@ -1,0 +1,87 @@
+/* Canonical app header: keep logo and account actions identical across every workspace. */
+body[class] .topbar {
+    top: 0;
+    left: 0;
+    right: 0;
+    gap: 12px;
+    min-height: 52px;
+    padding: 0 clamp(18px, 2vw, 26px);
+    border: 0;
+    border-bottom: 1px solid #e7ebf2;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+    backdrop-filter: none;
+}
+
+body[class] .topbar::after {
+    display: none;
+}
+
+body[class] .brand-lockup {
+    gap: 12px;
+}
+
+body[class] .topbar .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+body[class] .topbar .brand-name {
+    color: #172033;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+body[class] .topbar-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+}
+
+body[class] #upload-data-btn {
+    margin-right: 0;
+}
+
+body[class] .topbar .topbar-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    min-width: 68px;
+    min-height: 30px;
+    padding: 6px 14px;
+    border-radius: 7px;
+    font-size: 0.66rem;
+    letter-spacing: 0;
+}
+
+body[class] .topbar .topbar-link-primary {
+    min-width: 100px;
+    border: 1px solid #dbe4f0;
+    background: #ffffff;
+    color: #2477f8;
+    box-shadow: none;
+}
+
+body[class] .topbar .topbar-link-secondary {
+    border-color: #e3e8f1;
+    background: #ffffff;
+    color: #172033;
+    box-shadow: none;
+}
+
+body.upload-workspace-active .app-shell {
+    padding-top: 52px;
+}
+
+body.upload-workspace-active .workflow {
+    height: calc(100vh - 52px);
+}
+

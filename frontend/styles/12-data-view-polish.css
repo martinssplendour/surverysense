@@ -1,0 +1,326 @@
+body.data-workspace-active {
+    background: #ffffff;
+    color: #172033;
+}
+
+body.data-workspace-active .topbar {
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: 52px;
+    padding: 0 clamp(18px, 2vw, 26px);
+    border: 0;
+    border-bottom: 1px solid #e7ebf2;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+    backdrop-filter: none;
+}
+
+body.data-workspace-active .topbar-actions {
+    gap: 14px;
+}
+
+body.data-workspace-active #upload-data-btn {
+    margin-right: 0;
+}
+
+body.data-workspace-active .brand-lockup {
+    gap: 12px;
+}
+
+body.data-workspace-active .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+}
+
+body.data-workspace-active .brand-name {
+    color: #172033;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+body.data-workspace-active .topbar-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    min-width: 68px;
+    min-height: 30px;
+    padding: 6px 14px;
+    border-radius: 7px;
+    font-size: 0.66rem;
+    letter-spacing: 0;
+}
+
+body.data-workspace-active .topbar-link-primary {
+    min-width: 100px;
+    border: 1px solid #dbe4f0;
+    background: #ffffff;
+    color: #2477f8;
+    box-shadow: none;
+}
+
+body.data-workspace-active .topbar-link-secondary {
+    border-color: #e3e8f1;
+    background: #ffffff;
+    color: #172033;
+    box-shadow: none;
+}
+
+body.data-workspace-active .app-shell {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 52px 24px 12px;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+body.data-workspace-active .workflow {
+    min-height: calc(100vh - 52px);
+    padding: 0;
+}
+
+body.data-workspace-active .results-view {
+    width: 100%;
+    justify-items: stretch;
+    gap: 0;
+}
+
+body.data-workspace-active .preview-panel {
+    width: 100%;
+    min-height: calc(100vh - 64px);
+    padding: 22px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+body.data-workspace-active .section-heading {
+    align-items: center;
+    gap: 18px;
+}
+
+body.data-workspace-active .panel-kicker {
+    display: none;
+}
+
+body.data-workspace-active .section-heading h3 {
+    margin: 0;
+    color: #172033;
+    font-size: 1.25rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    line-height: 1.15;
+}
+
+body.data-workspace-active .workspace-actions {
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+body.data-workspace-active .workspace-actions .button {
+    width: auto;
+    min-height: 34px;
+    padding: 8px 22px;
+    border-radius: 7px;
+    font-size: 0.72rem;
+    letter-spacing: 0;
+}
+
+body.data-workspace-active #data-analyse-btn {
+    min-width: 136px;
+}
+
+body.data-workspace-active #edit-columns-btn {
+    min-width: 114px;
+}
+
+body.data-workspace-active #back-to-dashboard-data-btn {
+    min-width: 150px;
+}
+
+body.data-workspace-active .data-export-toggle-button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0;
+}
+
+body.data-workspace-active .data-export-toggle-icon {
+    font-size: 0.9rem;
+}
+
+body.data-workspace-active .filter-bar {
+    margin-top: 14px;
+    min-height: 91px;
+    padding: 17px 22px 14px;
+    border: 1px solid #dfe5ee;
+    border-radius: 9px;
+    background: #ffffff;
+}
+
+body.data-workspace-active .filter-chip-row {
+    gap: 12px;
+}
+
+body.data-workspace-active .filter-chip-row-label {
+    color: #172033;
+    font-size: 0.75rem;
+    font-weight: 750;
+}
+
+body.data-workspace-active .filter-open-button {
+    min-height: 31px;
+    padding: 7px 16px;
+    border-color: #dfe5ee;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 0.72rem;
+    box-shadow: none;
+}
+
+body.data-workspace-active .active-filters {
+    gap: 8px;
+}
+
+body.data-workspace-active .active-filter-chip {
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+}
+
+body.data-workspace-active .active-filter-text,
+body.data-workspace-active .active-filter-remove,
+body.data-workspace-active .filter-active-note {
+    font-size: 0.72rem;
+}
+
+body.data-workspace-active .filter-active-note {
+    margin-top: 14px;
+    color: #697386;
+}
+
+body.data-workspace-active .table-controls {
+    gap: 36px;
+    min-height: 42px;
+    margin-top: 10px;
+    padding: 0 22px;
+    border: 1px solid #dfe5ee;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+body.data-workspace-active .preview-toggle {
+    gap: 8px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #172033;
+    font-size: 0.72rem;
+}
+
+body.data-workspace-active .preview-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+}
+
+body.data-workspace-active .table-row-status,
+body.data-workspace-active .table-slider-label {
+    color: #697386;
+    font-size: 0.72rem;
+}
+
+body.data-workspace-active .table-scroll-control {
+    gap: 22px;
+    min-width: 220px;
+}
+
+body.data-workspace-active .table-controls input[type="range"] {
+    height: 16px;
+}
+
+body.data-workspace-active .table-wrap {
+    height: calc(100vh - 206px);
+    margin-top: 10px;
+    border-color: #dfe5ee;
+    border-radius: 8px;
+}
+
+body.data-workspace-active th,
+body.data-workspace-active td {
+    min-width: 110px;
+    max-width: 220px;
+    padding: 9px 12px;
+    font-size: 0.75rem;
+}
+
+body.data-workspace-active .row-number-header,
+body.data-workspace-active .row-number-cell {
+    min-width: 44px;
+    max-width: 44px;
+}
+
+@media (max-width: 860px) {
+    body.data-workspace-active .topbar {
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        min-height: 52px;
+    }
+
+    body.data-workspace-active .topbar-actions {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.data-workspace-active .topbar-link {
+        min-width: 0;
+        padding: 6px 10px;
+    }
+
+    body.data-workspace-active .topbar-upload-icon {
+        display: none;
+    }
+
+    body.data-workspace-active .app-shell {
+        padding: 52px 12px 12px;
+    }
+
+    body.data-workspace-active .preview-panel {
+        padding-top: 16px;
+    }
+
+    body.data-workspace-active .section-heading,
+    body.data-workspace-active .workspace-actions,
+    body.data-workspace-active .table-controls {
+        align-items: stretch;
+    }
+
+    body.data-workspace-active .workspace-actions .button,
+    body.data-workspace-active .data-export-toggle-button {
+        width: 100%;
+    }
+
+    body.data-workspace-active .table-controls {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    body.data-workspace-active .table-scroll-control {
+        min-width: 0;
+    }
+}
+

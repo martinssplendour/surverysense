@@ -1,0 +1,59 @@
+body.analysis-results-workspace-active .analysis-results-panel {
+    min-height: calc(100vh - 84px);
+    padding: 6px 24px 28px;
+    display: grid;
+    gap: 20px;
+    align-content: start;
+    background: #ffffff;
+    border-color: rgba(95, 72, 44, 0.16);
+    box-shadow: 0 20px 50px rgba(73, 56, 34, 0.08);
+}
+
+body.data-workspace-active .workflow {
+    min-height: calc(100vh - 68px);
+    padding-top: 0;
+}
+
+body.analysis-setup-workspace-active .workflow {
+    min-height: auto;
+    padding-top: 0;
+}
+
+body.login-page .workflow {
+    min-height: auto;
+    padding-top: 10px;
+}
+
+.upload-icon {
+    display: grid;
+    place-items: center;
+    width: 45px;
+    height: 45px;
+    margin-bottom: 9px;
+    border-radius: 999px;
+    background: #eaf2ff;
+    color: #2477F8;
+}
+
+.upload-icon svg {
+    display: block;
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.upload-secure-icon svg {
+    display: block;
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+

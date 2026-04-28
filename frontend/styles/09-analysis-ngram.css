@@ -1,0 +1,80 @@
+.analysis-ngram-plot-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    gap: 0;
+    align-items: start;
+}
+
+.analysis-ngram-column {
+    display: grid;
+    gap: 0;
+    padding: 0 22px;
+}
+
+.analysis-ngram-column:first-child {
+    padding-left: 0;
+}
+
+.analysis-ngram-column:last-child {
+    padding-right: 0;
+}
+
+.analysis-ngram-column:not(:last-child) {
+    border-right: 1px solid #e2e6f0;
+}
+
+.analysis-ngram-column-title {
+    margin: 0 0 8px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid #e8ecf4;
+    color: #172033;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.analysis-ngram-list {
+    display: grid;
+}
+
+.analysis-ngram-row {
+    display: grid;
+    grid-template-columns: minmax(72px, 130px) minmax(40px, 1fr) minmax(22px, auto);
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border: 0;
+    border-bottom: 1px solid #f0f2f7;
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+}
+
+.analysis-ngram-row:last-child {
+    border-bottom: 0;
+}
+
+.analysis-ngram-row:hover,
+.analysis-ngram-row:focus-visible {
+    background: #fbfdff;
+    outline: none;
+}
+
+.analysis-ngram-name {
+    min-width: 0;
+    font-size: 0.55rem;
+    font-weight: 500;
+    color: #172033;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.analysis-ngram-count {
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: #566176;
+    text-align: right;
+}
+

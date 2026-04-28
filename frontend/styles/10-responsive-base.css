@@ -1,0 +1,365 @@
+@media (max-width: 860px) {
+    .app-shell {
+        width: min(100vw - 22px, 100%);
+        margin: 12px auto;
+        padding: 18px;
+    }
+
+    .topbar,
+    .results-header,
+    .section-heading,
+    .analysis-results-hero {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .topbar-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #upload-data-btn {
+        margin-right: 0;
+    }
+
+    .topbar-actions a.topbar-link {
+        border-radius: 999px;
+        margin-left: 0;
+    }
+
+    .workflow {
+        min-height: auto;
+    }
+
+    .upload-view {
+        min-height: auto;
+        padding: 20px 0 12px;
+    }
+
+    .upload-actions {
+        flex-direction: column;
+    }
+
+    .table-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-bar-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-controls-row {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-role-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-controls {
+        grid-template-columns: 1fr;
+    }
+
+    body.analysis-setup-workspace-active .analysis-panel {
+        padding: 24px 18px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-setup-heading {
+        gap: 16px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-control-row {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-question-section {
+        margin-top: 32px;
+        padding-bottom: 32px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-methods {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-method {
+        grid-template-columns: 64px minmax(0, 1fr);
+        min-height: 132px;
+        padding: 22px 18px 22px 54px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-method-icon {
+        width: 58px;
+        height: 58px;
+        font-size: 1.35rem;
+    }
+
+    body.analysis-setup-workspace-active .analysis-help {
+        align-items: flex-start;
+        margin-top: 28px;
+    }
+
+    body.analysis-setup-workspace-active .analysis-help::after {
+        display: none;
+    }
+
+    .analysis-group-modal-card {
+        width: min(100vw - 16px, 100%);
+        max-height: min(92vh, 920px);
+    }
+
+    .analysis-group-modal-card.analysis-group-modal-card-ngram {
+        width: min(100vw - 16px, 100%);
+        height: min(86vh, 720px);
+        max-height: min(86vh, 720px);
+    }
+
+    .analysis-group-modal-topbar,
+    .analysis-group-modal-body {
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    .analysis-group-modal-card.analysis-group-modal-card-ngram .analysis-group-modal-body {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .analysis-group-modal-section-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analysis-group-modal-section-header .button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .analysis-example {
+        padding: 16px;
+    }
+
+    .dashboard-ready-block {
+        padding: 36px 24px 28px;
+    }
+
+    .dashboard-primary-action {
+        min-width: 0;
+    }
+
+    .dashboard-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .table-scroll-control {
+        min-width: 0;
+    }
+
+    .button {
+        width: 100%;
+    }
+
+    .data-export-dropdown {
+        width: auto;
+    }
+
+    .data-export-toggle-button {
+        width: 46px;
+        min-width: 46px;
+    }
+
+    .analysis-results-actions .button {
+        min-width: 0;
+    }
+
+    .analysis-results-action-stack {
+        width: 100%;
+        max-width: none;
+    }
+
+    .analysis-export-split {
+        grid-template-columns: 76px minmax(0, 1fr) 52px;
+    }
+
+    .analysis-export-toggle-button {
+        width: 52px;
+        min-width: 52px;
+    }
+
+    .analysis-export-menu {
+        left: 0;
+        right: 0;
+        min-width: 0;
+    }
+
+    body.upload-workspace-active .app-shell {
+        width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        padding: 64px 16px 0;
+        overflow: hidden;
+    }
+
+    body.upload-workspace-active .workflow {
+        height: calc(100vh - 64px);
+        min-height: 0;
+    }
+
+    body.upload-workspace-active .topbar {
+        flex-direction: row;
+        align-items: center;
+        min-height: 64px;
+        padding: 0 18px;
+    }
+
+    body.upload-workspace-active .topbar-actions {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    body.upload-workspace-active .topbar-link {
+        width: auto;
+        min-width: 78px;
+        padding: 8px 14px;
+    }
+
+    body.upload-workspace-active .brand-name {
+        font-size: 0.9rem;
+    }
+
+    body.upload-workspace-active .upload-view {
+        height: 100%;
+        min-height: 0;
+        gap: 14px;
+        padding: 0;
+    }
+
+body.upload-workspace-active .upload-card {
+        width: min(461px, 100%);
+        border-radius: 13px;
+    }
+
+    body.upload-workspace-active .upload-card-main {
+        padding: 20px 17px 13px;
+    }
+
+    body.upload-workspace-active .dropzone {
+        min-height: 112px;
+        padding: 17px 14px 15px;
+    }
+
+    body.upload-workspace-active .upload-actions .button {
+        width: min(154px, 100%);
+    }
+
+    body.upload-workspace-active .upload-secure-note {
+        padding: 0 8px;
+        text-align: center;
+    }
+}
+
+@media (min-width: 861px) and (max-width: 1400px) {
+    .topbar {
+        left: 22px;
+        right: 22px;
+    }
+
+    body.analysis-setup-workspace-active .app-shell {
+        width: min(760px, calc(100vw - 28px));
+    }
+
+    body.login-page .app-shell {
+        width: min(900px, calc(100vw - 28px));
+    }
+
+    body.upload-workspace-active .app-shell {
+        width: 100%;
+        max-height: none;
+    }
+
+    .dashboard-primary-action {
+        min-width: 420px;
+    }
+}
+
+@media (min-width: 861px) and (max-width: 1180px) {
+    .topbar {
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        padding: 10px 14px 12px;
+    }
+
+    .topbar::after {
+        left: 14px;
+        right: 14px;
+    }
+
+    .brand-mark {
+        width: 44px;
+        height: 44px;
+        font-size: 1.35rem;
+    }
+
+    .brand-name {
+        font-size: 1.2rem;
+    }
+
+    body.data-workspace-active .app-shell {
+        width: calc(100vw - 12px);
+        margin-top: 48px;
+        padding: 4px 6px 8px;
+    }
+
+    body.analysis-results-workspace-active .app-shell {
+        width: calc(100vw - 12px);
+        margin-top: 44px;
+        padding: 2px 8px 10px;
+    }
+
+    body.analysis-setup-workspace-active .app-shell {
+        width: min(740px, calc(100vw - 24px));
+    }
+
+    body.login-page .app-shell {
+        width: min(820px, calc(100vw - 24px));
+    }
+
+    body.upload-workspace-active .app-shell {
+        width: 100%;
+        max-height: none;
+    }
+
+    .dashboard-upload-filename {
+        font-size: clamp(1.8rem, 3vw, 2.35rem);
+    }
+
+    .dashboard-primary-action {
+        min-width: 340px;
+        font-size: 1.1rem;
+    }
+
+    .analysis-results-title {
+        font-size: clamp(2rem, 3.2vw, 2.7rem);
+    }
+
+    .analysis-results-subtitle {
+        font-size: 0.98rem;
+    }
+
+    .analysis-results-actions .button {
+        min-width: 176px;
+    }
+}
+
+.topbar-upload-icon,
+.topbar-upload-icon svg {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+

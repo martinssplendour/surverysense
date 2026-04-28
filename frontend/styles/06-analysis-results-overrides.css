@@ -1,0 +1,235 @@
+body.analysis-results-workspace-active .topbar {
+    padding-bottom: 12px;
+}
+
+body.analysis-results-workspace-active .topbar {
+    top: 0;
+    left: 0;
+    right: 0;
+    gap: 12px;
+    padding: 10px clamp(18px, 2vw, 28px) 12px;
+    border-radius: 0 0 18px 18px;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    box-shadow: 0 10px 24px rgba(73, 56, 34, 0.08);
+}
+
+body.analysis-results-workspace-active .topbar::after {
+    display: none;
+}
+
+body.analysis-results-workspace-active .topbar-actions {
+    gap: 8px;
+}
+
+body.analysis-results-workspace-active .topbar-link {
+    min-height: 26px;
+    min-width: 72px;
+    padding: 7px 12px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .brand-lockup {
+    gap: 10px;
+}
+
+body.analysis-results-workspace-active .brand-mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+}
+
+body.analysis-results-workspace-active .brand-name {
+    font-size: 0.78rem;
+}
+
+body.analysis-results-workspace-active .analysis-results-copy {
+    gap: 5px;
+}
+
+body.analysis-results-workspace-active .analysis-results-kicker {
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-results-title {
+    font-size: clamp(1.2rem, 2vw, 1.7rem);
+}
+
+body.analysis-results-workspace-active .analysis-results-subtitle {
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+body.analysis-results-workspace-active .analysis-results-actions {
+    gap: 8px;
+}
+
+body.analysis-results-workspace-active .analysis-results-action-stack {
+    width: 216px;
+    gap: 6px;
+}
+
+body.analysis-results-workspace-active .analysis-results-change-button,
+body.analysis-results-workspace-active .analysis-export-preview-button,
+body.analysis-results-workspace-active .analysis-export-main-button,
+body.analysis-results-workspace-active .analysis-export-toggle-button {
+    min-height: 31px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-export-split {
+    grid-template-columns: 64px minmax(0, 1fr) 34px;
+}
+
+body.analysis-results-workspace-active .analysis-export-toggle-button {
+    width: 34px;
+    min-width: 34px;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+body.analysis-results-workspace-active .analysis-export-menu {
+    min-width: 110px;
+    padding: 4px;
+    border-radius: 10px;
+}
+
+body.analysis-results-workspace-active .analysis-export-menu-item {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .filter-chip-row {
+    gap: 6px;
+    align-items: center;
+}
+
+body.analysis-results-workspace-active .filter-chip-row-label {
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .filter-open-button {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .active-filters {
+    gap: 5px;
+}
+
+body.analysis-results-workspace-active .active-filter-chip {
+    gap: 5px;
+    padding: 5px 6px;
+}
+
+body.analysis-results-workspace-active .active-filter-text,
+body.analysis-results-workspace-active .active-filter-remove,
+body.analysis-results-workspace-active .filter-active-note {
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .filter-active-note {
+    margin-top: 6px;
+}
+
+body.analysis-results-workspace-active .analysis-empty-copy {
+    gap: 5px;
+}
+
+body.analysis-results-workspace-active .analysis-empty-icon {
+    width: 27px;
+    height: 27px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-empty-title {
+    font-size: 0.76rem;
+}
+
+body.analysis-results-workspace-active .analysis-empty-text {
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+body.analysis-results-workspace-active .analysis-empty-actions .button {
+    padding: 9px 16px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-chart-copy {
+    gap: 3px;
+}
+
+body.analysis-results-workspace-active .analysis-chart-title {
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-chart-caption,
+body.analysis-results-workspace-active .analysis-chart-fallback-note {
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+body.analysis-results-workspace-active .analysis-plot-surface {
+    min-height: 160px;
+}
+
+body.analysis-results-workspace-active .analysis-plot-surface-wide {
+    min-width: clamp(540px, 56vw, 850px);
+    min-height: clamp(360px, 36vh, 490px);
+}
+
+body.analysis-results-workspace-active .analysis-list {
+    gap: 7px;
+}
+
+body.analysis-results-workspace-active .analysis-item h4 {
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-comment,
+body.analysis-results-workspace-active .analysis-sample {
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+body.analysis-results-workspace-active .analysis-meta {
+    gap: 5px;
+}
+
+body.analysis-results-workspace-active .analysis-meta span {
+    padding: 3px 5px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-examples {
+    gap: 6px;
+}
+
+body.analysis-results-workspace-active .analysis-example-row {
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-example p {
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+body.analysis-results-workspace-active .analysis-ngram-panel h4 {
+    font-size: 0.75rem;
+}
+
+body.analysis-results-workspace-active .analysis-ngram-list {
+    gap: 5px;
+}
+
+body.analysis-results-workspace-active .analysis-ngram-term,
+body.analysis-results-workspace-active .analysis-ngram-count {
+    font-size: 0.75rem;
+}
+

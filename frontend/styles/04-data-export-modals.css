@@ -1,0 +1,194 @@
+.data-export-dropdown {
+    position: relative;
+}
+
+.data-export-toggle-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    min-width: 46px;
+    height: 46px;
+    padding: 0;
+    border-radius: 999px;
+}
+
+.data-export-toggle-icon {
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.data-export-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 12;
+    display: grid;
+    gap: 2px;
+    min-width: 220px;
+    padding: 6px;
+    border-radius: 13px;
+    border: 1px solid rgba(89, 68, 42, 0.12);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 20px 42px rgba(58, 44, 27, 0.18);
+}
+
+.data-export-menu-item {
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease;
+}
+
+.data-export-menu-item:hover,
+.data-export-menu-item:focus-visible {
+    background: rgba(220, 234, 255, 0.72);
+    color: var(--green);
+}
+
+.data-export-menu-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.modal-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(34, 30, 24, 0.46);
+    backdrop-filter: blur(4px);
+}
+
+.modal-card {
+    position: relative;
+    width: min(720px, 100%);
+    max-height: min(88vh, 900px);
+    overflow: auto;
+    padding: 24px;
+    border-radius: 24px;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    box-shadow: 0 24px 70px rgba(36, 119, 248, 0.16);
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.modal-body {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+}
+
+.modal-search-input,
+.modal-column-select,
+.modal-role-controls select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #ffffff;
+    color: var(--text);
+}
+
+.modal-column-select {
+    min-height: 260px;
+}
+
+.modal-current-role {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.modal-role-controls {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.modal-card-compact {
+    width: min(640px, 100%);
+    max-height: min(82vh, 760px);
+    padding: 18px;
+    border-radius: 20px;
+}
+
+.modal-card-compact .modal-header {
+    gap: 12px;
+}
+
+.modal-card-compact .modal-body {
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.modal-card-compact .panel-kicker {
+    font-size: 0.75rem;
+    letter-spacing: 0.22em;
+}
+
+.modal-card-compact h3 {
+    font-size: 1.1rem;
+}
+
+.modal-card-compact .button {
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 0.9rem;
+}
+
+.modal-card-compact .filter-label {
+    font-size: 0.88rem;
+}
+
+.modal-card-compact .modal-search-input,
+.modal-card-compact .modal-column-select,
+.modal-card-compact .modal-role-controls select {
+    padding: 9px 11px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.modal-card-compact .modal-column-select {
+    min-height: 180px;
+}
+
+.modal-card-compact .modal-current-role {
+    font-size: 0.82rem;
+}
+
+.modal-card-compact .modal-role-controls {
+    grid-template-columns: minmax(180px, 220px) auto;
+    gap: 10px;
+}
+
+.panel {
+    width: 100%;
+    padding: 24px;
+}
+
+.section-heading h3 {
+    font-size: 1.8rem;
+}
+

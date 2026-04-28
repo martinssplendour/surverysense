@@ -1,0 +1,177 @@
+body.analysis-results-workspace-active {
+    background: #ffffff;
+    color: #172033;
+}
+
+body.analysis-results-workspace-active .topbar {
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: 52px;
+    padding: 0 clamp(16px, 2.2vw, 25px);
+    border: 1px solid #e7ebf2;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+    backdrop-filter: none;
+}
+
+body.analysis-results-workspace-active .topbar::after {
+    display: none;
+}
+
+body.analysis-results-workspace-active .brand-lockup {
+    gap: 12px;
+}
+
+body.analysis-results-workspace-active .brand-mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    font-size: 0.72rem;
+}
+
+body.analysis-results-workspace-active .brand-name {
+    color: #172033;
+    font-size: 0.76rem;
+    letter-spacing: 0;
+}
+
+body.analysis-results-workspace-active .topbar-actions {
+    gap: 14px;
+}
+
+body.analysis-results-workspace-active .topbar-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 28px;
+    min-width: 64px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.66rem;
+}
+
+body.analysis-results-workspace-active .topbar-link-primary {
+    box-shadow: 0 8px 18px rgba(36, 119, 248, 0.18);
+}
+
+body.analysis-results-workspace-active .topbar-link-secondary {
+    border-color: #e3e8f1;
+    background: #ffffff;
+    color: #172033;
+    box-shadow: none;
+}
+
+body.analysis-results-workspace-active .app-shell {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 52px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+body.analysis-results-workspace-active .workflow {
+    min-height: calc(100vh - 52px);
+    padding: 0;
+}
+
+body.analysis-results-workspace-active .results-view {
+    width: 100%;
+    justify-items: stretch;
+    gap: 0;
+}
+
+body.analysis-results-workspace-active .analysis-results-panel {
+    width: 100%;
+    max-width: none;
+    min-height: auto;
+    padding: 18px 32px 12px;
+    display: grid;
+    gap: 10px;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.analysis-results-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 17px;
+}
+
+body.analysis-results-workspace-active .analysis-results-copy {
+    display: grid;
+    gap: 7px;
+    max-width: 620px;
+}
+
+body.analysis-results-workspace-active .analysis-results-title {
+    margin: 0;
+    color: #172033;
+    font-size: clamp(1rem, 1.55vw, 1.35rem);
+    font-weight: 750;
+    letter-spacing: 0;
+    line-height: 1.15;
+}
+
+body.analysis-results-workspace-active .analysis-results-subtitle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 0;
+    color: #566176;
+    font-size: 0.62rem;
+    line-height: 1.4;
+}
+
+.analysis-results-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.analysis-results-meta-item strong {
+    color: #172033;
+    font-weight: 500;
+}
+
+.analysis-results-meta-separator {
+    width: 1px;
+    height: 10px;
+    background: #d8dee8;
+}
+
+.analysis-results-meta-icon {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    color: #697386;
+    background: currentColor;
+}
+
+.analysis-results-meta-icon-question {
+    mask:
+        radial-gradient(circle at 50% 50%, transparent 44%, #000 46% 62%, transparent 64%) 0 1px / 12px 10px no-repeat,
+        linear-gradient(#000 0 0) 5px 10px / 3px 2px no-repeat;
+}
+
+.analysis-results-meta-icon-method {
+    mask:
+        radial-gradient(circle, #000 62%, transparent 64%) 1px 4px / 4px 4px no-repeat,
+        radial-gradient(circle, #000 62%, transparent 64%) 8px 4px / 4px 4px no-repeat,
+        linear-gradient(#000 0 0) 5px 5px / 3px 1px no-repeat,
+        linear-gradient(#000 0 0) 3px 8px / 8px 4px no-repeat;
+}
+

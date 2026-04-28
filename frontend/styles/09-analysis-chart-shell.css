@@ -1,0 +1,93 @@
+.analysis-chart {
+    display: grid;
+    gap: 12px;
+    margin-top: 0;
+    padding: 18px;
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid var(--line);
+}
+
+.analysis-chart-copy {
+    display: grid;
+    gap: 6px;
+}
+
+.analysis-chart-title {
+    margin: 0;
+    font-size: 1.08rem;
+}
+
+.analysis-chart-caption {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.analysis-chart-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    width: fit-content;
+    margin-top: 2px;
+    padding: 2px;
+    border-radius: 999px;
+    background: #f7f2ea;
+    border: 1px solid rgba(89, 68, 42, 0.1);
+}
+
+.analysis-chart-toggle-button {
+    border: 0;
+    border-radius: 999px;
+    padding: 4px 7px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.analysis-chart-toggle-button-active {
+    background: var(--green);
+    color: #ffffff;
+    box-shadow: 0 4px 9px rgba(36, 119, 248, 0.16);
+}
+
+.analysis-chart-toggle-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.analysis-plot-shell {
+    padding: 10px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid rgba(89, 68, 42, 0.08);
+}
+
+.analysis-group-plot-shell {
+    min-width: min(100%, 760px);
+    min-height: calc(var(--group-plot-min-height, 360px) + 20px);
+    resize: both;
+    overflow: auto;
+}
+
+.analysis-group-plot-shell .analysis-plot-surface {
+    width: 100%;
+    min-height: var(--group-plot-min-height, 360px);
+    height: 100%;
+}
+
+.analysis-plot-shell-wide {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 14px;
+}
+
+.analysis-plot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+    gap: 14px;
+}
+

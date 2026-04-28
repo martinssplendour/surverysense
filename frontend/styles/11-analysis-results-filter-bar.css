@@ -1,0 +1,82 @@
+body.analysis-results-workspace-active .analysis-results-filter-bar {
+    margin: -2px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .filter-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .filter-chip-row-label {
+    display: none;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .filter-open-button,
+body.analysis-results-workspace-active .analysis-results-filter-bar .analysis-results-data-link {
+    min-height: 27px;
+    padding: 6px 11px;
+    border: 1px solid #e3e8f1;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 0.62rem;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+    text-decoration: none;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .filter-open-button::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    vertical-align: -2px;
+    background: currentColor;
+    mask:
+        linear-gradient(#000 0 0) 1px 2px / 8px 1.5px no-repeat,
+        linear-gradient(#000 0 0) 2px 5px / 6px 1.5px no-repeat,
+        linear-gradient(#000 0 0) 4px 8px / 2px 1.5px no-repeat;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .analysis-results-data-link {
+    margin-left: auto;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .analysis-results-data-link::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    vertical-align: -2px;
+    background: currentColor;
+    mask:
+        linear-gradient(#000 0 0) 3px 3px / 7px 1.5px no-repeat,
+        linear-gradient(#000 0 0) 3px 6px / 7px 1.5px no-repeat,
+        linear-gradient(#000 0 0) 3px 9px / 7px 1.5px no-repeat,
+        radial-gradient(circle, #000 62%, transparent 64%) 0 2px / 2px 2px no-repeat,
+        radial-gradient(circle, #000 62%, transparent 64%) 0 5px / 2px 2px no-repeat,
+        radial-gradient(circle, #000 62%, transparent 64%) 0 8px / 2px 2px no-repeat;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .active-filters {
+    gap: 4px;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .active-filter-chip {
+    padding: 6px 8px;
+    border-color: #e3e8f1;
+    background: #f8fafc;
+}
+
+body.analysis-results-workspace-active .analysis-results-filter-bar .filter-active-note {
+    display: none;
+}
+

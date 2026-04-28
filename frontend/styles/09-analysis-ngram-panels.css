@@ -1,0 +1,58 @@
+.analysis-ngram-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-top: 0;
+}
+
+.analysis-ngram-panel {
+    padding: 18px;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: #ffffff;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.analysis-ngram-panel h4 {
+    margin: 0;
+    font-size: 1.04rem;
+}
+
+.analysis-ngram-list {
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.analysis-ngram-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid rgba(89, 68, 42, 0.08);
+}
+
+.analysis-ngram-term {
+    color: #3d352d;
+    line-height: 1.4;
+}
+
+.analysis-ngram-count {
+    min-width: 36px;
+    text-align: right;
+    color: var(--green);
+    font-weight: 700;
+}
+
+.analysis-item-active,
+.analysis-ngram-panel-active {
+    border-color: rgba(36, 119, 248, 0.28);
+    box-shadow: 0 14px 28px rgba(36, 119, 248, 0.12);
+    transform: translateY(-2px);
+}
+

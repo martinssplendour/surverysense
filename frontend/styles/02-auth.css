@@ -1,0 +1,112 @@
+.login-card {
+    text-align: center;
+}
+
+body.login-page .login-card,
+body.analysis-setup-workspace-active .analysis-panel {
+    width: min(760px, 100%);
+    margin-inline: auto;
+}
+
+body.login-page .login-card {
+    width: min(420px, 100%);
+    padding: 38px 34px;
+    border: 1px solid rgba(36, 119, 248, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 24px 70px rgba(24, 48, 92, 0.12);
+}
+
+.login-card-logo {
+    display: block;
+    width: min(78px, 28vw);
+    height: auto;
+    margin: 0 auto 28px;
+    border-radius: 8px;
+}
+
+body.login-page .panel-kicker {
+    font-size: 0.75rem;
+}
+
+.login-title {
+    margin: 14px 0 0;
+    font-family: Aptos, "Segoe UI", sans-serif;
+    font-size: clamp(1.9rem, 3.4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+}
+
+body.login-page .login-title {
+    margin-top: 0;
+    font-size: clamp(1.05rem, 2.7vw, 1.28rem);
+    color: #101828;
+    letter-spacing: 0;
+}
+
+.login-copy {
+    max-width: 34ch;
+    margin: 16px auto 0;
+    color: var(--muted);
+    line-height: 1.65;
+}
+
+body.login-page .login-copy {
+    max-width: 32ch;
+    margin-top: 10px;
+    font-size: 0.69rem;
+    line-height: 1.5;
+    color: #697386;
+}
+
+.google-signin-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 26px;
+}
+
+body.login-page .google-signin-wrap {
+    margin-top: 30px;
+}
+
+body.login-page .google-signin-wrap > div {
+    min-width: 300px;
+}
+
+.login-divider {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 14px;
+    margin: 24px 0 20px;
+    color: #697386;
+    font-size: 0.9rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: "";
+    height: 1px;
+    background: #e5e9f0;
+}
+
+.login-copy-secondary {
+    margin-inline: auto;
+    font-size: 0.92rem;
+}
+
+body.login-page .status-message {
+    margin-top: 16px;
+    font-size: 0.82rem;
+}
+
+.login-help {
+    display: grid;
+    gap: 7px;
+    margin-top: 34px;
+    color: #697386;
+    font-size: 0.86rem;
+    line-height: 1.45;
+}
+

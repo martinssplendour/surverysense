@@ -1,0 +1,197 @@
+.upload-view {
+    display: grid;
+    align-items: center;
+    justify-items: center;
+    min-height: 340px;
+    padding: 12px 0;
+}
+
+body.login-page .upload-view {
+    width: 100%;
+    min-height: auto;
+    padding: 8px 0 0;
+}
+
+body.upload-workspace-active .upload-view {
+    width: 100%;
+    min-height: 100%;
+    padding: 22px 0;
+}
+
+.eyebrow,
+.panel-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.78rem;
+    color: var(--green);
+    font-weight: 700;
+}
+
+.results-header h2,
+.section-heading h3 {
+    margin: 14px 0 0;
+    font-family: "Segoe UI Variable Display", "Segoe UI Variable Text", Inter, "Segoe UI", Arial, sans-serif;
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+}
+
+.upload-card,
+.panel {
+    width: min(720px, 100%);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--line);
+    background: #ffffff;
+    box-shadow: 0 18px 38px rgba(95, 72, 44, 0.08);
+}
+
+.upload-card {
+    padding: 14px;
+    width: min(360px, 100%);
+}
+
+.dropzone {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 19px 14px;
+    border-radius: 12px;
+    border: 1.5px dashed rgba(36, 119, 248, 0.28);
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 42%),
+        linear-gradient(180deg, rgba(239, 226, 203, 0.28), rgba(255, 250, 242, 0.55));
+    text-align: center;
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+
+.dropzone:hover,
+.dropzone.is-dragover {
+    transform: translateY(-2px);
+    border-color: rgba(36, 119, 248, 0.56);
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.84), transparent 42%),
+        linear-gradient(180deg, rgba(220, 234, 255, 0.65), rgba(255, 250, 242, 0.78));
+}
+
+.dropzone-label {
+    color: var(--green);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.dropzone-title {
+    font-size: 0.75rem;
+}
+
+.dropzone-caption {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.upload-actions {
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    margin-top: 11px;
+}
+
+.upload-actions .button {
+    min-width: 74px;
+    padding: 7px 11px;
+    font-size: 0.75rem;
+}
+
+.button {
+    border: none;
+    border-radius: 999px;
+    padding: 13px 22px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.button:focus-visible,
+.analysis-method:focus-visible,
+.dashboard-data-link:focus-visible {
+    outline: 3px solid rgba(36, 119, 248, 0.26);
+    outline-offset: 3px;
+}
+
+.button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.button-primary {
+    background: linear-gradient(180deg, #2477F8, #1b5dcc);
+    color: #f8f2e8;
+    box-shadow: 0 12px 26px rgba(31, 99, 204, 0.24);
+}
+
+.button-secondary,
+.button-ghost {
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--text);
+    border: 1px solid var(--line);
+}
+
+.topbar-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    min-height: 46px;
+    min-width: 112px;
+}
+
+.topbar-link-primary {
+    min-width: 136px;
+}
+
+.topbar-link-secondary {
+    background: rgba(255, 255, 255, 0.98);
+    min-height: 23px;
+    min-width: 56px;
+    padding: 6px 11px;
+    font-size: 0.75rem;
+}
+
+.status-message {
+    margin-top: 10px;
+    text-align: center;
+    min-height: 12px;
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.upload-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.upload-button-spinner {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 2px solid rgba(248, 242, 232, 0.28);
+    border-top-color: #f8f2e8;
+    animation: analysis-spin 0.8s linear infinite;
+    flex: 0 0 auto;
+}
+
+.status-success {
+    color: var(--green);
+}
+
+.status-error {
+    color: var(--danger);
+}
+

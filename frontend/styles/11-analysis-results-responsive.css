@@ -1,0 +1,97 @@
+@media (max-width: 860px) {
+    body.analysis-results-workspace-active .topbar {
+        min-height: 52px;
+        padding: 0 12px;
+    }
+
+    body.analysis-results-workspace-active .topbar-actions {
+        gap: 8px;
+    }
+
+    body.analysis-results-workspace-active .topbar-link {
+        width: auto;
+        min-width: 0;
+        padding: 8px 12px;
+    }
+
+    body.analysis-results-workspace-active .topbar-upload-icon {
+        display: none;
+    }
+
+    body.analysis-results-workspace-active .app-shell {
+        padding-top: 52px;
+    }
+
+    body.analysis-results-workspace-active .analysis-results-panel {
+        width: 100%;
+        padding-top: 17px;
+        padding-left: 12px;
+        padding-right: 12px;
+        gap: 11px;
+    }
+
+    .analysis-results-header,
+    body.analysis-results-workspace-active .analysis-results-actions,
+    .analysis-theme-card-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    body.analysis-results-workspace-active .analysis-export-split {
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: minmax(52px, 0.7fr) minmax(78px, 1fr) 27px;
+    }
+
+    .analysis-insight-card {
+        grid-template-columns: 1fr;
+        gap: 11px;
+        padding: 14px;
+    }
+
+    .analysis-insight-icon {
+        width: 41px;
+        height: 41px;
+    }
+
+    .analysis-insight-divider {
+        width: 100%;
+        height: 1px;
+    }
+
+    body.analysis-results-workspace-active .analysis-results-filter-bar .filter-chip-row {
+        align-items: stretch;
+    }
+
+    body.analysis-results-workspace-active .analysis-results-filter-bar .filter-open-button,
+    body.analysis-results-workspace-active .analysis-results-filter-bar .analysis-results-data-link {
+        width: 100%;
+        justify-content: center;
+        margin-left: 0;
+    }
+
+    body.analysis-results-workspace-active .analysis-chart {
+        padding: 14px;
+    }
+
+    .analysis-theme-row {
+        grid-template-columns: 1fr auto auto;
+        gap: 6px 8px;
+        padding: 8px 0;
+    }
+
+    .analysis-theme-name {
+        grid-column: 1 / 4;
+    }
+
+    .analysis-theme-bar-cell {
+        grid-column: 1 / 2;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .analysis-theme-chevron {
+        display: none;
+    }
+}
+

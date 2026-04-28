@@ -1,0 +1,20 @@
+.analysis-plot-surface {
+    min-height: 180px;
+}
+
+.analysis-plot-surface-wide {
+    min-width: clamp(810px, 84vw, 1275px);
+    min-height: clamp(540px, 54vh, 735px);
+}
+
+.analysis-chart-fallback {
+    display: grid;
+    gap: 12px;
+}
+
+.analysis-chart-fallback-note {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
