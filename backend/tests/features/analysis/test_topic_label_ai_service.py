@@ -75,11 +75,11 @@ class TopicAiLabelServiceTests(unittest.TestCase):
                 terms=["curriculum", "resources", "planning"],
                 examples=[
                     AnalysisExampleRecord(row_number=12, text="Need more curriculum resources for maths and science"),
-                    AnalysisExampleRecord(row_number=18, text="More curriculum-aligned planning materials would help"),
+                    AnalysisExampleRecord(row_number=18, text="More curriculum resources would help"),
                 ],
                 documents=[
                     AnalysisDocumentRecord(row_number=12, text="Need more curriculum resources for maths and science"),
-                    AnalysisDocumentRecord(row_number=18, text="More curriculum-aligned planning materials would help"),
+                    AnalysisDocumentRecord(row_number=18, text="More curriculum resources would help"),
                 ],
                 is_noise=False,
             ),
@@ -103,10 +103,21 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             prompt = payload["contents"][0]["parts"][0]["text"]
             self.assertIn('"group_id":"0"', prompt)
             self.assertNotIn('"group_id":"1"', prompt)
-            self.assertIn('"frequent_phrases"', prompt)
-            self.assertIn('"top_unigrams"', prompt)
-            self.assertIn('"top_bigrams"', prompt)
-            self.assertIn('"document_count"', prompt)
+            evidence = json.loads(prompt.split("Evidence:", 1)[1])
+            self.assertEqual(evidence["analysis_mode"], "community")
+            group_payload = evidence["groups"][0]
+            self.assertEqual(group_payload["group_id"], "0")
+            self.assertNotIn("heuristic_label", group_payload)
+            self.assertNotIn("count", group_payload)
+            self.assertNotIn("share_percent", group_payload)
+            self.assertNotIn("terms", group_payload)
+            self.assertNotIn("frequent_phrases", group_payload)
+            self.assertNotIn("top_unigrams", group_payload)
+            self.assertIn("top_bigrams", group_payload)
+            self.assertIn("top_trigrams", group_payload)
+            self.assertIn("tightest_responses", group_payload)
+            self.assertEqual(group_payload["top_bigrams"][0]["term"], "curriculum resources")
+            self.assertEqual(len(group_payload["top_bigrams"][0]["documents"]), 2)
             self.assertIn("Need more curriculum resources for mat", prompt)
             return _FakeHttpResponse(
                 {
@@ -116,7 +127,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
                                 "parts": [
                                     {
                                         "text": json.dumps(
-                                            {"labels": [{"group_id": "0", "label": "Curriculum Resources"}]}
+                                            {"labels": [{"group_id": "0", "label": "Curriculum Resource Needs"}]}
                                         )
                                     }
                                 ]
@@ -133,7 +144,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
                 text_column_name="verbatim",
             )
 
-        self.assertEqual(result.labels_by_group_id, {"0": "Curriculum Resources"})
+        self.assertEqual(result.labels_by_group_id, {"0": "Curriculum Resource Needs"})
         self.assertEqual(result.labeled_group_count, 1)
         self.assertEqual(result.warnings, [])
 
@@ -183,7 +194,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
                                 "parts": [
                                     {
                                         "text": json.dumps(
-                                            {"labels": [{"group_id": "0", "label": "Classroom Materials"}]}
+                                            {"labels": [{"group_id": "0", "label": "Classroom Material Support"}]}
                                         )
                                     }
                                 ]
@@ -201,7 +212,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(calls["count"], 2)
-        self.assertEqual(result.labels_by_group_id, {"0": "Classroom Materials"})
+        self.assertEqual(result.labels_by_group_id, {"0": "Classroom Material Support"})
         self.assertEqual(result.warnings, [])
 
     def test_label_groups_splits_large_requests_into_batches(self) -> None:
@@ -372,7 +383,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
                                                 "labels": [
                                                     {"group_id": "0", "label": "Blah Blah Blah"},
                                                     {"group_id": "1", "label": "General Feedback"},
-                                                    {"group_id": "2", "label": "Search Filters"},
+                                                    {"group_id": "2", "label": "Better Search Filters"},
                                                 ]
                                             }
                                         )
@@ -391,7 +402,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
                 text_column_name="verbatim",
             )
 
-        self.assertEqual(result.labels_by_group_id, {"2": "Search Filters"})
+        self.assertEqual(result.labels_by_group_id, {"2": "Better Search Filters"})
         self.assertEqual(result.labeled_group_count, 1)
         self.assertIn("low-quality labels for 2 group(s)", " ".join(result.warnings))
 
@@ -466,7 +477,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
 
         self.assertEqual(evidence[0].terms, ["subscription"])
         self.assertIn("too expensive", evidence[0].context_phrases)
-        self.assertIn("too expensive", str(evidence[0].to_prompt_payload()))
+        self.assertNotIn("frequent_phrases", evidence[0].to_prompt_payload())
 
     def test_evidence_builder_filters_stopword_only_terms(self) -> None:
         builder = TopicLabelEvidenceBuilder(
@@ -520,6 +531,14 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         self.assertEqual(
             [(item.term, item.count, item.document_count) for item in evidence[0].top_bigrams],
             [("search filters", 4, 4)],
+        )
+        self.assertEqual(
+            evidence[0].top_bigrams[0].documents,
+            [
+                "Search filters make resources easy to find",
+                "Search filters help find resources",
+                "Search filters improve content discovery",
+            ],
         )
         self.assertEqual(
             [(item.term, item.document_count) for item in evidence[0].top_unigrams[:2]],
@@ -579,7 +598,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         evidence = builder.build_group_evidence([group])
 
         self.assertEqual(
-            evidence[0].examples,
+            evidence[0].tightest_responses,
             ["Repeated response", "Repeated response"],
         )
 

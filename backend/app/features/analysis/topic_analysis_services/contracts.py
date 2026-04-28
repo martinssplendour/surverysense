@@ -244,12 +244,14 @@ class TopicLabelNgramEvidence:
     term: str
     count: int
     document_count: int
+    documents: list[str] = field(default_factory=list)
 
     def to_prompt_payload(self) -> dict[str, object]:
         return {
             "term": self.term,
             "count": int(self.count),
             "document_count": int(self.document_count),
+            "documents": list(self.documents),
         }
 
 
@@ -264,18 +266,12 @@ class TopicLabelEvidenceGroup:
     top_unigrams: list[TopicLabelNgramEvidence] = field(default_factory=list)
     top_bigrams: list[TopicLabelNgramEvidence] = field(default_factory=list)
     top_trigrams: list[TopicLabelNgramEvidence] = field(default_factory=list)
-    examples: list[str] = field(default_factory=list)
+    tightest_responses: list[str] = field(default_factory=list)
 
     def to_prompt_payload(self) -> dict[str, object]:
         return {
             "group_id": self.group_id,
-            "heuristic_label": self.current_label,
-            "count": int(self.count),
-            "share_percent": float(self.share_percent),
-            "terms": list(self.terms),
-            "frequent_phrases": list(self.context_phrases),
-            "top_unigrams": [item.to_prompt_payload() for item in self.top_unigrams],
             "top_bigrams": [item.to_prompt_payload() for item in self.top_bigrams],
             "top_trigrams": [item.to_prompt_payload() for item in self.top_trigrams],
-            "examples": list(self.examples),
+            "tightest_responses": list(self.tightest_responses),
         }

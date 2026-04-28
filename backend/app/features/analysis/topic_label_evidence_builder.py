@@ -4,6 +4,7 @@ import re
 from collections import Counter
 
 from app.features.analysis.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
     AnalysisGroupRecord,
     TopicLabelEvidenceGroup,
     TopicLabelNgramEvidence,
@@ -14,6 +15,7 @@ from app.features.analysis.topic_analysis_services.keyword_service import TopicA
 class TopicLabelEvidenceBuilder:
     TOKEN_PATTERN = re.compile(r"[^\W_][^\W_'\-]*", re.UNICODE)
     MAX_CONTEXT_DOCUMENTS = 120
+    PHRASE_DOCUMENT_LIMIT = 3
     LEADING_TRIM_WORDS = frozenset(
         {
             "a",
@@ -95,7 +97,7 @@ class TopicLabelEvidenceBuilder:
         keyword_service: TopicAnalysisKeywordService | None = None,
     ) -> None:
         self.max_groups = max_groups
-        self.max_examples_per_group = max_examples_per_group
+        self.max_tightest_responses = max(1, int(max_examples_per_group))
         self.max_terms_per_group = max_terms_per_group
         self.max_context_phrases_per_group = max(1, max_terms_per_group)
         self.max_chars_per_example = max_chars_per_example
@@ -128,28 +130,26 @@ class TopicLabelEvidenceBuilder:
                     top_unigrams=self.collect_top_ngrams(group, ngram_size=1, top_n=self.max_unigrams),
                     top_bigrams=self.collect_top_ngrams(group, ngram_size=2, top_n=self.max_bigrams),
                     top_trigrams=self.collect_top_ngrams(group, ngram_size=3, top_n=self.max_trigrams),
-                    examples=self.collect_examples(group),
+                    tightest_responses=self.collect_tightest_responses(group),
                 )
             )
         return evidence_groups
 
     def collect_examples(self, group: AnalysisGroupRecord) -> list[str]:
+        return self.collect_tightest_responses(group)
+
+    def collect_tightest_responses(self, group: AnalysisGroupRecord) -> list[str]:
         # Group documents are ordered before AI labeling. Use that order directly so
         # the naming evidence is the same response order users see in the modal.
-        max_examples = max(1, self.max_examples_per_group)
-        max_chars = max(80, self.max_chars_per_example)
-
-        documents = list(group.documents) or list(group.examples)
-        examples: list[str] = []
-        for doc in documents:
-            text = re.sub(r"\s+", " ", str(doc.text or "").strip())
+        responses: list[str] = []
+        for document in self._collect_group_documents(group):
+            text = self._truncate_document_text(self._document_text(document))
             if not text:
                 continue
-            truncated = text[:max_chars].rstrip()
-            examples.append(truncated)
-            if len(examples) >= max_examples:
+            responses.append(text)
+            if len(responses) >= self.max_tightest_responses:
                 break
-        return examples
+        return responses
 
     def collect_terms(self, group: AnalysisGroupRecord) -> list[str]:
         max_terms = max(1, self.max_terms_per_group)
@@ -167,14 +167,16 @@ class TopicLabelEvidenceBuilder:
         if top_n <= 0:
             return []
 
-        texts = self._collect_group_document_texts(group)
-        if not texts:
+        documents = self._collect_group_documents(group)
+        if not documents:
             return []
 
-        min_document_count = min(self.min_ngram_document_count, max(1, len(texts)))
+        min_document_count = min(self.min_ngram_document_count, max(1, len(documents)))
         counts: Counter[str] = Counter()
         document_counts: Counter[str] = Counter()
-        for text in texts:
+        documents_by_term: dict[str, list[str]] = {}
+        for document in documents:
+            text = self._document_text(document)
             tokens = self.keyword_service.tokenize_terms(text)
             if len(tokens) < ngram_size:
                 continue
@@ -190,6 +192,11 @@ class TopicLabelEvidenceBuilder:
 
             for term in document_terms:
                 document_counts[term] += 1
+                term_documents = documents_by_term.setdefault(term, [])
+                if len(term_documents) < self.PHRASE_DOCUMENT_LIMIT:
+                    truncated = self._truncate_document_text(text)
+                    if truncated:
+                        term_documents.append(truncated)
 
         ranked_terms = sorted(
             (
@@ -200,7 +207,12 @@ class TopicLabelEvidenceBuilder:
             key=lambda item: (-item[2], -item[1], item[0]),
         )
         return [
-            TopicLabelNgramEvidence(term=term, count=count, document_count=document_count)
+            TopicLabelNgramEvidence(
+                term=term,
+                count=count,
+                document_count=document_count,
+                documents=list(documents_by_term.get(term, [])),
+            )
             for term, count, document_count in ranked_terms[:top_n]
         ]
 
@@ -258,16 +270,23 @@ class TopicLabelEvidenceBuilder:
         return texts
 
     def _collect_group_document_texts(self, group: AnalysisGroupRecord) -> list[str]:
-        texts: list[str] = []
+        return [
+            text
+            for document in self._collect_group_documents(group)
+            for text in [self._document_text(document)]
+            if text
+        ]
+
+    def _collect_group_documents(self, group: AnalysisGroupRecord) -> list[AnalysisDocumentRecord]:
         documents = list(group.documents) or list(group.examples)
-        for document in documents:
-            text = str(document.text or getattr(document, "source_text", None) or "").strip()
-            if not text:
-                continue
-            texts.append(text)
-            if len(texts) >= self.MAX_CONTEXT_DOCUMENTS:
-                break
-        return texts
+        return documents[: self.MAX_CONTEXT_DOCUMENTS]
+
+    def _document_text(self, document: AnalysisDocumentRecord) -> str:
+        return re.sub(r"\s+", " ", str(document.text or "").strip())
+
+    def _truncate_document_text(self, text: str) -> str:
+        max_chars = max(80, self.max_chars_per_example)
+        return re.sub(r"\s+", " ", str(text or "").strip())[:max_chars].rstrip()
 
     def _normalize_ngram(self, term: str, *, ngram_size: int) -> str:
         cleaned_terms = self.keyword_service.sanitize_terms([term], top_n=1)

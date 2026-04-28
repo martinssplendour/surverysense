@@ -97,9 +97,8 @@ TOPIC_AI_LABELING_ENABLED=true
 TOPIC_AI_LABELING_TIMEOUT_SECONDS=30
 TOPIC_AI_LABELING_MAX_GROUPS=15
 TOPIC_AI_LABELING_BATCH_SIZE=5
-TOPIC_AI_LABELING_MAX_EXAMPLES=6
+TOPIC_AI_LABELING_MAX_EXAMPLES=15
 TOPIC_AI_LABELING_MAX_TERMS=4
-TOPIC_AI_LABELING_MAX_UNIGRAMS=5
 TOPIC_AI_LABELING_MAX_BIGRAMS=3
 TOPIC_AI_LABELING_MAX_TRIGRAMS=3
 TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT=4
@@ -110,14 +109,16 @@ TOPIC_AI_LABELING_RETRY_BASE_SECONDS=0.75
 
 To use OpenAI embeddings as the primary provider, set `TOPIC_EMBEDDING_PROVIDER=openai`, `OPENAI_API_KEY=...`, and optionally `TOPIC_EMBEDDING_MODEL=text-embedding-3-small`. If Gemini is primary and `OPENAI_API_KEY` is present, OpenAI can be used as the fallback when Gemini returns quota/rate errors.
 
-AI topic labels use representative responses plus capped n-gram frequency evidence. The default n-gram caps keep prompts focused:
+AI topic labels use the tightest cluster responses plus capped phrase evidence. The default caps keep prompts focused:
 
 ```bash
-TOPIC_AI_LABELING_MAX_UNIGRAMS=5
 TOPIC_AI_LABELING_MAX_BIGRAMS=3
 TOPIC_AI_LABELING_MAX_TRIGRAMS=3
 TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT=4
+TOPIC_AI_LABELING_MAX_EXAMPLES=15
 ```
+
+For each labelled cluster, Gemini receives the top bigrams and trigrams with up to three matching tight responses per phrase, plus up to `TOPIC_AI_LABELING_MAX_EXAMPLES` tightest responses from the cluster.
 
 `TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT` is adaptive for small clusters. For example, a two-response cluster can still send phrases that appear in both responses, while larger clusters require the configured minimum document count.
 

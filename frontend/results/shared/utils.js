@@ -1,15 +1,6 @@
 // Pure utility functions: HTML escaping, number formatting, column label display, and Plotly label wrapping.
 import { ANALYSIS_MODE_OPTIONS } from "../shared.js";
 
-export function analysisCard(label, value) {
-    return `
-        <div class="analysis-card">
-            <span class="analysis-card-label">${escapeHtml(label)}</span>
-            <span class="analysis-card-value">${value}</span>
-        </div>
-    `;
-}
-
 export function summaryMetric(kind, label, value) {
     return `
         <div class="dashboard-metric">

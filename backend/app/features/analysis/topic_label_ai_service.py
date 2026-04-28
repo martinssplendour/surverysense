@@ -306,7 +306,7 @@ class TopicAiLabelService:
 
     @classmethod
     def _has_reasonable_length(cls, label: str, tokens: list[str]) -> bool:
-        if len(tokens) < 2 or len(tokens) > 6:
+        if len(tokens) < 3 or len(tokens) > 6:
             return False
         stripped = label.strip()
         return 4 <= len(stripped) <= 80
@@ -335,7 +335,19 @@ class TopicAiLabelService:
             item.term
             for item in [*group.top_unigrams, *group.top_bigrams, *group.top_trigrams]
         ]
-        evidence_parts = [group.current_label, *group.terms, *group.context_phrases, *ngram_terms, *group.examples]
+        ngram_documents = [
+            document
+            for item in [*group.top_bigrams, *group.top_trigrams]
+            for document in item.documents
+        ]
+        evidence_parts = [
+            group.current_label,
+            *group.terms,
+            *group.context_phrases,
+            *ngram_terms,
+            *ngram_documents,
+            *group.tightest_responses,
+        ]
         return {
             token
             for part in evidence_parts

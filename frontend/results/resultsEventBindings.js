@@ -76,9 +76,6 @@ export function bindResultsEvents() {
         state.showOnlyVerbatim = false;
         void openWorkspace("data");
     });
-    elements.backToDashboardResultsButton?.addEventListener("click", () => {
-        void openWorkspace("dashboard");
-    });
     elements.downloadAnalysisReportButton?.addEventListener("click", () => {
         void downloadAnalysisReport();
     });

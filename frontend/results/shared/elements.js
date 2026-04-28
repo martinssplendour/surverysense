@@ -1,9 +1,7 @@
 // Eagerly-resolved DOM element references. Populated once at module evaluation time and reused throughout.
 export const elements = {
-    emptyState: document.getElementById("empty-state"),
     uploadView: document.getElementById("upload-view"),
     resultsView: document.getElementById("results-view"),
-    stepPill: document.getElementById("step-pill"),
     uploadDataButton: document.getElementById("upload-data-btn"),
     dashboardPanel: document.getElementById("dashboard-panel"),
     dashboardFileName: document.getElementById("dashboard-file-name"),
@@ -59,7 +57,6 @@ export const elements = {
     backToDashboardAnalysisButton: document.getElementById("back-to-dashboard-analysis-btn"),
     backToAnalysisSetupButton: document.getElementById("back-to-analysis-setup-btn"),
     analysisViewDataButton: document.getElementById("analysis-view-data-btn"),
-    backToDashboardResultsButton: document.getElementById("back-to-dashboard-results-btn"),
     analysisEmptyState: document.getElementById("analysis-empty-state"),
     analysisEmptyActionButton: document.getElementById("analysis-empty-action-btn"),
     analysisColumnSelect: document.getElementById("analysis-column-select"),

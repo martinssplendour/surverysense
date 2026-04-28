@@ -240,14 +240,6 @@ function showEmptyState() {
         if (elements.uploadDataButton) {
             elements.uploadDataButton.hidden = true;
         }
-        if (elements.stepPill) {
-            elements.stepPill.textContent = "Step 1 of 2";
-        }
-        if (elements.emptyState) {
-            elements.emptyState.hidden = true;
-        }
-    } else if (elements.emptyState) {
-        elements.emptyState.hidden = false;
     }
     elements.dashboardPanel.hidden = true;
     elements.tableControls.hidden = true;
@@ -261,9 +253,6 @@ function showEmptyState() {
 
 function renderResults(payload) {
     setWorkspaceBodyClasses("results");
-    if (elements.emptyState) {
-        elements.emptyState.hidden = true;
-    }
     if (elements.uploadView) {
         elements.uploadView.hidden = true;
     }
@@ -272,9 +261,6 @@ function renderResults(payload) {
     }
     if (elements.uploadDataButton) {
         elements.uploadDataButton.hidden = false;
-    }
-    if (elements.stepPill) {
-        elements.stepPill.textContent = "Step 2 of 2";
     }
     renderDashboard(payload);
     updateWorkspaceVisibility();
