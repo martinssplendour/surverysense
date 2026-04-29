@@ -8,9 +8,16 @@ import {
     renderAnalysisControls,
     renderAnalysisMessage,
     renderAnalysisOutput,
+    renderAnalysisRetryMessage,
 } from "./render.js";
 
 let activeAnalysisAbortController = null;
+
+const GEMINI_RATE_LIMIT_ERROR_CODE = "gemini_rate_limited";
+const GEMINI_RATE_LIMIT_MAX_RETRIES = 5;
+const GEMINI_RATE_LIMIT_RETRY_SECONDS = 60;
+const GEMINI_RATE_LIMIT_RETRY_MESSAGE = "Due to Gemini rate limit, we are retrying in 1 minute.";
+const GEMINI_RATE_LIMIT_FINAL_MESSAGE = "Gemini is still rate limited. Try again later.";
 
 /**
  * Updates the selected analysis column from the column select control.
@@ -100,15 +107,11 @@ export async function runAnalysis({
     });
 
     try {
-        const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(buildAnalysisRequestBody({ modelKey, textColumnName })),
+        const payload = await runAnalysisWithGeminiRateLimitRetries({
             signal,
+            modelKey,
+            textColumnName,
         });
-        const payload = await handleAnalysisResponse(response);
         if (!payload) {
             return;
         }
@@ -160,6 +163,79 @@ function buildAnalysisRequestBody({ modelKey, textColumnName }) {
         text_column_name: textColumnName,
         filters: state.activeFilters,
     };
+}
+
+async function runAnalysisWithGeminiRateLimitRetries({ signal, modelKey, textColumnName }) {
+    let geminiRateLimitRetries = 0;
+    while (true) {
+        const response = await fetch(`/run-analysis/${encodeURIComponent(state.resultId)}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(buildAnalysisRequestBody({ modelKey, textColumnName })),
+            signal,
+        });
+        const payload = await handleAnalysisResponse(response);
+        if (!payload) {
+            return null;
+        }
+
+        if (!isGeminiRateLimitPayload(payload)) {
+            return payload;
+        }
+
+        if (geminiRateLimitRetries >= GEMINI_RATE_LIMIT_MAX_RETRIES) {
+            return {
+                ...payload,
+                error: GEMINI_RATE_LIMIT_FINAL_MESSAGE,
+                retry_after_seconds: null,
+            };
+        }
+
+        geminiRateLimitRetries += 1;
+        renderAnalysisRetryMessage(GEMINI_RATE_LIMIT_RETRY_MESSAGE);
+        const shouldContinue = await waitForRetryDelay(getRetryDelaySeconds(payload), signal);
+        if (!shouldContinue) {
+            return null;
+        }
+    }
+}
+
+function isGeminiRateLimitPayload(payload) {
+    return payload?.ok === false && payload.error_code === GEMINI_RATE_LIMIT_ERROR_CODE;
+}
+
+function getRetryDelaySeconds(payload) {
+    const retryAfterSeconds = Number(payload.retry_after_seconds);
+    return Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds
+        : GEMINI_RATE_LIMIT_RETRY_SECONDS;
+}
+
+function waitForRetryDelay(seconds, signal) {
+    if (signal.aborted) {
+        return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            resolve(true);
+        }, seconds * 1000);
+
+        const abortHandler = () => {
+            clearTimeout(timeoutId);
+            cleanup();
+            resolve(false);
+        };
+
+        function cleanup() {
+            signal.removeEventListener("abort", abortHandler);
+        }
+
+        signal.addEventListener("abort", abortHandler, { once: true });
+    });
 }
 
 async function handleAnalysisResponse(response) {

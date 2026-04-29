@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 
 import pandas as pd
 
-from app.core.exceptions import TopicAnalysisError, TopicAnalysisInputError
+from app.core.exceptions import TopicAnalysisError, TopicAnalysisInputError, TopicAnalysisRateLimitError
 from app.features.analysis.topic_analysis_services.community_detection_service import (
     CommunityDetectionAnalysisService,
 )
@@ -137,6 +137,20 @@ class TopicAnalysisService:
                     text_column_name,
                     exc,
                 )
+            elif isinstance(exc, TopicAnalysisRateLimitError):
+                logger.warning(
+                    "Topic analysis hit a retryable provider rate limit for result_id=%s model=%s column=%s: %s",
+                    result_id,
+                    model_key.value,
+                    text_column_name,
+                    exc,
+                )
+                return self._build_error_response(
+                    base_result,
+                    str(exc),
+                    error_code=exc.error_code,
+                    retry_after_seconds=exc.retry_after_seconds,
+                )
             else:
                 logger.warning(
                     "Topic analysis failed for result_id=%s model=%s column=%s (%s: %s).",
@@ -258,8 +272,19 @@ class TopicAnalysisService:
         )
 
     @staticmethod
-    def _build_error_response(base_result: AnalysisRunResult, message: str) -> AnalysisRunResult:
-        return replace(base_result, error=message)
+    def _build_error_response(
+        base_result: AnalysisRunResult,
+        message: str,
+        *,
+        error_code: str | None = None,
+        retry_after_seconds: int | None = None,
+    ) -> AnalysisRunResult:
+        return replace(
+            base_result,
+            error=message,
+            error_code=error_code,
+            retry_after_seconds=retry_after_seconds,
+        )
 
     @staticmethod
     def _build_community_plot_records(

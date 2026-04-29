@@ -189,6 +189,8 @@ class AnalysisRunResult:
     translated_document_count: int = 0
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
+    error_code: str | None = None
+    retry_after_seconds: int | None = None
     groups: list[AnalysisGroupRecord] = field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketRecord] = field(default_factory=list)
     scatter_points: list[AnalysisScatterPointRecord] = field(default_factory=list)
@@ -226,6 +228,8 @@ class AnalysisRunResult:
             "translated_document_count": int(self.translated_document_count),
             "warnings": list(self.warnings),
             "error": self.error,
+            "error_code": self.error_code,
+            "retry_after_seconds": self.retry_after_seconds,
             "groups": [group.to_api_payload() for group in self.groups],
             "ngram_buckets": [bucket.to_api_payload() for bucket in self.ngram_buckets],
             "scatter_points": [point.to_api_payload() for point in self.scatter_points],

@@ -49,12 +49,13 @@ def _register_run_analysis_route(context: WorkspaceRouteContext) -> None:
                 text_column_name=analysis_request.text_column_name,
                 available_verbatim_columns=selection.verbatim_columns,
             )
-            context.result_store_service.save_analysis_snapshot(
-                result_id,
-                text_column_name=analysis_request.text_column_name,
-                model_key=analysis_request.model_key,
-                analysis_result=result,
-            )
+            if result.error_code != "gemini_rate_limited":
+                context.result_store_service.save_analysis_snapshot(
+                    result_id,
+                    text_column_name=analysis_request.text_column_name,
+                    model_key=analysis_request.model_key,
+                    analysis_result=result,
+                )
             return AnalysisRunResponse.model_validate(result.to_api_payload())
 
         return context.execute_api_action("run_analysis", _execute)

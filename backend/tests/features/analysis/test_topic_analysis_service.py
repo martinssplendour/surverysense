@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import pandas as pd
-from app.core.exceptions import TopicAnalysisDependencyError
+from app.core.exceptions import TopicAnalysisDependencyError, TopicAnalysisRateLimitError
 from app.features.analysis.language_normalization_service import EnglishTranslationBatchResult
 from app.features.analysis.topic_analysis_services import (
     CommunityDetectionAnalysisService,
@@ -144,6 +144,18 @@ class _FakeFallbackEmbeddingService:
         return
 
 
+class _FakeRateLimitedEmbeddingService:
+    def encode(self, texts: list[str], **kwargs):
+        raise TopicAnalysisRateLimitError(
+            "Gemini is rate limited. Try again later.",
+            error_code="gemini_rate_limited",
+            retry_after_seconds=60,
+        )
+
+    def warm_up(self, *args, **kwargs) -> None:
+        return
+
+
 class _UnusedService:
     def run(self, *args, **kwargs):  # pragma: no cover - should not be called in the test path
         raise AssertionError("Unexpected service invocation")
@@ -208,10 +220,16 @@ class _FailingAiLabelService:
 
 
 class _FakeEmbeddingResponse:
-    def __init__(self, payload: dict[str, object], status_code: int = 200) -> None:
+    def __init__(
+        self,
+        payload: dict[str, object],
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self._payload = payload
         self.status_code = status_code
         self.text = ""
+        self.headers = headers or {}
 
     def json(self):
         return self._payload
@@ -935,7 +953,7 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
 
     def test_encode_retries_retryable_provider_errors(self) -> None:
         responses = [
-            _FakeEmbeddingResponse({"error": {"message": "Resource exhausted."}}, status_code=429),
+            _FakeEmbeddingResponse({"error": {"message": "Temporary outage."}}, status_code=503),
             _FakeEmbeddingResponse({"embeddings": [{"values": [1.0, 0.0]}]}),
         ]
 
@@ -953,6 +971,57 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
 
         self.assertEqual(post.call_count, 2)
         self.assertEqual(embeddings.shape[0], 1)
+
+    def test_gemini_rate_limit_error_is_retryable_by_the_caller(self) -> None:
+        service = SentenceEmbeddingService(cache_size=0, max_retries=0)
+        with patch(
+            "requests.post",
+            return_value=_FakeEmbeddingResponse({"error": {"message": "Resource exhausted."}}, status_code=429),
+        ):
+            with self.assertRaises(TopicAnalysisRateLimitError) as context:
+                service.encode(
+                    ["first"],
+                    provider="gemini",
+                    model_name="gemini-embedding-001",
+                    api_key="test-key",
+                )
+
+        self.assertEqual(str(context.exception), "Gemini is rate limited. Try again later.")
+        self.assertEqual(context.exception.error_code, "gemini_rate_limited")
+        self.assertEqual(context.exception.retry_after_seconds, 60)
+
+    def test_gemini_daily_quota_error_does_not_claim_two_minute_recovery(self) -> None:
+        service = SentenceEmbeddingService(cache_size=0, max_retries=0)
+        response_payload = {
+            "error": {
+                "message": "Quota exceeded for daily embedding requests.",
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                        "violations": [
+                            {
+                                "quotaId": "BatchEmbedContentsRequestsPerDayPerProjectPerModel-FreeTier",
+                                "quotaMetric": "generativelanguage.googleapis.com/batch_embed_contents_free_tier_requests",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+        with patch("requests.post", return_value=_FakeEmbeddingResponse(response_payload, status_code=429)):
+            with self.assertRaises(TopicAnalysisDependencyError) as context:
+                service.encode(
+                    ["first"],
+                    provider="gemini",
+                    model_name="gemini-embedding-001",
+                    api_key="test-key",
+                )
+
+        self.assertEqual(
+            str(context.exception),
+            "Gemini quota is exhausted for today. Try again after the daily quota resets.",
+        )
 
     def test_encode_caches_duplicate_texts_and_reuses_cached_vectors(self) -> None:
         calls: list[list[dict[str, object]]] = []
@@ -1114,6 +1183,33 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertGreaterEqual(len(result.ngram_buckets[0].items), 1)
         self.assertTrue(any(item.translated for item in result.ngram_buckets[0].items))
         self.assertIn("Translated", " ".join(result.warnings))
+
+    def test_run_returns_retry_metadata_for_gemini_rate_limits(self) -> None:
+        service = self._build_service(
+            embedding_service=_FakeRateLimitedEmbeddingService(),
+            community_detection_service=_UnusedService(),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Need more maths worksheets",
+                    "Need clearer instructions",
+                ],
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "Gemini is rate limited. Try again later.")
+        self.assertEqual(result.error_code, "gemini_rate_limited")
+        self.assertEqual(result.retry_after_seconds, 60)
 
     def test_run_ngrams_keeps_translated_display_terms_stopword_free(self) -> None:
         service = self._build_service(

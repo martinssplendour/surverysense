@@ -6,6 +6,7 @@ export {
     renderAnalysisMessage,
     renderAnalysisOutput,
     renderAnalysisPanel,
+    renderAnalysisRetryMessage,
     renderAnalysisResultsHeader,
 } from "./analysis/render.js";
 export {
