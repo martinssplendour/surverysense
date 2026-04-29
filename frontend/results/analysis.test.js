@@ -144,8 +144,15 @@ function createJsonResponse({ ok, status, payload }) {
     };
 }
 
+async function flushAsyncWork() {
+    for (let index = 0; index < 5; index += 1) {
+        await Promise.resolve();
+    }
+}
+
 describe("results/analysis", () => {
     beforeEach(() => {
+        vi.useRealTimers();
         vi.restoreAllMocks();
     });
 
@@ -232,5 +239,97 @@ describe("results/analysis", () => {
         expect(harness.state.analysisResult.model_key).toBe("ngrams");
         expect(harness.state.currentWorkspace).toBe("analysis-results");
         expect(harness.updateWorkspaceVisibility).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders backend analysis failure payloads", async () => {
+        const payload = {
+            ok: false,
+            result_id: "result-123",
+            model_key: "community",
+            model_label: "Community",
+            text_column_name: "comment",
+            filtered_row_count: 0,
+            valid_document_count: 0,
+            original_response_count: 0,
+            skipped_document_count: 0,
+            translated_document_count: 0,
+            warnings: [],
+            error: "Gemini is down. Try again in 2 minutes.",
+            groups: [],
+            ngram_buckets: [],
+            scatter_points: [],
+            network_edges: [],
+        };
+        const fetchMock = vi.fn(async () => createJsonResponse({ ok: true, status: 200, payload }));
+        const harness = await loadAnalysisHarness({ fetchImpl: fetchMock });
+
+        harness.state.resultId = "result-123";
+        harness.state.analysisVerbatimColumns = ["comment"];
+        harness.state.selectedAnalysisColumn = "comment";
+        harness.state.selectedAnalysisModel = "community";
+
+        await harness.analysis.runAnalysis();
+
+        expect(harness.state.analysisResult.error).toBe("Gemini is down. Try again in 2 minutes.");
+        expect(harness.dom.elements.get("analysis-message").textContent).toBe("Gemini is down. Try again in 2 minutes.");
+        expect(harness.dom.elements.get("analysis-list").innerHTML).toContain("Analysis could not run");
+        expect(harness.dom.elements.get("analysis-list").innerHTML).toContain("Gemini is down. Try again in 2 minutes.");
+    });
+
+    it("retries Gemini rate limits five times before showing the final failure", async () => {
+        vi.useFakeTimers();
+        const rateLimitPayload = {
+            ok: false,
+            result_id: "result-123",
+            model_key: "community",
+            model_label: "Community",
+            text_column_name: "comment",
+            filtered_row_count: 0,
+            valid_document_count: 0,
+            original_response_count: 0,
+            skipped_document_count: 0,
+            translated_document_count: 0,
+            warnings: [],
+            error: "Gemini is rate limited. Try again later.",
+            error_code: "gemini_rate_limited",
+            retry_after_seconds: 60,
+            groups: [],
+            ngram_buckets: [],
+            scatter_points: [],
+            network_edges: [],
+        };
+        const fetchMock = vi.fn(async () => createJsonResponse({
+            ok: true,
+            status: 200,
+            payload: rateLimitPayload,
+        }));
+        const harness = await loadAnalysisHarness({ fetchImpl: fetchMock });
+
+        harness.state.resultId = "result-123";
+        harness.state.analysisVerbatimColumns = ["comment"];
+        harness.state.selectedAnalysisColumn = "comment";
+        harness.state.selectedAnalysisModel = "community";
+
+        const runPromise = harness.analysis.runAnalysis();
+        await flushAsyncWork();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(harness.dom.elements.get("analysis-message").className).toContain("analysis-message-loading");
+        expect(harness.dom.elements.get("analysis-message").innerHTML).toContain(
+            "Due to Gemini rate limit, we are retrying in 1 minute.",
+        );
+
+        for (let retryIndex = 0; retryIndex < 5; retryIndex += 1) {
+            await vi.advanceTimersByTimeAsync(60000);
+            await flushAsyncWork();
+        }
+        await runPromise;
+
+        expect(fetchMock).toHaveBeenCalledTimes(6);
+        expect(harness.state.analysisResult.ok).toBe(false);
+        expect(harness.state.analysisResult.error).toBe("Gemini is still rate limited. Try again later.");
+        expect(harness.dom.elements.get("analysis-message").textContent).toBe(
+            "Gemini is still rate limited. Try again later.",
+        );
     });
 });

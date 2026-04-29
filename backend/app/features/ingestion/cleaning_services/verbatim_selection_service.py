@@ -26,6 +26,28 @@ class VerbatimQuestionCandidate:
     numeric_ratio: float    # Fraction of values parseable as a number
 
 
+@dataclass(slots=True)
+class _VerbatimColumnProfile:
+    non_blank: pd.Series
+    normalized_header: str
+    unique_count: int
+    unique_ratio: float
+    avg_length: float
+    long_text_ratio: float
+    numeric_ratio: float
+    text_value_ratio: float
+    datetime_ratio: float
+    numeric_content_ratio: float
+    top5_coverage: float
+    top10_coverage: float
+    header_has_open_cue: bool
+    header_looks_closed: bool
+
+    @property
+    def non_blank_count(self) -> int:
+        return int(len(self.non_blank))
+
+
 class VerbatimQuestionSelectionService:
     """Identifies open-text verbatim columns via a cascade of heuristic filters on content and header signals."""
 
@@ -136,248 +158,213 @@ class VerbatimQuestionSelectionService:
         *,
         min_score: float,
     ) -> VerbatimQuestionCandidate:
-        non_blank = series.dropna().astype(str).str.strip()
-        non_blank = non_blank[non_blank != ""]
-        normalized_header = self._normalize_header(column_name)
-        reasons: list[str] = []
-
+        non_blank = self._non_blank_values(series)
         if non_blank.empty:
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["column has no non-blank answers"],
-                non_blank_count=0,
-                unique_ratio=0.0,
-                avg_length=0.0,
-                long_text_ratio=0.0,
-                numeric_ratio=0.0,
-            )
+            return self._empty_candidate(column_name)
 
+        profile = self._build_column_profile(non_blank, column_name)
+
+        rejection_reason = self._initial_rejection_reason(profile)
+        if rejection_reason is not None:
+            return self._rejected_candidate(column_name, profile, rejection_reason)
+
+        high_variation_candidate = self._score_high_variation_column(column_name, profile)
+        if high_variation_candidate is not None:
+            return high_variation_candidate
+
+        rejection_reason = self._structured_text_rejection_reason(column_name, profile)
+        if rejection_reason is not None:
+            return self._rejected_candidate(column_name, profile, rejection_reason)
+
+        return self._selected_candidate(
+            column_name,
+            profile,
+            ["column contains text responses", "answers are sufficiently varied"],
+        )
+
+    @staticmethod
+    def _non_blank_values(series: pd.Series) -> pd.Series:
+        non_blank = series.dropna().astype(str).str.strip()
+        return non_blank[non_blank != ""]
+
+    def _build_column_profile(self, non_blank: pd.Series, column_name: str) -> _VerbatimColumnProfile:
+        normalized_header = self._normalize_header(column_name)
         unique_count = int(non_blank.nunique(dropna=True))
-        unique_ratio = unique_count / max(len(non_blank), 1)
-        avg_length = float(non_blank.str.len().mean())
-        # "long text" threshold of 25 chars distinguishes short label answers from genuine prose.
-        long_text_ratio = float((non_blank.str.len() >= 25).mean())
-        numeric_ratio = float(pd.to_numeric(non_blank, errors="coerce").notna().mean())
-        # Regex matches any Unicode letter — values with no letters at all are not text.
-        text_value_ratio = float(non_blank.str.contains(r"[^\W\d_]", regex=True).mean())
-        datetime_ratio = self._datetime_value_ratio(non_blank)
-        numeric_content_ratio = self._numeric_content_ratio(non_blank)
         value_distribution = non_blank.value_counts(normalize=True, dropna=True)
-        top5_coverage = float(value_distribution.head(5).sum())
-        top10_coverage = float(value_distribution.head(10).sum())
-        header_has_open_cue = self._has_open_ended_header_cue(normalized_header)
-        header_looks_closed = self._looks_like_closed_question_header(normalized_header)
 
-        if self._looks_like_identifier_header(normalized_header.split()):
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["identifier-like header"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if numeric_ratio >= 1.0:
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["column is entirely numeric"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if (
-            len(non_blank) >= self.MIN_VARIATION_ROW_COUNT
-            and numeric_ratio >= self.IDENTIFIER_NUMERIC_RATIO_MIN
-            and unique_ratio >= self.IDENTIFIER_UNIQUE_RATIO_MIN
-        ):
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["column looks like identifier values"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if text_value_ratio <= 0.0:
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["column does not contain text responses"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if numeric_content_ratio >= self.NUMERIC_CONTENT_RATIO_MAX:
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["column content is mostly numeric"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if self._looks_like_datetime_header(normalized_header) and datetime_ratio >= self.DATETIME_PARSE_RATIO_MIN:
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["column contains date/time values"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if self._looks_like_high_variation_text(
-            non_blank_count=int(len(non_blank)),
+        return _VerbatimColumnProfile(
+            non_blank=non_blank,
+            normalized_header=normalized_header,
             unique_count=unique_count,
-            unique_ratio=unique_ratio,
-            top10_coverage=top10_coverage,
-        ):
-            if self._looks_like_short_text_label_set(
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-            ) and not header_has_open_cue:
-                return VerbatimQuestionCandidate(
-                    column_name=column_name,
-                    score=-999.0,
-                    is_selected=False,
-                    reasons=["short structured answers without open-ended question cues"],
-                    non_blank_count=int(len(non_blank)),
-                    unique_ratio=unique_ratio,
-                    avg_length=avg_length,
-                    long_text_ratio=long_text_ratio,
-                    numeric_ratio=numeric_ratio,
-                )
-            reasons.append("column contains text responses")
-            reasons.append("answers are highly varied")
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=10.0,
-                is_selected=True,
-                reasons=reasons,
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
+            unique_ratio=unique_count / max(len(non_blank), 1),
+            avg_length=float(non_blank.str.len().mean()),
+            long_text_ratio=float((non_blank.str.len() >= 25).mean()),
+            numeric_ratio=float(pd.to_numeric(non_blank, errors="coerce").notna().mean()),
+            text_value_ratio=float(non_blank.str.contains(r"[^\W\d_]", regex=True).mean()),
+            datetime_ratio=self._datetime_value_ratio(non_blank),
+            numeric_content_ratio=self._numeric_content_ratio(non_blank),
+            top5_coverage=float(value_distribution.head(5).sum()),
+            top10_coverage=float(value_distribution.head(10).sum()),
+            header_has_open_cue=self._has_open_ended_header_cue(normalized_header),
+            header_looks_closed=self._looks_like_closed_question_header(normalized_header),
+        )
 
-        if "|" in column_name:
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["pipe-separated matrix header"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if self._looks_like_fixed_response_text(
-            non_blank_count=int(len(non_blank)),
-            unique_count=unique_count,
-            unique_ratio=unique_ratio,
-            top5_coverage=top5_coverage,
-            top10_coverage=top10_coverage,
-        ):
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["answers look like a fixed-response text set"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if header_looks_closed and self._looks_like_short_text_label_set(
-            avg_length=avg_length,
-            long_text_ratio=long_text_ratio,
-        ):
-            return VerbatimQuestionCandidate(
-                column_name=column_name,
-                score=-999.0,
-                is_selected=False,
-                reasons=["closed-question header with short structured answers"],
-                non_blank_count=int(len(non_blank)),
-                unique_ratio=unique_ratio,
-                avg_length=avg_length,
-                long_text_ratio=long_text_ratio,
-                numeric_ratio=numeric_ratio,
-            )
-
-        if self._looks_like_short_text_label_set(
-            avg_length=avg_length,
-            long_text_ratio=long_text_ratio,
-        ):
-            if not header_has_open_cue:
-                return VerbatimQuestionCandidate(
-                    column_name=column_name,
-                    score=-999.0,
-                    is_selected=False,
-                    reasons=["short answers need stronger open-ended question cues"],
-                    non_blank_count=int(len(non_blank)),
-                    unique_ratio=unique_ratio,
-                    avg_length=avg_length,
-                    long_text_ratio=long_text_ratio,
-                    numeric_ratio=numeric_ratio,
-                )
-            if unique_count < self.SHORT_TEXT_UNIQUE_COUNT_MIN and top10_coverage > self.SHORT_TEXT_TOP10_COVERAGE_MAX:
-                return VerbatimQuestionCandidate(
-                    column_name=column_name,
-                    score=-999.0,
-                    is_selected=False,
-                    reasons=["short answers do not show enough open-text variation"],
-                    non_blank_count=int(len(non_blank)),
-                    unique_ratio=unique_ratio,
-                    avg_length=avg_length,
-                    long_text_ratio=long_text_ratio,
-                    numeric_ratio=numeric_ratio,
-                )
-
-        reasons.append("column contains text responses")
-        reasons.append("answers are sufficiently varied")
-
+    @staticmethod
+    def _empty_candidate(column_name: str) -> VerbatimQuestionCandidate:
         return VerbatimQuestionCandidate(
             column_name=column_name,
+            score=-999.0,
+            is_selected=False,
+            reasons=["column has no non-blank answers"],
+            non_blank_count=0,
+            unique_ratio=0.0,
+            avg_length=0.0,
+            long_text_ratio=0.0,
+            numeric_ratio=0.0,
+        )
+
+    def _rejected_candidate(
+        self,
+        column_name: str,
+        profile: _VerbatimColumnProfile,
+        reason: str,
+    ) -> VerbatimQuestionCandidate:
+        return self._candidate_from_profile(
+            column_name,
+            profile,
+            score=-999.0,
+            is_selected=False,
+            reasons=[reason],
+        )
+
+    def _selected_candidate(
+        self,
+        column_name: str,
+        profile: _VerbatimColumnProfile,
+        reasons: list[str],
+    ) -> VerbatimQuestionCandidate:
+        return self._candidate_from_profile(
+            column_name,
+            profile,
             score=10.0,
             is_selected=True,
             reasons=reasons,
-            non_blank_count=int(len(non_blank)),
-            unique_ratio=unique_ratio,
-            avg_length=avg_length,
-            long_text_ratio=long_text_ratio,
-            numeric_ratio=numeric_ratio,
         )
+
+    @staticmethod
+    def _candidate_from_profile(
+        column_name: str,
+        profile: _VerbatimColumnProfile,
+        *,
+        score: float,
+        is_selected: bool,
+        reasons: list[str],
+    ) -> VerbatimQuestionCandidate:
+        return VerbatimQuestionCandidate(
+            column_name=column_name,
+            score=score,
+            is_selected=is_selected,
+            reasons=reasons,
+            non_blank_count=profile.non_blank_count,
+            unique_ratio=profile.unique_ratio,
+            avg_length=profile.avg_length,
+            long_text_ratio=profile.long_text_ratio,
+            numeric_ratio=profile.numeric_ratio,
+        )
+
+    def _initial_rejection_reason(self, profile: _VerbatimColumnProfile) -> str | None:
+        if self._looks_like_identifier_header(profile.normalized_header.split()):
+            return "identifier-like header"
+
+        if profile.numeric_ratio >= 1.0:
+            return "column is entirely numeric"
+
+        if (
+            profile.non_blank_count >= self.MIN_VARIATION_ROW_COUNT
+            and profile.numeric_ratio >= self.IDENTIFIER_NUMERIC_RATIO_MIN
+            and profile.unique_ratio >= self.IDENTIFIER_UNIQUE_RATIO_MIN
+        ):
+            return "column looks like identifier values"
+
+        if profile.text_value_ratio <= 0.0:
+            return "column does not contain text responses"
+
+        if profile.numeric_content_ratio >= self.NUMERIC_CONTENT_RATIO_MAX:
+            return "column content is mostly numeric"
+
+        if (
+            self._looks_like_datetime_header(profile.normalized_header)
+            and profile.datetime_ratio >= self.DATETIME_PARSE_RATIO_MIN
+        ):
+            return "column contains date/time values"
+
+        return None
+
+    def _score_high_variation_column(
+        self,
+        column_name: str,
+        profile: _VerbatimColumnProfile,
+    ) -> VerbatimQuestionCandidate | None:
+        if not self._looks_like_high_variation_text(
+            non_blank_count=profile.non_blank_count,
+            unique_count=profile.unique_count,
+            unique_ratio=profile.unique_ratio,
+            top10_coverage=profile.top10_coverage,
+        ):
+            return None
+
+        if self._looks_like_short_text_label_set(
+            avg_length=profile.avg_length,
+            long_text_ratio=profile.long_text_ratio,
+        ) and not profile.header_has_open_cue:
+            return self._rejected_candidate(
+                column_name,
+                profile,
+                "short structured answers without open-ended question cues",
+            )
+
+        return self._selected_candidate(
+            column_name,
+            profile,
+            ["column contains text responses", "answers are highly varied"],
+        )
+
+    def _structured_text_rejection_reason(
+        self,
+        column_name: str,
+        profile: _VerbatimColumnProfile,
+    ) -> str | None:
+        if "|" in column_name:
+            return "pipe-separated matrix header"
+
+        if self._looks_like_fixed_response_text(
+            non_blank_count=profile.non_blank_count,
+            unique_count=profile.unique_count,
+            unique_ratio=profile.unique_ratio,
+            top5_coverage=profile.top5_coverage,
+            top10_coverage=profile.top10_coverage,
+        ):
+            return "answers look like a fixed-response text set"
+
+        if profile.header_looks_closed and self._looks_like_short_text_label_set(
+            avg_length=profile.avg_length,
+            long_text_ratio=profile.long_text_ratio,
+        ):
+            return "closed-question header with short structured answers"
+
+        if self._looks_like_short_text_label_set(
+            avg_length=profile.avg_length,
+            long_text_ratio=profile.long_text_ratio,
+        ):
+            if not profile.header_has_open_cue:
+                return "short answers need stronger open-ended question cues"
+            if (
+                profile.unique_count < self.SHORT_TEXT_UNIQUE_COUNT_MIN
+                and profile.top10_coverage > self.SHORT_TEXT_TOP10_COVERAGE_MAX
+            ):
+                return "short answers do not show enough open-text variation"
+
+        return None
 
     def _looks_like_high_variation_text(
         self,

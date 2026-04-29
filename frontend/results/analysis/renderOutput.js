@@ -83,12 +83,23 @@ export function renderAnalysisMessage(kind, message) {
 }
 
 
+export function renderAnalysisRetryMessage(message) {
+    elements.analysisMessage.hidden = false;
+    elements.analysisMessage.className = "analysis-message analysis-message-warning analysis-message-loading";
+    elements.analysisMessage.innerHTML = `
+        <span class="analysis-message-spinner" aria-hidden="true"></span>
+        <span>${escapeHtml(message)}</span>
+    `;
+}
+
+
 export function clearAnalysisMessage() {
     if (!elements.analysisMessage) {
         return;
     }
     elements.analysisMessage.hidden = true;
     elements.analysisMessage.textContent = "";
+    elements.analysisMessage.innerHTML = "";
     elements.analysisMessage.className = "analysis-message";
 }
 

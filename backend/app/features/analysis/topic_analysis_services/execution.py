@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.core.exceptions import TopicAnalysisDependencyError
+from app.core.exceptions import TopicAnalysisDependencyError, TopicAnalysisRateLimitError
 from app.features.analysis.topic_analysis_services.community_detection_service import (
     CommunityDetectionAnalysisService,
 )
@@ -75,6 +75,9 @@ class TopicModelExecutionService:
             )
             return embeddings, []
         except TopicAnalysisDependencyError as primary_error:
+            if isinstance(primary_error, TopicAnalysisRateLimitError):
+                raise
+
             if not self._has_embedding_fallback():
                 raise
 

@@ -79,6 +79,22 @@
     color: #6a5424;
 }
 
+.analysis-message-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.analysis-message-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 2px solid rgba(106, 84, 36, 0.22);
+    border-top-color: #6a5424;
+    animation: analysis-spin 0.8s linear infinite;
+    flex: 0 0 auto;
+}
+
 .analysis-warning-list {
     margin: 10px 0 0;
     padding-left: 18px;

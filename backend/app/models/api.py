@@ -166,6 +166,8 @@ class AnalysisRunResponse(BaseModel):
     translated_document_count: int = 0
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
+    error_code: str | None = None
+    retry_after_seconds: int | None = None
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)
     scatter_points: list[AnalysisScatterPointModel] = Field(default_factory=list)
