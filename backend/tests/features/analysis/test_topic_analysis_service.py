@@ -813,6 +813,14 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(_CountingReducer.fit_calls, 1)
         self.assertEqual(result.layout_positions[0], (0.0, 1.0))
 
+    def test_normalize_languages_pads_and_ignores_auto_values(self) -> None:
+        normalized = CommunityDetectionAnalysisService._normalize_languages(
+            [" EN ", "auto", "ES"],
+            document_count=5,
+        )
+
+        self.assertEqual(normalized, ["en", None, "es", None, None])
+
 
 class SentenceEmbeddingServiceTests(unittest.TestCase):
     def test_warm_up_is_noop_for_hosted_embedding_providers(self) -> None:
@@ -971,6 +979,25 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
 
         self.assertEqual(post.call_count, 2)
         self.assertEqual(embeddings.shape[0], 1)
+
+    def test_provider_retry_delay_reads_nested_retry_info_payload(self) -> None:
+        service = SentenceEmbeddingService(cache_size=0, max_retries=0)
+        response = _FakeEmbeddingResponse(
+            {
+                "error": {
+                    "message": "Resource exhausted.",
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                            "retryDelay": "3.5s",
+                        }
+                    ],
+                }
+            },
+            status_code=429,
+        )
+
+        self.assertEqual(service._provider_retry_delay_seconds(response), 3.5)
 
     def test_gemini_rate_limit_error_is_retryable_by_the_caller(self) -> None:
         service = SentenceEmbeddingService(cache_size=0, max_retries=0)

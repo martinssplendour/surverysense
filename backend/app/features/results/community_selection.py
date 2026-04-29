@@ -6,7 +6,7 @@ from numbers import Integral
 
 import pandas as pd
 
-from app.features.results.metadata_filter import MetadataFilterDefinition, MetadataFilterService
+from app.features.results.metadata_filter import MetadataFilterService
 from app.features.results.models import StoredAnalysisSnapshot, StoredDatasetSelection, StoredResultDatasets
 
 COMMUNITY_ID_COLUMN_NAME = "community_id"
