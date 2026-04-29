@@ -1,0 +1,22 @@
+/* Workspace view rules */
+body.analysis-results-workspace-active .workflow {
+    min-height: calc(100vh - 72px);
+    padding-top: 0;
+}
+
+body.data-workspace-active .results-view {
+    gap: 0;
+}
+
+body.analysis-setup-workspace-active .results-view {
+    width: 100%;
+    justify-items: center;
+}
+
+body.analysis-results-workspace-active .results-view {
+    gap: 0;
+    width: 100%;
+    justify-items: stretch;
+}
+
+

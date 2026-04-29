@@ -1,5 +1,5 @@
 // Public metadata-filter feature API: owns filter state, filter application, and filter modal helpers.
-import { elements, state } from "../shared.js";
+import { elements, setActiveFilters, setSelectedFilter, state } from "../shared.js";
 import { refreshFilteredDatasets } from "../data/rows.js";
 
 const callbacks = {
@@ -18,9 +18,11 @@ export function handleFilterColumnChange(event) {
     if (!(target instanceof HTMLSelectElement)) {
         return;
     }
-    state.selectedFilterColumn = target.value;
-    const selectedDefinition = getFilterDefinition(state.selectedFilterColumn);
-    state.selectedFilterValue = selectedDefinition?.options?.[0]?.value || "";
+    const selectedDefinition = getFilterDefinition(target.value);
+    setSelectedFilter({
+        column: target.value,
+        value: selectedDefinition?.options?.[0]?.value || "",
+    });
     callbacks.renderFilterBar();
 }
 
@@ -29,7 +31,7 @@ export function handleFilterValueChange(event) {
     if (!(target instanceof HTMLSelectElement)) {
         return;
     }
-    state.selectedFilterValue = target.value;
+    setSelectedFilter({ column: state.selectedFilterColumn, value: target.value });
     if (state.selectedFilterColumn && state.selectedFilterValue) {
         void handleAddFilter();
     }
@@ -88,7 +90,7 @@ export async function removeActiveFilter(columnName) {
  * analysis-results workspace is active so the charts immediately reflect the filter change.
  */
 export async function applyActiveFilters(nextFilters) {
-    state.activeFilters = nextFilters;
+    setActiveFilters(nextFilters);
     const activeAnalysisRequest = callbacks.getActiveAnalysisRequest();
     // Only re-run analysis when results are already visible; otherwise the next explicit run will pick up filters.
     const shouldRerunAnalysis = state.currentWorkspace === "analysis-results"
@@ -134,7 +136,7 @@ export function pruneInvalidActiveFilters() {
             nextFilters[columnName] = values;
         }
     });
-    state.activeFilters = nextFilters;
+    setActiveFilters(nextFilters);
 }
 
 export function hasActiveFilters() {

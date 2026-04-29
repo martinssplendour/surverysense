@@ -10,6 +10,10 @@
 @import url("./styles/components/data-export-menu.css") layer(app-base);
 @import url("./styles/features/analysis-setup.css") layer(app-base);
 @import url("./styles/features/workspace.css") layer(app-base);
+@import url("./styles/features/workspace-upload.css") layer(app-base);
+@import url("./styles/features/workspace-view.css") layer(app-base);
+@import url("./styles/features/workspace-data.css") layer(app-base);
+@import url("./styles/features/workspace-analysis-results.css") layer(app-base);
 @import url("./styles/features/analysis-results.css") layer(app-base);
 @import url("./styles/features/data-table.css") layer(app-base);
 @import url("./styles/components/analysis-controls.css") layer(app-base);

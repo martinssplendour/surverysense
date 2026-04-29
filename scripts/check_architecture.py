@@ -14,6 +14,9 @@ FRONTEND_RESULTS = ROOT / "frontend" / "results"
 FEATURE_IMPORT_PATTERN = re.compile(
     r"""(?:import|export)\s+(?:[^'"]+\s+from\s+)?['"](?P<specifier>[^'"]+)['"]|import\(\s*['"](?P<dynamic>[^'"]+)['"]\s*\)"""
 )
+FRONTEND_STATE_ASSIGNMENT_PATTERN = re.compile(
+    r"""\bstate(?:\.[A-Za-z_$][\w$]*)+\s*(?:=[^=>=]|\+=|-=|\*=|/=|%=|\+\+|--)"""
+)
 
 BACKEND_ALLOWED_CROSS_FEATURE_IMPORTS = {
     # Auth owns session flow but logout also clears in-memory uploaded results.
@@ -57,6 +60,7 @@ def main() -> int:
         *check_backend_feature_imports(),
         *check_frontend_results_root_files(),
         *check_frontend_shared_imports(),
+        *check_frontend_state_mutations(),
     ]
     if violations:
         print("Architecture guardrail violations found:", file=sys.stderr)
@@ -167,6 +171,27 @@ def check_frontend_results_root_files() -> list[Violation]:
                 ),
             )
         )
+    return violations
+
+
+def check_frontend_state_mutations() -> list[Violation]:
+    violations: list[Violation] = []
+    allowed_paths = {FRONTEND_RESULTS / "shared" / "state.js"}
+    for path in sorted(FRONTEND_RESULTS.rglob("*.js")):
+        if path in allowed_paths or path.name.endswith(".test.js"):
+            continue
+        text = path.read_text(encoding="utf-8")
+        for match in FRONTEND_STATE_ASSIGNMENT_PATTERN.finditer(text):
+            violations.append(
+                Violation(
+                    path=path,
+                    line=text.count("\n", 0, match.start()) + 1,
+                    message=(
+                        "frontend global state must be mutated through shared/state.js transition helpers. "
+                        "Add a named helper there instead of assigning to state directly."
+                    ),
+                )
+            )
     return violations
 
 

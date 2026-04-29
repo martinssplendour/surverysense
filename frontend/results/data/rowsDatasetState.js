@@ -1,4 +1,5 @@
 import {
+    appendDatasetPayload as appendDatasetPayloadState,
     applyDatasetPayload as applyDatasetPayloadState,
     resetDatasetState,
     state,
@@ -36,6 +37,11 @@ export function resetDatasetRows(dataset) {
 
 export function applyRowsPayload(dataset, payload) {
     applyDatasetPayloadState(dataset, payload);
+}
+
+
+export function appendRowsPayload(dataset, payload) {
+    appendDatasetPayloadState(dataset, payload);
 }
 
 

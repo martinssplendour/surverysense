@@ -1,5 +1,10 @@
 // Public data-export feature API: renders controls and downloads cleaned data exports.
-import { RESULT_STORAGE_KEY, elements, state } from "../shared.js";
+import {
+    RESULT_STORAGE_KEY,
+    elements,
+    setDataExportState,
+    state,
+} from "../shared.js";
 import { parseDownloadFilename, slugify, stripFilenameExtension } from "../shared/utils.js";
 
 const callbacks = {
@@ -28,7 +33,7 @@ export function renderDataExportControls() {
     const hasCleanData = Boolean(state.resultId && state.transformedColumnNames.length);
     const hasVerbatimColumns = state.analysisVerbatimColumns.length > 0;
     if (!hasCleanData || state.dataExportRunning || state.currentWorkspace !== "data") {
-        state.dataExportMenuOpen = false;
+        setDataExportState({ menuOpen: false });
     }
     const isMenuOpen = hasCleanData
         && !state.dataExportRunning
@@ -69,8 +74,7 @@ export async function downloadDataExport(scopeValue) {
     }
 
     clearDataExportMessage();
-    state.dataExportMenuOpen = false;
-    state.dataExportRunning = true;
+    setDataExportState({ menuOpen: false, running: true });
     renderDataExportControls();
 
     try {
@@ -112,7 +116,7 @@ export async function downloadDataExport(scopeValue) {
         const message = error instanceof Error ? error.message : "Unable to download the cleaned data.";
         renderDataExportMessage("error", message);
     } finally {
-        state.dataExportRunning = false;
+        setDataExportState({ running: false });
         renderDataExportControls();
     }
 }

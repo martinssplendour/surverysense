@@ -1,5 +1,5 @@
 // Public charts feature API: orchestrates chart rendering while specialized renderers live beside it.
-import { elements, state } from "../shared.js";
+import { elements, setCommunityChartView, state } from "../shared.js";
 import { configureChartExport } from "./export.js";
 import { renderCommunityNetworkChart } from "./renderers/communityNetworkChartRenderer.js";
 import { renderGroupDistributionChart } from "./renderers/groupChartRenderer.js";
@@ -109,7 +109,7 @@ function bindCommunityChartToggle(groups, plotPoints, networkEdges) {
             if (nextView === state.communityChartView) {
                 return;
             }
-            state.communityChartView = nextView;
+            setCommunityChartView(nextView);
             renderAnalysisChart(groups, plotPoints, networkEdges);
         });
     });

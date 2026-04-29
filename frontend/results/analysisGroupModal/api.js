@@ -2,6 +2,10 @@
 import {
     FULL_DATA_ROW_PAGE_SIZE,
     RESULT_STORAGE_KEY,
+    applyAnalysisGroupDocumentsPayload,
+    setAnalysisDocumentTranslation,
+    setAnalysisDocumentTranslationLoading,
+    setAnalysisGroupModalLoading,
     state,
 } from "../shared.js";
 import { showAnalysisGroupModalMessage, hideAnalysisGroupModalMessage } from "../filters.js";
@@ -15,10 +19,7 @@ export async function translateAnalysisDocument(documentKey) {
         return;
     }
 
-    state.analysisGroupModalTranslationLoading = {
-        ...state.analysisGroupModalTranslationLoading,
-        [documentKey]: true,
-    };
+    setAnalysisDocumentTranslationLoading(documentKey, true);
     renderAnalysisGroupModal();
 
     try {
@@ -43,21 +44,16 @@ export async function translateAnalysisDocument(documentKey) {
             throw new Error(payload.detail || "Unable to translate this response.");
         }
 
-        state.analysisGroupModalTranslations = {
-            ...state.analysisGroupModalTranslations,
-            [documentKey]: {
-                text: String(payload.translated_text || document.text || ""),
-                translated: Boolean(payload.translated),
-                warning: payload.warning ? String(payload.warning) : "",
-            },
-        };
+        setAnalysisDocumentTranslation(documentKey, {
+            text: String(payload.translated_text || document.text || ""),
+            translated: Boolean(payload.translated),
+            warning: payload.warning ? String(payload.warning) : "",
+        });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to translate this response.";
         showAnalysisGroupModalMessage("error", message);
     } finally {
-        const nextLoading = { ...state.analysisGroupModalTranslationLoading };
-        delete nextLoading[documentKey];
-        state.analysisGroupModalTranslationLoading = nextLoading;
+        setAnalysisDocumentTranslationLoading(documentKey, false);
         renderAnalysisGroupModal();
     }
 }
@@ -72,7 +68,7 @@ export async function loadAnalysisGroupDocuments({ reset = false } = {}) {
     // Group documents page independently from the main analysis payload so the
     // analysis result stays lightweight even when a group has many responses.
     const offset = reset ? 0 : state.analysisGroupModalOffset;
-    state.analysisGroupModalLoading = true;
+    setAnalysisGroupModalLoading(true);
     hideAnalysisGroupModalMessage();
     renderAnalysisGroupModal();
 
@@ -93,18 +89,12 @@ export async function loadAnalysisGroupDocuments({ reset = false } = {}) {
             throw new Error(payload.detail || "Unable to load group responses.");
         }
 
-        const documents = Array.isArray(payload.documents) ? payload.documents : [];
-        state.analysisGroupModalDocuments = reset
-            ? documents
-            : state.analysisGroupModalDocuments.concat(documents);
-        state.analysisGroupModalOffset = Number(payload.offset || 0) + documents.length;
-        state.analysisGroupModalHasMore = Boolean(payload.has_more);
-        state.analysisGroupModalTotalCount = Number(payload.total_count || state.analysisGroupModalTotalCount || group.count || 0);
+        applyAnalysisGroupDocumentsPayload(payload, { reset, fallbackTotalCount: Number(group.count || 0) });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load group responses.";
         showAnalysisGroupModalMessage("error", message);
     } finally {
-        state.analysisGroupModalLoading = false;
+        setAnalysisGroupModalLoading(false);
         renderAnalysisGroupModal();
     }
 }
@@ -124,7 +114,7 @@ export async function loadAnalysisNgramDocuments({ reset = false } = {}) {
     const offset = reset ? 0 : state.analysisGroupModalOffset;
     // Use the pre-normalised source term for the API query when available; the display term may be cleaned.
     const lookupTerm = state.analysisGroupModalSourceTerm || state.analysisGroupModalTerm;
-    state.analysisGroupModalLoading = true;
+    setAnalysisGroupModalLoading(true);
     hideAnalysisGroupModalMessage();
     renderAnalysisGroupModal();
 
@@ -146,19 +136,12 @@ export async function loadAnalysisNgramDocuments({ reset = false } = {}) {
             throw new Error(payload.detail || "Unable to load matching responses.");
         }
 
-        const documents = Array.isArray(payload.documents) ? payload.documents : [];
-        state.analysisGroupModalDocuments = reset
-            ? documents
-            : state.analysisGroupModalDocuments.concat(documents);
-        state.analysisGroupModalOffset = Number(payload.offset || 0) + documents.length;
-        state.analysisGroupModalHasMore = Boolean(payload.has_more);
-        state.analysisGroupModalTotalCount = Number(payload.total_count || state.analysisGroupModalTotalCount || 0);
-        state.analysisGroupModalHitCount = Number(payload.hit_count || state.analysisGroupModalHitCount || 0);
+        applyAnalysisGroupDocumentsPayload(payload, { reset });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load matching responses.";
         showAnalysisGroupModalMessage("error", message);
     } finally {
-        state.analysisGroupModalLoading = false;
+        setAnalysisGroupModalLoading(false);
         renderAnalysisGroupModal();
     }
 }

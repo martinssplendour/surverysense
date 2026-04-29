@@ -1,5 +1,11 @@
 // Public column-role feature API: owns the Edit Columns modal and role reassignment behavior.
-import { RESULT_STORAGE_KEY, elements, state } from "../shared.js";
+import {
+    RESULT_STORAGE_KEY,
+    applyColumnRolePayload,
+    elements,
+    setPreviewState,
+    state,
+} from "../shared.js";
 import { displayColumnLabel, escapeHtml } from "../shared/utils.js";
 import {
     getColumnRole,
@@ -23,7 +29,7 @@ export function openColumnRoleModal() {
     if (!elements.columnRoleModal) {
         return;
     }
-    state.columnSearchTerm = "";
+    setPreviewState({ columnSearchTerm: "" });
     elements.columnRoleSearch.value = "";
     elements.columnRoleMessage.hidden = true;
     elements.columnRoleModal.hidden = false;
@@ -81,7 +87,7 @@ export function handleColumnRoleSearch(event) {
     if (!(target instanceof HTMLInputElement)) {
         return;
     }
-    state.columnSearchTerm = target.value;
+    setPreviewState({ columnSearchTerm: target.value });
     renderColumnRoleModal();
 }
 
@@ -125,26 +131,8 @@ export async function applyColumnRoleChange() {
             throw new Error(payload.detail || "Unable to update the column assignment.");
         }
 
-        state.analysisMetadataColumns = Array.isArray(payload.analysis_metadata_column_names)
-            ? payload.analysis_metadata_column_names
-            : [];
-        state.analysisVerbatimColumns = Array.isArray(payload.analysis_verbatim_column_names)
-            ? payload.analysis_verbatim_column_names
-            : [];
-        state.analysisColumnNames = Array.isArray(payload.analysis_column_names)
-            ? payload.analysis_column_names
-            : [];
-        state.analysisTotalRows = Number(payload.analysis_row_count || 0);
-        state.availableFilters = Array.isArray(payload.available_filters)
-            ? payload.available_filters
-            : [];
+        applyColumnRolePayload(payload);
         pruneInvalidActiveFilters();
-        if (!state.analysisVerbatimColumns.includes(state.selectedAnalysisColumn)) {
-            state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
-        }
-        state.analysisResult = null;
-        state.dataPreviewDataset = null;
-        state.communityAnalysisColumnNames = [];
         await refreshFilteredDatasets();
         callbacks.persistCurrentPayload();
         callbacks.renderDashboard(state.response || {});

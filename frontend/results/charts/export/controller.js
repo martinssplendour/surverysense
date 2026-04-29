@@ -1,5 +1,5 @@
 // Coordinates analysis report export and preview actions.
-import { state } from "../../shared.js";
+import { setAnalysisExportState, state } from "../../shared.js";
 import { requestAnalysisReportBlob } from "./request.js";
 import { normalizeAnalysisExportFormat } from "./format.js";
 import {
@@ -28,9 +28,11 @@ export async function downloadAnalysisReport() {
         return;
     }
 
-    state.analysisExportFormat = normalizeAnalysisExportFormat(state.analysisExportFormat);
-    state.analysisExportMenuOpen = false;
-    state.analysisExportRunning = true;
+    setAnalysisExportState({
+        format: normalizeAnalysisExportFormat(state.analysisExportFormat),
+        menuOpen: false,
+        running: true,
+    });
     callbacks.renderAnalysisExportControls();
 
     try {
@@ -51,7 +53,7 @@ export async function downloadAnalysisReport() {
         const message = error instanceof Error ? error.message : "Unable to export the report.";
         callbacks.renderAnalysisMessage("error", message);
     } finally {
-        state.analysisExportRunning = false;
+        setAnalysisExportState({ running: false });
         callbacks.renderAnalysisExportControls();
     }
 }
@@ -62,15 +64,14 @@ export async function previewAnalysisReport() {
         return;
     }
 
-    state.analysisExportFormat = normalizeAnalysisExportFormat(state.analysisExportFormat);
+    setAnalysisExportState({ format: normalizeAnalysisExportFormat(state.analysisExportFormat) });
     const previewWindow = openPreparingPreviewWindow();
     if (!previewWindow) {
         callbacks.renderAnalysisMessage("error", "Unable to open the preview tab. Allow pop-ups for this site and try again.");
         return;
     }
 
-    state.analysisExportMenuOpen = false;
-    state.analysisExportRunning = true;
+    setAnalysisExportState({ menuOpen: false, running: true });
     callbacks.renderAnalysisExportControls();
 
     try {
@@ -92,7 +93,7 @@ export async function previewAnalysisReport() {
         writePreviewErrorPage(previewWindow, message);
         callbacks.renderAnalysisMessage("error", message);
     } finally {
-        state.analysisExportRunning = false;
+        setAnalysisExportState({ running: false });
         callbacks.renderAnalysisExportControls();
     }
 }

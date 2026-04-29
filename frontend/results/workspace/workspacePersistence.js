@@ -1,4 +1,4 @@
-import { elements, state } from "../shared.js";
+import { elements, setCurrentWorkspace } from "../shared.js";
 import { closeAnalysisGroupModal } from "../modals.js";
 import { closeColumnRoleModal } from "../columnRoles.js";
 import { on } from "../events/bus.js";
@@ -45,7 +45,7 @@ export async function loadResultsPage() {
 export function resetToUploadState() {
     clearStoredPayload();
     resetStoredResultState();
-    state.currentWorkspace = "dashboard";
+    setCurrentWorkspace("dashboard");
     showEmptyState();
     window.dispatchEvent(new CustomEvent("verbatim:upload-reset"));
     window.scrollTo({ top: 0, behavior: "smooth" });

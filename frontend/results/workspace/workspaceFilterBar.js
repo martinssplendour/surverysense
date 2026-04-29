@@ -1,4 +1,4 @@
-import { elements, state } from "../shared.js";
+import { elements, setSelectedFilter, state } from "../shared.js";
 import { displayFilterName, getFilterDefinition, hideFilterModalMessage } from "../filters.js";
 import { escapeHtml, formatNumber } from "../shared/utils.js";
 import { hasActiveFilters } from "../data/rows.js";
@@ -38,13 +38,13 @@ export function renderFilterBar() {
     }
 
     if (!state.selectedFilterColumn || !filters.some((definition) => definition.column_name === state.selectedFilterColumn)) {
-        state.selectedFilterColumn = filters[0]?.column_name || "";
+        setSelectedFilter({ column: filters[0]?.column_name || "", value: state.selectedFilterValue });
     }
 
     const selectedDefinition = getFilterDefinition(state.selectedFilterColumn);
     const selectedOptions = Array.isArray(selectedDefinition?.options) ? selectedDefinition.options : [];
     if (!state.selectedFilterValue || !selectedOptions.some((option) => option.value === state.selectedFilterValue)) {
-        state.selectedFilterValue = selectedOptions[0]?.value || "";
+        setSelectedFilter({ column: state.selectedFilterColumn, value: selectedOptions[0]?.value || "" });
     }
 
     if (elements.openFilterModalButton) {

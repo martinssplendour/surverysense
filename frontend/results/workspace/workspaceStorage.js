@@ -1,4 +1,4 @@
-import { RESULT_STORAGE_KEY, state } from "../shared.js";
+import { RESULT_STORAGE_KEY, state, syncResultResponseMetadata } from "../shared.js";
 
 
 export function clearStoredPayload() {
@@ -11,13 +11,9 @@ export function persistCurrentResultPayload() {
         return;
     }
 
-    state.response.analysis_metadata_column_names = [...state.analysisMetadataColumns];
-    state.response.analysis_verbatim_column_names = [...state.analysisVerbatimColumns];
-    state.response.analysis_row_count = state.analysisTotalRows;
-    state.response.analysis_column_names = [...state.analysisColumnNames];
-    state.response.available_filters = [...state.availableFilters];
+    const response = syncResultResponseMetadata();
     try {
-        sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(state.response));
+        sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(response));
     } catch (error) {
         console.warn(
             "[Verbatim App] Failed to update the cached processed result; the current screen still works, but a later restore may be out of date.",

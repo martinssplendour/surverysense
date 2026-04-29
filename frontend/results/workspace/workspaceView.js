@@ -1,4 +1,10 @@
-import { elements, state } from "../shared.js";
+import {
+    elements,
+    setCurrentWorkspace,
+    setDataExportState,
+    setPreviewState,
+    state,
+} from "../shared.js";
 import { clearDataExportMessage, renderDataExportControls } from "../dataExport.js";
 import { on } from "../events/bus.js";
 import { formatNumber, summaryMetric } from "../shared/utils.js";
@@ -45,10 +51,10 @@ export function renderDashboard(payload) {
 export async function openWorkspace(nextWorkspace) {
     closeAnalysisGroupModal();
     if (nextWorkspace !== "data") {
-        state.dataExportMenuOpen = false;
-        state.dataPreviewDataset = null;
+        setDataExportState({ menuOpen: false });
+        setPreviewState({ dataset: null });
     }
-    state.currentWorkspace = nextWorkspace;
+    setCurrentWorkspace(nextWorkspace);
     updateWorkspaceVisibility();
 
     if (nextWorkspace === "data") {

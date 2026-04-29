@@ -1,4 +1,4 @@
-import { elements, state } from "../shared.js";
+import { elements, setPreviewState, state } from "../shared.js";
 import { openWorkspace, resetToUploadState } from "../workspace/workspace.js";
 
 export function bindNavigationEvents() {
@@ -7,8 +7,7 @@ export function bindNavigationEvents() {
         void openWorkspace("analysis");
     });
     elements.openDataButton?.addEventListener("click", () => {
-        state.dataPreviewDataset = null;
-        state.showOnlyVerbatim = false;
+        setPreviewState({ dataset: null, showOnlyVerbatim: false });
         void openWorkspace("data");
     });
     elements.dataAnalyseButton?.addEventListener("click", () => {
@@ -24,10 +23,12 @@ export function bindNavigationEvents() {
         void openWorkspace("analysis");
     });
     elements.analysisViewDataButton?.addEventListener("click", () => {
-        state.dataPreviewDataset = state.analysisResult?.model_key && state.analysisResult?.model_key !== "ngrams"
-            ? "community_analysis"
-            : null;
-        state.showOnlyVerbatim = false;
+        setPreviewState({
+            dataset: state.analysisResult?.model_key && state.analysisResult?.model_key !== "ngrams"
+                ? "community_analysis"
+                : null,
+            showOnlyVerbatim: false,
+        });
         void openWorkspace("data");
     });
     elements.analysisEmptyActionButton?.addEventListener("click", () => {

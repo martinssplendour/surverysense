@@ -1,4 +1,4 @@
-import { elements, state } from "../shared.js";
+import { elements, setDataExportState, state } from "../shared.js";
 import { downloadDataExport, renderDataExportControls } from "../dataExport.js";
 
 export function bindDataExportEvents() {
@@ -12,7 +12,7 @@ function handleDataExportToggleClick(event) {
     if (state.dataExportRunning) {
         return;
     }
-    state.dataExportMenuOpen = !state.dataExportMenuOpen;
+    setDataExportState({ menuOpen: !state.dataExportMenuOpen });
     renderDataExportControls();
 }
 
@@ -26,7 +26,7 @@ function handleDataExportMenuClick(event) {
         return;
     }
     const scope = scopeButton.dataset.dataExportScope;
-    state.dataExportMenuOpen = false;
+    setDataExportState({ menuOpen: false });
     renderDataExportControls();
     void downloadDataExport(scope);
 }
@@ -37,7 +37,7 @@ function handleDataExportDocumentClick(event) {
         return;
     }
     if (!(elements.dataExportMenu?.contains(target) || elements.dataExportToggleButton?.contains(target))) {
-        state.dataExportMenuOpen = false;
+        setDataExportState({ menuOpen: false });
         renderDataExportControls();
     }
 }

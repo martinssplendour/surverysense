@@ -1,5 +1,11 @@
 // Renders analysis setup controls and report export controls.
-import { ANALYSIS_MODE_OPTIONS, elements, state } from "../shared.js";
+import {
+    ANALYSIS_MODE_OPTIONS,
+    elements,
+    setAnalysisExportState,
+    setAnalysisSelection,
+    state,
+} from "../shared.js";
 import { displayColumnLabel, escapeHtml } from "../shared/utils.js";
 import { displayAnalysisExportFormat, normalizeAnalysisExportFormat } from "../charts/export.js";
 
@@ -11,10 +17,16 @@ export function renderAnalysisPanel() {
     }
 
     if (!state.selectedAnalysisColumn || !state.analysisVerbatimColumns.includes(state.selectedAnalysisColumn)) {
-        state.selectedAnalysisColumn = state.analysisVerbatimColumns[0] || "";
+        setAnalysisSelection({
+            column: state.analysisVerbatimColumns[0] || "",
+            model: state.selectedAnalysisModel,
+        });
     }
     if (!ANALYSIS_MODE_OPTIONS.some((option) => option.key === state.selectedAnalysisModel)) {
-        state.selectedAnalysisModel = "community";
+        setAnalysisSelection({
+            column: state.selectedAnalysisColumn,
+            model: "community",
+        });
     }
 
     renderAnalysisControls();
@@ -61,7 +73,7 @@ export function renderAnalysisExportControls() {
     const selectedFormat = normalizeAnalysisExportFormat(state.analysisExportFormat);
     const selectedFormatLabel = displayAnalysisExportFormat(selectedFormat);
     if (!hasReadyAnalysis || state.analysisExportRunning) {
-        state.analysisExportMenuOpen = false;
+        setAnalysisExportState({ menuOpen: false });
     }
     const isMenuOpen = hasReadyAnalysis && !state.analysisExportRunning && Boolean(state.analysisExportMenuOpen);
     if (elements.previewAnalysisReportButton) {

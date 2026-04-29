@@ -1,7 +1,14 @@
-import { RESULT_STORAGE_KEY, state } from "../shared.js";
+import {
+    RESULT_STORAGE_KEY,
+    invalidateRowDatasetsAfterAnalysis,
+    setAnalysisResult,
+    setAnalysisRunning,
+    setAnalysisSelection,
+    setCurrentWorkspace,
+    state,
+} from "../shared.js";
 import { displayAnalysisMode } from "../shared/utils.js";
 import { parseJson } from "../data/rows.js";
-import { resetDatasetRows } from "../data/rowsDatasetState.js";
 import { emit } from "../events/bus.js";
 import { closeAnalysisGroupModal } from "../modals.js";
 import {
@@ -30,8 +37,8 @@ export function handleAnalysisColumnChange(event) {
     if (!(target instanceof HTMLSelectElement)) {
         return;
     }
-    state.selectedAnalysisColumn = target.value;
-    state.analysisResult = null;
+    setAnalysisSelection({ column: target.value, model: state.selectedAnalysisModel });
+    setAnalysisResult(null);
     renderAnalysisControls();
     renderAnalysisOutput();
 }
@@ -55,8 +62,8 @@ export function handleAnalysisMethodClick(event) {
     if (modelKey === state.selectedAnalysisModel) {
         return;
     }
-    state.selectedAnalysisModel = modelKey;
-    state.analysisResult = null;
+    setAnalysisSelection({ column: state.selectedAnalysisColumn, model: modelKey });
+    setAnalysisResult(null);
     renderAnalysisControls();
     renderAnalysisOutput();
 }
@@ -132,21 +139,23 @@ export async function runAnalysis({
         });
     } finally {
         activeAnalysisAbortController = null;
-        state.analysisRunning = false;
+        setAnalysisRunning(false);
         renderAnalysisControls();
     }
 }
 
 function beginAnalysisRun({ textColumnName, modelKey, preserveCurrentOutput }) {
     closeAnalysisGroupModal();
-    state.selectedAnalysisColumn = textColumnName;
-    state.selectedAnalysisModel = modelKey || state.selectedAnalysisModel;
-    state.analysisRunning = true;
+    setAnalysisSelection({
+        column: textColumnName,
+        model: modelKey || state.selectedAnalysisModel,
+    });
+    setAnalysisRunning(true);
     renderAnalysisControls();
     if (preserveCurrentOutput && state.currentWorkspace === "analysis-results" && state.analysisResult) {
         renderAnalysisMessage("neutral", "Updating the plot for the current filters...");
     } else {
-        state.analysisResult = null;
+        setAnalysisResult(null);
         renderAnalysisOutput();
     }
 
@@ -263,11 +272,13 @@ function finishSuccessfulAnalysis({
     modelKey,
     scrollIntoView,
 }) {
-    state.analysisResult = payload;
-    state.selectedAnalysisColumn = payload.text_column_name || textColumnName;
-    state.selectedAnalysisModel = payload.model_key || modelKey;
+    setAnalysisResult(payload);
+    setAnalysisSelection({
+        column: payload.text_column_name || textColumnName,
+        model: payload.model_key || modelKey,
+    });
     invalidateRowDatasetsAfterAnalysis();
-    state.currentWorkspace = "analysis-results";
+    setCurrentWorkspace("analysis-results");
     emit("workspace:visibility:update");
     renderAnalysisOutput();
     if (scrollIntoView) {
@@ -275,20 +286,9 @@ function finishSuccessfulAnalysis({
     }
 }
 
-function invalidateRowDatasetsAfterAnalysis() {
-    resetDatasetRows("transformed");
-    resetDatasetRows("analysis");
-    resetDatasetRows("community_analysis");
-    state.communityAnalysisColumnNames = [];
-    state.dataPreviewDataset = null;
-    state.transformedHasMore = Boolean(state.resultId);
-    state.analysisHasMore = Boolean(state.resultId);
-    state.communityAnalysisHasMore = state.analysisResult?.model_key && state.analysisResult?.model_key !== "ngrams";
-}
-
 function finishFailedAnalysis({ error, textColumnName, modelKey }) {
     const message = error instanceof Error ? error.message : "Unable to run analysis.";
-    state.analysisResult = {
+    setAnalysisResult({
         ok: false,
         result_id: state.resultId,
         model_key: modelKey,
@@ -305,8 +305,8 @@ function finishFailedAnalysis({ error, textColumnName, modelKey }) {
         ngram_buckets: [],
         scatter_points: [],
         network_edges: [],
-    };
-    state.currentWorkspace = "analysis-results";
+    });
+    setCurrentWorkspace("analysis-results");
     emit("workspace:visibility:update");
     renderAnalysisOutput();
 }

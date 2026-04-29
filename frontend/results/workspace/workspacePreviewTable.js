@@ -1,6 +1,7 @@
 import {
     FULL_DATA_VISIBLE_COLUMN_COUNT,
     elements,
+    setPreviewState,
     state,
 } from "../shared.js";
 import { renderDataExportControls } from "../dataExport.js";
@@ -110,7 +111,7 @@ export function handleSliderInput(event) {
         return;
     }
 
-    state.previewColumnOffset = Number(event.target.value);
+    setPreviewState({ columnOffset: Number(event.target.value) });
     renderPreviewTable(true);
 }
 
@@ -122,9 +123,11 @@ export function handlePreviewTableScroll() {
 }
 
 export async function handlePreviewModeChange() {
-    state.dataPreviewDataset = null;
-    state.showOnlyVerbatim = Boolean(elements.verbatimToggle.checked);
-    state.previewColumnOffset = 0;
+    setPreviewState({
+        dataset: null,
+        showOnlyVerbatim: Boolean(elements.verbatimToggle.checked),
+        columnOffset: 0,
+    });
     const dataset = currentPreviewDataset();
     await ensureDatasetRowCount(dataset, getInitialVisibleRowTarget(dataset));
     renderPreviewTable(false);

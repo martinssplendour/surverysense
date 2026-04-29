@@ -3,6 +3,7 @@ import {
     FULL_DATA_VISIBLE_COLUMN_COUNT,
     INITIAL_VISIBLE_ROW_TARGET,
     elements,
+    setPreviewState,
     state,
 } from "../shared.js";
 import { buildRowStatusText } from "./rowsDatasetState.js";
@@ -63,6 +64,6 @@ export function getVisiblePreviewColumns(columns, dataset) {
     // only applied there; the verbatim-only table always shows all available columns.
     const maxOffset = Math.max(0, columns.length - FULL_DATA_VISIBLE_COLUMN_COUNT);
     const start = Math.min(state.previewColumnOffset, maxOffset);
-    state.previewColumnOffset = start;
+    setPreviewState({ columnOffset: start });
     return columns.slice(start, start + FULL_DATA_VISIBLE_COLUMN_COUNT);
 }

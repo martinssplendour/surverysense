@@ -5,11 +5,13 @@ import {
     INITIAL_VISIBLE_ROW_TARGET,
     ROW_PAGE_SIZE,
     elements,
+    setDatasetStatus,
     state,
 } from "../shared.js";
 import { fetchRowsPage as fetchRowsPageApi, parseJson } from "./rowsApi.js";
 import {
     applyRowsPayload,
+    appendRowsPayload,
     getDatasetHasMore,
     getDatasetLoadedCount,
     getDatasetTotalCount,
@@ -165,13 +167,13 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
     }
     if (!state.resultId) {
         if (dataset === "community_analysis") {
-            state.communityAnalysisHasMore = false;
+            setDatasetStatus("community_analysis", { hasMore: false });
             return;
         }
         if (dataset === "transformed") {
-            state.transformedHasMore = false;
+            setDatasetStatus("transformed", { hasMore: false });
         } else {
-            state.analysisHasMore = false;
+            setDatasetStatus("analysis", { hasMore: false });
         }
         return;
     }
@@ -182,54 +184,30 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
             ? state.transformedRows.length
             : state.analysisRows.length;
     if (dataset === "community_analysis") {
-        state.communityAnalysisLoading = true;
+        setDatasetStatus("community_analysis", { loading: true });
         updatePreviewRowStatus();
     } else if (dataset === "transformed") {
-        state.transformedLoading = true;
+        setDatasetStatus("transformed", { loading: true });
         updatePreviewRowStatus();
     } else {
-        state.analysisLoading = true;
+        setDatasetStatus("analysis", { loading: true });
         updatePreviewRowStatus();
     }
 
     try {
         const payload = await fetchRowsPage(dataset, offset, limit);
 
-        if (dataset === "community_analysis") {
-            state.communityAnalysisRows = state.communityAnalysisRows.concat(payload.rows || []);
-            state.communityAnalysisHasMore = Boolean(payload.has_more);
-            state.communityAnalysisTotalRows = Number(payload.total_row_count || 0);
-            state.communityAnalysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-            if (Array.isArray(payload.column_names)) {
-                state.communityAnalysisColumnNames = payload.column_names;
-            }
-        } else if (dataset === "transformed") {
-            // Append pages rather than replacing so infinite scroll keeps its already
-            // rendered rows while the backend serves the next slice.
-            state.transformedRows = state.transformedRows.concat(payload.rows || []);
-            state.transformedHasMore = Boolean(payload.has_more);
-            state.transformedTotalRows = Number(payload.total_row_count || 0);
-            state.transformedUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-            if (Array.isArray(payload.column_names) && payload.column_names.length) {
-                state.transformedColumnNames = payload.column_names;
-            }
-        } else {
-            state.analysisRows = state.analysisRows.concat(payload.rows || []);
-            state.analysisHasMore = Boolean(payload.has_more);
-            state.analysisTotalRows = Number(payload.total_row_count || 0);
-            state.analysisUnfilteredTotalRows = Number(payload.unfiltered_row_count || 0);
-            if (Array.isArray(payload.column_names) && payload.column_names.length) {
-                state.analysisColumnNames = payload.column_names;
-            }
-        }
+        // Append pages rather than replacing so infinite scroll keeps its already
+        // rendered rows while the backend serves the next slice.
+        appendRowsPayload(dataset, payload);
         updatePreviewRowStatus();
     } catch (error) {
         if (dataset === "community_analysis") {
-            state.communityAnalysisHasMore = false;
+            setDatasetStatus("community_analysis", { hasMore: false });
         } else if (dataset === "transformed") {
-            state.transformedHasMore = false;
+            setDatasetStatus("transformed", { hasMore: false });
         } else {
-            state.analysisHasMore = false;
+            setDatasetStatus("analysis", { hasMore: false });
         }
         console.error(
             `[Verbatim App] Failed to load ${dataset === "community_analysis" ? "community assignment" : dataset === "analysis" ? "verbatim" : "processed"} preview rows.`,
@@ -237,11 +215,11 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
         );
     } finally {
         if (dataset === "community_analysis") {
-            state.communityAnalysisLoading = false;
+            setDatasetStatus("community_analysis", { loading: false });
         } else if (dataset === "transformed") {
-            state.transformedLoading = false;
+            setDatasetStatus("transformed", { loading: false });
         } else {
-            state.analysisLoading = false;
+            setDatasetStatus("analysis", { loading: false });
         }
         updatePreviewRowStatus();
     }

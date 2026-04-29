@@ -1,4 +1,4 @@
-import { elements, state } from "../shared.js";
+import { elements, setAnalysisExportState, state } from "../shared.js";
 import { downloadAnalysisReport, normalizeAnalysisExportFormat, previewAnalysisReport } from "../charts/export.js";
 import {
     handleAnalysisColumnChange,
@@ -89,7 +89,7 @@ function handleExportToggleClick(event) {
     if (state.analysisExportRunning) {
         return;
     }
-    state.analysisExportMenuOpen = !state.analysisExportMenuOpen;
+    setAnalysisExportState({ menuOpen: !state.analysisExportMenuOpen });
     renderAnalysisExportControls();
 }
 
@@ -102,8 +102,10 @@ function handleExportMenuClick(event) {
     if (!(formatButton instanceof HTMLElement)) {
         return;
     }
-    state.analysisExportFormat = normalizeAnalysisExportFormat(formatButton.dataset.exportFormat);
-    state.analysisExportMenuOpen = false;
+    setAnalysisExportState({
+        format: normalizeAnalysisExportFormat(formatButton.dataset.exportFormat),
+        menuOpen: false,
+    });
     renderAnalysisExportControls();
 }
 
@@ -113,7 +115,7 @@ function handleAnalysisExportDocumentClick(event) {
         return;
     }
     if (!(elements.analysisExportMenu?.contains(target) || elements.analysisExportToggleButton?.contains(target))) {
-        state.analysisExportMenuOpen = false;
+        setAnalysisExportState({ menuOpen: false });
         renderAnalysisExportControls();
     }
 }
