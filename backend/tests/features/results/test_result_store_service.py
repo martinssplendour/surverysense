@@ -38,6 +38,22 @@ class ResultStoreServiceTests(unittest.TestCase):
             max_results=2,
         )
 
+    def build_service_with_clock(self, *, ttl_seconds: int, clock) -> ResultStoreService:
+        text_normalizer = TextNormalizationService()
+        analysis_ready_service = AnalysisReadyDatasetService(
+            metadata_selector=MetadataColumnSelectionService(),
+            verbatim_selector=VerbatimQuestionSelectionService(),
+            multipart_verbatim_consolidator=MultipartVerbatimConsolidationService(text_normalizer),
+            row_filter=VerbatimRowFilterService(),
+        )
+        return ResultStoreService(
+            MetadataFilterService(),
+            analysis_ready_service=analysis_ready_service,
+            max_results=2,
+            ttl_seconds=ttl_seconds,
+            clock=clock,
+        )
+
     def test_save_and_get_page_returns_requested_slice(self) -> None:
         service = self.build_service()
         transformed_df = pd.DataFrame(
@@ -488,6 +504,158 @@ class ResultStoreServiceTests(unittest.TestCase):
 
         with self.assertRaises(ResultNotFoundError):
             service.get_analysis_group_page(result_id, group_id="0", offset=0, limit=10)
+
+    def test_expired_result_removes_dataset_and_analysis_snapshot(self) -> None:
+        current_time = 1000.0
+        service = self.build_service_with_clock(
+            ttl_seconds=7200,
+            clock=lambda: current_time,
+        )
+        transformed_df = pd.DataFrame(
+            [
+                {"country__idx_1": "UK", "verbatim": "Need more maths"},
+            ]
+        )
+        analysis_df = transformed_df.copy()
+
+        result_id = service.save(
+            transformed_df,
+            analysis_df,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+        service.save_analysis_snapshot(
+            result_id,
+            text_column_name="verbatim",
+            model_key=AnalysisModelKey.COMMUNITY,
+            analysis_result=AnalysisRunResult(
+                ok=True,
+                result_id=result_id,
+                model_key=AnalysisModelKey.COMMUNITY,
+                model_label="Community Detection",
+                text_column_name="verbatim",
+                filtered_row_count=1,
+                valid_document_count=1,
+                groups=[
+                    AnalysisGroupRecord(
+                        group_id="0",
+                        label="More Resources",
+                        count=1,
+                        documents=[
+                            AnalysisDocumentRecord(row_number=1, text="Need more maths"),
+                        ],
+                    )
+                ],
+            ),
+        )
+
+        current_time += 7201
+
+        with self.assertRaises(ResultNotFoundError):
+            service.get_page(result_id, dataset="analysis", offset=0, limit=10)
+
+        with self.assertRaises(ResultNotFoundError):
+            service.get_analysis_group_page(result_id, group_id="0", offset=0, limit=10)
+
+    def test_lru_eviction_removes_saved_timestamp(self) -> None:
+        current_time = 1000.0
+        service = self.build_service_with_clock(
+            ttl_seconds=7200,
+            clock=lambda: current_time,
+        )
+        frame = pd.DataFrame([{"country__idx_1": "UK", "verbatim": "Need more maths"}])
+
+        first_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+        current_time += 1
+        second_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+        current_time += 1
+        third_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+
+        self.assertNotIn(first_id, service._saved_at)
+        self.assertIn(second_id, service._saved_at)
+        self.assertIn(third_id, service._saved_at)
+
+    def test_save_with_same_owner_deletes_previous_result_and_snapshot(self) -> None:
+        service = self.build_service()
+        frame = pd.DataFrame([{"country__idx_1": "UK", "verbatim": "Need more maths"}])
+
+        first_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+            owner_key="USER@example.com",
+        )
+        service.save_analysis_snapshot(
+            first_id,
+            text_column_name="verbatim",
+            model_key=AnalysisModelKey.COMMUNITY,
+            analysis_result=AnalysisRunResult(
+                ok=True,
+                result_id=first_id,
+                model_key=AnalysisModelKey.COMMUNITY,
+                model_label="Community Detection",
+                text_column_name="verbatim",
+                filtered_row_count=1,
+                valid_document_count=1,
+                groups=[
+                    AnalysisGroupRecord(
+                        group_id="0",
+                        label="More Resources",
+                        count=1,
+                        documents=[
+                            AnalysisDocumentRecord(row_number=1, text="Need more maths"),
+                        ],
+                    )
+                ],
+            ),
+        )
+
+        second_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+            owner_key="user@example.com",
+        )
+
+        self.assertNotEqual(first_id, second_id)
+        with self.assertRaises(ResultNotFoundError):
+            service.get_page(first_id, dataset="analysis", offset=0, limit=10)
+        with self.assertRaises(ResultNotFoundError):
+            service.get_analysis_group_page(first_id, group_id="0", offset=0, limit=10)
+        self.assertEqual(service._owner_result_ids, {"user@example.com": second_id})
+
+    def test_delete_removes_owner_tracking(self) -> None:
+        service = self.build_service()
+        frame = pd.DataFrame([{"country__idx_1": "UK", "verbatim": "Need more maths"}])
+
+        result_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+            owner_key="user@example.com",
+        )
+
+        self.assertTrue(service.delete(result_id))
+        self.assertEqual(service._owner_result_ids, {})
+        self.assertEqual(service._result_owners, {})
 
 
 if __name__ == "__main__":

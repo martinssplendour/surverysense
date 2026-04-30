@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from collections.abc import Callable
 from threading import Lock
+from time import monotonic
 from typing import Literal
 from uuid import uuid4
 
@@ -44,12 +46,19 @@ class ResultStoreService:
         *,
         analysis_ready_service: AnalysisReadyDatasetService,
         max_results: int = 8,
+        ttl_seconds: int = 7200,
+        clock: Callable[[], float] = monotonic,
     ) -> None:
         self.metadata_filter_service = metadata_filter_service
         self.analysis_ready_service = analysis_ready_service
         self.max_results = max_results
+        self.ttl_seconds = max(0, int(ttl_seconds or 0))
+        self._clock = clock
         self._results: OrderedDict[str, StoredResultDatasets] = OrderedDict()
         self._analysis_snapshots: dict[str, StoredAnalysisSnapshot] = {}
+        self._saved_at: dict[str, float] = {}
+        self._owner_result_ids: dict[str, str] = {}
+        self._result_owners: dict[str, str] = {}
         self._lock = Lock()
         self.snapshot_service = ResultStoreSnapshotService()
         self.paging_service = ResultStorePagingService()
@@ -61,6 +70,7 @@ class ResultStoreService:
         *,
         metadata_columns: list[str],
         verbatim_columns: list[str],
+        owner_key: str | None = None,
     ) -> str:
         """Persist a transformed+analysis dataset pair and return the new result_id.
 
@@ -77,25 +87,37 @@ class ResultStoreService:
                 metadata_columns=metadata_columns,
             ),
         )
+        normalized_owner_key = self._normalize_owner_key(owner_key)
 
         with self._lock:
+            self._purge_expired_locked()
+            if normalized_owner_key:
+                previous_result_id = self._owner_result_ids.get(normalized_owner_key)
+                if previous_result_id:
+                    self._delete_locked(previous_result_id)
             self._results[result_id] = stored
+            self._saved_at[result_id] = self._clock()
+            if normalized_owner_key:
+                self._owner_result_ids[normalized_owner_key] = result_id
+                self._result_owners[result_id] = normalized_owner_key
             self._results.move_to_end(result_id)
             # OrderedDict with last=False pops the oldest (first-inserted) entry.
             while len(self._results) > self.max_results:
                 evicted_result_id, _evicted = self._results.popitem(last=False)
                 self._analysis_snapshots.pop(evicted_result_id, None)
+                self._saved_at.pop(evicted_result_id, None)
+                self._forget_owner_locked(evicted_result_id)
 
         return result_id
 
     def delete(self, result_id: str) -> bool:
         with self._lock:
-            removed = self._results.pop(result_id, None)
-            self._analysis_snapshots.pop(result_id, None)
+            removed = self._delete_locked(result_id)
         return removed is not None
 
     def get_filters(self, result_id: str) -> list[MetadataFilterDefinition]:
         with self._lock:
+            self._purge_expired_locked()
             stored = self._results.get(result_id)
 
         if stored is None:
@@ -112,6 +134,7 @@ class ResultStoreService:
     ) -> StoredResultDatasets:
         """Reassign a column between metadata and verbatim roles, rebuild the analysis dataset, and invalidate any cached analysis snapshot."""
         with self._lock:
+            self._purge_expired_locked()
             stored = self._results.get(result_id)
             if stored is None:
                 raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
@@ -160,6 +183,7 @@ class ResultStoreService:
         filters: dict[str, list[str]] | None = None,
     ) -> StoredDatasetSelection:
         with self._lock:
+            self._purge_expired_locked()
             stored = self._results.get(result_id)
 
         if stored is None:
@@ -197,6 +221,7 @@ class ResultStoreService:
         filters: dict[str, list[str]] | None = None,
     ) -> pd.DataFrame:
         with self._lock:
+            self._purge_expired_locked()
             stored = self._results.get(result_id)
 
         if stored is None:
@@ -231,6 +256,7 @@ class ResultStoreService:
         analysis_result: AnalysisRunResult,
     ) -> None:
         with self._lock:
+            self._purge_expired_locked()
             if result_id not in self._results:
                 raise ResultNotFoundError(f"No stored result exists for id '{result_id}'.")
             if analysis_result.model_key != model_key:
@@ -263,6 +289,7 @@ class ResultStoreService:
         Returns None when the fast path is unavailable (no snapshot, or model/column mismatch).
         """
         with self._lock:
+            self._purge_expired_locked()
             snapshot = self._analysis_snapshots.get(result_id)
             stored = self._results.get(result_id)
 
@@ -291,6 +318,7 @@ class ResultStoreService:
             raise ValueError("limit must be a positive integer.")
 
         with self._lock:
+            self._purge_expired_locked()
             snapshot = self._analysis_snapshots.get(result_id)
 
         if snapshot is None:
@@ -318,6 +346,7 @@ class ResultStoreService:
             raise ValueError("limit must be a positive integer.")
 
         with self._lock:
+            self._purge_expired_locked()
             snapshot = self._analysis_snapshots.get(result_id)
 
         if snapshot is None:
@@ -347,6 +376,7 @@ class ResultStoreService:
             raise ValueError("limit must be a positive integer.")
 
         with self._lock:
+            self._purge_expired_locked()
             stored = self._results.get(result_id)
 
         if stored is None:
@@ -367,6 +397,34 @@ class ResultStoreService:
     def _build_ngram_lookup_key(ngram_size: int, term: str) -> str:
         """Build a stable, case-insensitive lookup key combining n-gram size and term text."""
         return f"{int(ngram_size)}::{str(term).strip().casefold()}"
+
+    def _purge_expired_locked(self) -> None:
+        if self.ttl_seconds <= 0:
+            return
+        expires_before = self._clock() - self.ttl_seconds
+        expired_result_ids = [
+            result_id
+            for result_id, saved_at in self._saved_at.items()
+            if saved_at <= expires_before
+        ]
+        for result_id in expired_result_ids:
+            self._delete_locked(result_id)
+
+    def _delete_locked(self, result_id: str) -> StoredResultDatasets | None:
+        removed = self._results.pop(result_id, None)
+        self._analysis_snapshots.pop(result_id, None)
+        self._saved_at.pop(result_id, None)
+        self._forget_owner_locked(result_id)
+        return removed
+
+    def _forget_owner_locked(self, result_id: str) -> None:
+        owner_key = self._result_owners.pop(result_id, None)
+        if owner_key and self._owner_result_ids.get(owner_key) == result_id:
+            self._owner_result_ids.pop(owner_key, None)
+
+    @staticmethod
+    def _normalize_owner_key(owner_key: str | None) -> str:
+        return str(owner_key or "").strip().casefold()
 
     @staticmethod
     def _apply_group_mapping_column(

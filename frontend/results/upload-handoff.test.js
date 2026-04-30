@@ -168,7 +168,9 @@ describe("upload handoff", () => {
             preventDefault() {},
         });
 
-        expect(harness.storage.get("verbatim-app:last-upload-result")).toBe(JSON.stringify(harness.uploadPayload));
+        const stored = JSON.parse(harness.storage.get("verbatim-app:last-upload-result"));
+        expect(stored.payload).toEqual(harness.uploadPayload);
+        expect(stored.expires_at).toBeGreaterThan(Date.now());
         expect(harness.locationAssign).toHaveBeenCalledWith("/?handoff=1");
     });
 

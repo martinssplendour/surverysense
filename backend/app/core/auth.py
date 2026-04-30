@@ -84,6 +84,14 @@ def register_session_result_id(request: Request, result_id: str) -> None:
     request.session[SESSION_RESULT_IDS_KEY] = normalized_ids
 
 
+def replace_session_result_id(request: Request, result_id: str) -> list[str]:
+    """Set this session's active result_id, returning any previous ids for deletion."""
+    previous_ids = pop_session_result_ids(request)
+    normalized = str(result_id).strip()
+    request.session[SESSION_RESULT_IDS_KEY] = [normalized] if normalized else []
+    return [previous_id for previous_id in previous_ids if previous_id != normalized]
+
+
 def pop_session_result_ids(request: Request) -> list[str]:
     stored_ids = request.session.pop(SESSION_RESULT_IDS_KEY, [])
     if not isinstance(stored_ids, list):

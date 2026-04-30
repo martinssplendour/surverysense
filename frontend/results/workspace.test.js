@@ -172,4 +172,23 @@ describe("results/workspace", () => {
         expect(harness.dom.body.classList.toggle).toHaveBeenCalledWith("upload-workspace-active", true);
         expect(harness.state.resultId).toBeNull();
     });
+
+    it("drops expired handoff payloads", async () => {
+        vi.spyOn(Date, "now").mockReturnValue(10_000);
+        const harness = await loadWorkspaceHarness({
+            search: "?handoff=1",
+            storedPayload: {
+                payload: {
+                    result_id: "result-123",
+                    transformed_column_names: ["comment"],
+                },
+                expires_at: 9_999,
+            },
+        });
+
+        await harness.workspace.loadResultsPage();
+
+        expect(harness.storage.has("verbatim-app:last-upload-result")).toBe(false);
+        expect(harness.state.resultId).toBeNull();
+    });
 });

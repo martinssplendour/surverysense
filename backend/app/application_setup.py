@@ -108,6 +108,8 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     result_store_service = ResultStoreService(
         MetadataFilterService(),
         analysis_ready_service=analysis_ready_service,
+        max_results=settings.result_store_max_results,
+        ttl_seconds=settings.result_store_ttl_seconds,
     )
     report_export_service = AnalysisReportExportService(result_store_service=result_store_service)
     translation_service = EnglishTranslationService(

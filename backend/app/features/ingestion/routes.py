@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pandas as pd
 from fastapi import File, Form, HTTPException, Request, UploadFile, status
 
-from app.core.auth import register_session_result_id, require_authenticated_user
+from app.core.auth import pop_session_result_ids, replace_session_result_id, require_authenticated_user
 from app.features.common.route_context import WorkspaceRouteContext
 from app.features.ingestion.architect_service import DiagnosticMode
 from app.features.ingestion.csv_ingestion_service import IngestedCsv
@@ -46,7 +46,7 @@ def register_upload_routes(context: WorkspaceRouteContext) -> None:
         file: UploadFile = File(...),
         diagnostic_mode: DiagnosticMode = Form(DiagnosticMode.AI),
     ) -> UploadIngestResponse:
-        require_authenticated_user(request)
+        authenticated_user = require_authenticated_user(request)
         if file.filename and not file.filename.lower().endswith(".csv"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -61,6 +61,9 @@ def register_upload_routes(context: WorkspaceRouteContext) -> None:
             )
 
         def _execute() -> _UploadIngestArtifacts:
+            previous_result_ids = pop_session_result_ids(request)
+            for previous_result_id in previous_result_ids:
+                context.result_store_service.delete(previous_result_id)
             ingested = context.ingestion_service.ingest(payload)
             logger.info(
                 "Upload ingest started for file=%s diagnostic_mode=%s sample_rows=%s source_columns=%s.",
@@ -89,6 +92,7 @@ def register_upload_routes(context: WorkspaceRouteContext) -> None:
                 analysis_df,
                 metadata_columns=analysis_metadata_columns,
                 verbatim_columns=analysis_verbatim_columns,
+                owner_key=authenticated_user.email,
             )
             logger.info(
                 "Upload ingest completed for file=%s result_id=%s transformed_rows=%s analysis_rows=%s metadata_columns=%s verbatim_columns=%s.",
@@ -99,7 +103,7 @@ def register_upload_routes(context: WorkspaceRouteContext) -> None:
                 len(analysis_metadata_columns),
                 len(analysis_verbatim_columns),
             )
-            register_session_result_id(request, result_id)
+            replace_session_result_id(request, result_id)
             return _UploadIngestArtifacts(
                 result_id=result_id,
                 ingested=ingested,

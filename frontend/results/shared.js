@@ -6,6 +6,7 @@ export {
     FULL_DATA_VISIBLE_COLUMN_COUNT,
     INITIAL_VISIBLE_ROW_TARGET,
     RESULT_STORAGE_KEY,
+    RESULT_STORAGE_TTL_MS,
     ROW_PAGE_SIZE,
 } from "./shared/constants.js";
 export { elements } from "./shared/elements.js";

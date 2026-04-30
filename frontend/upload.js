@@ -1,6 +1,7 @@
 // Handles CSV file selection, drag-and-drop, and upload submission on the upload page.
 (function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
+const RESULT_STORAGE_TTL_MS = 2 * 60 * 60 * 1000;
 
 const state = {
     file: null,
@@ -135,7 +136,10 @@ async function handleSubmit(event) {
 
         try {
             // Store the API payload in sessionStorage so the results page can read it after navigation.
-            sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(payload));
+            sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify({
+                payload,
+                expires_at: Date.now() + RESULT_STORAGE_TTL_MS,
+            }));
         } catch (error) {
             console.warn(
                 "[Verbatim App] Failed to cache the processed result in session storage; upload succeeded but the dashboard handoff cannot continue.",
