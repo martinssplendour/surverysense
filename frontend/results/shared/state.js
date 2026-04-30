@@ -77,6 +77,7 @@ const initialState = () => ({
         hasMore: false,
         offset: 0,
         loading: false,
+        unavailableReason: "",
     },
     ui: {
         currentWorkspace: "dashboard",
@@ -140,6 +141,7 @@ const aliasPaths = {
     analysisGroupModalHasMore: ["analysisGroupModal", "hasMore"],
     analysisGroupModalOffset: ["analysisGroupModal", "offset"],
     analysisGroupModalLoading: ["analysisGroupModal", "loading"],
+    analysisGroupModalUnavailableReason: ["analysisGroupModal", "unavailableReason"],
     currentWorkspace: ["ui", "currentWorkspace"],
     previewColumnOffset: ["ui", "previewColumnOffset"],
     columnSearchTerm: ["ui", "columnSearchTerm"],
@@ -578,6 +580,20 @@ export function setAnalysisGroupModalLoading(value) {
 }
 
 /**
+ * Marks the drilldown documents as unavailable and clears stale page state.
+ *
+ * @param {string} reason User-facing reason text.
+ * @returns {void}
+ */
+export function setAnalysisGroupModalUnavailable(reason) {
+    state.analysisGroupModal.unavailableReason = String(reason || "");
+    state.analysisGroupModal.documents = [];
+    state.analysisGroupModal.hasMore = false;
+    state.analysisGroupModal.offset = 0;
+    state.analysisGroupModal.loading = false;
+}
+
+/**
  * Applies a page of analysis group/phrase documents to the modal.
  *
  * @param {{ documents?: object[], offset?: number, has_more?: boolean, total_count?: number, hit_count?: number }} payload Document payload.
@@ -586,6 +602,7 @@ export function setAnalysisGroupModalLoading(value) {
  */
 export function applyAnalysisGroupDocumentsPayload(payload = {}, { reset = false, fallbackTotalCount = 0 } = {}) {
     const documents = cloneArray(payload.documents);
+    state.analysisGroupModal.unavailableReason = "";
     state.analysisGroupModal.documents = reset
         ? documents
         : state.analysisGroupModal.documents.concat(documents);

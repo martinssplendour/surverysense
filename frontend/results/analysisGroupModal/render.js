@@ -108,7 +108,9 @@ export function renderAnalysisGroupModal() {
             : `${subjectLabel} Responses`;
     }
     if (elements.analysisGroupDocuments) {
-        if (loadedCount) {
+        if (state.analysisGroupModalUnavailableReason) {
+            elements.analysisGroupDocuments.innerHTML = renderAnalysisRecoveryPanel(state.analysisGroupModalUnavailableReason);
+        } else if (loadedCount) {
             elements.analysisGroupDocuments.innerHTML = state.analysisGroupModalDocuments
                 .map((document) => renderAnalysisDocumentCard(document))
                 .join("");
@@ -119,7 +121,8 @@ export function renderAnalysisGroupModal() {
         }
     }
     if (elements.analysisGroupLoadMoreButton) {
-        elements.analysisGroupLoadMoreButton.hidden = !state.analysisGroupModalHasMore;
+        elements.analysisGroupLoadMoreButton.hidden = Boolean(state.analysisGroupModalUnavailableReason)
+            || !state.analysisGroupModalHasMore;
         elements.analysisGroupLoadMoreButton.disabled = state.analysisGroupModalLoading;
         elements.analysisGroupLoadMoreButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length > 0
             ? "Loading..."
@@ -178,7 +181,9 @@ function renderAnalysisNgramModal() {
             : "Matching Responses";
     }
     if (elements.analysisGroupDocuments) {
-        if (state.analysisGroupModalDocuments.length) {
+        if (state.analysisGroupModalUnavailableReason) {
+            elements.analysisGroupDocuments.innerHTML = renderAnalysisRecoveryPanel(state.analysisGroupModalUnavailableReason);
+        } else if (state.analysisGroupModalDocuments.length) {
             elements.analysisGroupDocuments.innerHTML = state.analysisGroupModalDocuments
                 .map((document) => renderAnalysisDocumentCard(document))
                 .join("");
@@ -189,12 +194,28 @@ function renderAnalysisNgramModal() {
         }
     }
     if (elements.analysisGroupLoadMoreButton) {
-        elements.analysisGroupLoadMoreButton.hidden = !state.analysisGroupModalHasMore;
+        elements.analysisGroupLoadMoreButton.hidden = Boolean(state.analysisGroupModalUnavailableReason)
+            || !state.analysisGroupModalHasMore;
         elements.analysisGroupLoadMoreButton.disabled = state.analysisGroupModalLoading;
         elements.analysisGroupLoadMoreButton.textContent = state.analysisGroupModalLoading && state.analysisGroupModalDocuments.length > 0
             ? "Loading..."
             : "Load more";
     }
+}
+
+
+function renderAnalysisRecoveryPanel(message) {
+    return `
+        <div class="analysis-modal-recovery" role="status">
+            <div>
+                <h5>Response details need to be refreshed</h5>
+                <p>${escapeHtml(message)}</p>
+            </div>
+            <button type="button" class="button button-primary" data-rerun-analysis>
+                Run analysis again
+            </button>
+        </div>
+    `;
 }
 
 

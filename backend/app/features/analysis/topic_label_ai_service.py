@@ -94,6 +94,8 @@ class TopicAiLabelService:
             "xxx",
         }
     )
+    UNCLEAR_LABEL_TOKENS = frozenset({"don", "dont", "don't", "dunno", "dk", "idk", "unsure"})
+    FILLER_PREFIX_TOKENS = frozenset({"existing", "proposed"})
     LABEL_TOKEN_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 
     def __init__(self, *, config: TopicAiLabelingConfig) -> None:
@@ -276,7 +278,8 @@ class TopicAiLabelService:
             group = groups_by_id.get(group_id)
             if group is None:
                 continue
-            if not self._is_valid_ai_label(label, group):
+            polished_label = self._polish_ai_label(label)
+            if not self._is_valid_ai_label(polished_label, group):
                 rejected_count += 1
                 logger.warning(
                     "AI topic label was rejected for group_id=%s label=%r; heuristic label was kept.",
@@ -284,8 +287,22 @@ class TopicAiLabelService:
                     label,
                 )
                 continue
-            valid_labels[group_id] = label
+            valid_labels[group_id] = polished_label
         return valid_labels, rejected_count
+
+    def _polish_ai_label(self, label: str) -> str:
+        cleaned_label = self.response_parser.normalize_label(label)
+        tokens = self._label_tokens(cleaned_label)
+        if not tokens:
+            return ""
+        if self._is_unclear_label(tokens):
+            return "Unclear Or Unsure Feedback"
+        if {"printed", "bound", "teacher"}.issubset(set(tokens)):
+            return "Printed Teaching Materials"
+        if len(tokens) > 3 and tokens[0] in self.FILLER_PREFIX_TOKENS:
+            cleaned_label = re.sub(r"^\s*\w+\s+", "", cleaned_label, count=1).strip()
+            cleaned_label = self.response_parser.normalize_label(cleaned_label)
+        return cleaned_label
 
     def _is_valid_ai_label(self, label: str, group: TopicLabelEvidenceGroup) -> bool:
         normalized = self._normalize_for_validation(label)
@@ -298,11 +315,27 @@ class TopicAiLabelService:
             return False
         if self._has_excessive_repetition(tokens):
             return False
+        if self._is_keyword_stitch_label(tokens):
+            return False
         if not self._has_reasonable_length(label, tokens):
             return False
         if self._is_unsupported_generic_label(tokens, group):
             return False
         return True
+
+    def _is_unclear_label(self, tokens: list[str]) -> bool:
+        normalized = " ".join(tokens)
+        if normalized in {"don know", "dont know", "don't know", "do not know", "not sure"}:
+            return True
+        return any(token in self.UNCLEAR_LABEL_TOKENS for token in tokens) and "know" in tokens
+
+    @classmethod
+    def _is_keyword_stitch_label(cls, tokens: list[str]) -> bool:
+        if len(tokens) < 3:
+            return False
+        if {"printed", "bound", "teacher"}.issubset(set(tokens)):
+            return True
+        return False
 
     @classmethod
     def _has_reasonable_length(cls, label: str, tokens: list[str]) -> bool:

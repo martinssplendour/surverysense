@@ -30,6 +30,7 @@ export {
     setAnalysisDocumentTranslationLoading,
     setAnalysisExportState,
     setAnalysisGroupModalLoading,
+    setAnalysisGroupModalUnavailable,
     setAnalysisResult,
     setAnalysisRunning,
     setAnalysisSelection,

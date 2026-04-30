@@ -6,12 +6,32 @@ import {
     setAnalysisDocumentTranslation,
     setAnalysisDocumentTranslationLoading,
     setAnalysisGroupModalLoading,
+    setAnalysisGroupModalUnavailable,
     state,
 } from "../shared.js";
 import { showAnalysisGroupModalMessage, hideAnalysisGroupModalMessage } from "../filters.js";
 import { parseJson } from "../data/rows.js";
 import { renderAnalysisGroupModal } from "./render.js";
 import { buildDocumentKey, getActiveAnalysisGroup } from "./state.js";
+
+const MISSING_ANALYSIS_PATTERNS = [
+    /No stored analysis snapshot exists/i,
+    /No stored result exists/i,
+];
+const STALE_ANALYSIS_MESSAGE = "These saved response details are no longer available. Run the analysis again to refresh them.";
+
+function isMissingAnalysisPayload(response, payload) {
+    if (response.status !== 404) {
+        return false;
+    }
+    const detail = typeof payload?.detail === "string" ? payload.detail : "";
+    return MISSING_ANALYSIS_PATTERNS.some((pattern) => pattern.test(detail));
+}
+
+function markAnalysisDocumentsUnavailable() {
+    setAnalysisGroupModalUnavailable(STALE_ANALYSIS_MESSAGE);
+    showAnalysisGroupModalMessage("warning", "Analysis details need to be refreshed.");
+}
 
 export async function translateAnalysisDocument(documentKey) {
     const document = state.analysisGroupModalDocuments.find((item) => buildDocumentKey(item) === documentKey) || null;
@@ -85,14 +105,18 @@ export async function loadAnalysisGroupDocuments({ reset = false } = {}) {
             return;
         }
         const payload = await parseJson(response);
+        if (isMissingAnalysisPayload(response, payload)) {
+            markAnalysisDocumentsUnavailable();
+            return;
+        }
         if (!response.ok) {
             throw new Error(payload.detail || "Unable to load group responses.");
         }
 
         applyAnalysisGroupDocumentsPayload(payload, { reset, fallbackTotalCount: Number(group.count || 0) });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to load group responses.";
-        showAnalysisGroupModalMessage("error", message);
+        console.error(error);
+        showAnalysisGroupModalMessage("error", "We couldn't load these responses. Please try again.");
     } finally {
         setAnalysisGroupModalLoading(false);
         renderAnalysisGroupModal();
@@ -132,14 +156,18 @@ export async function loadAnalysisNgramDocuments({ reset = false } = {}) {
             return;
         }
         const payload = await parseJson(response);
+        if (isMissingAnalysisPayload(response, payload)) {
+            markAnalysisDocumentsUnavailable();
+            return;
+        }
         if (!response.ok) {
             throw new Error(payload.detail || "Unable to load matching responses.");
         }
 
         applyAnalysisGroupDocumentsPayload(payload, { reset });
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to load matching responses.";
-        showAnalysisGroupModalMessage("error", message);
+        console.error(error);
+        showAnalysisGroupModalMessage("error", "We couldn't load these matching responses. Please try again.");
     } finally {
         setAnalysisGroupModalLoading(false);
         renderAnalysisGroupModal();

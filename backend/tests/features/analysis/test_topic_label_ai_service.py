@@ -450,6 +450,100 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         self.assertEqual(result.labels_by_group_id, {})
         self.assertIn("low-quality labels for 1 group(s)", " ".join(result.warnings))
 
+    def test_label_groups_polishes_awkward_ai_labels_before_accepting_them(self) -> None:
+        service = TopicAiLabelService(
+            config=TopicAiLabelingConfig(
+                enabled=True,
+                gemini_api_key="test-key",
+                gemini_model="gemini-2.5-flash",
+                gemini_temperature=0.1,
+                timeout_seconds=8,
+                max_groups=10,
+                max_examples_per_group=2,
+                max_terms_per_group=3,
+                max_chars_per_example=120,
+                batch_size=5,
+                max_retries=0,
+            )
+        )
+        groups = [
+            AnalysisGroupRecord(
+                group_id="0",
+                label="Printed Bound Teacher",
+                count=8,
+                share=0.5,
+                terms=["printed", "bound", "teacher"],
+                documents=[
+                    AnalysisDocumentRecord(row_number=1, text="I need printed bound teaching materials"),
+                    AnalysisDocumentRecord(row_number=2, text="Printed resources for teachers would help"),
+                ],
+            ),
+            AnalysisGroupRecord(
+                group_id="1",
+                label="Existing Confidence In Twinkl",
+                count=6,
+                share=0.4,
+                terms=["confidence", "twinkl"],
+                documents=[
+                    AnalysisDocumentRecord(row_number=3, text="I have confidence in Twinkl resources"),
+                    AnalysisDocumentRecord(row_number=4, text="Confidence in Twinkl is strong"),
+                ],
+            ),
+            AnalysisGroupRecord(
+                group_id="2",
+                label="Unclear responses",
+                count=4,
+                share=0.2,
+                terms=["unsure"],
+                documents=[
+                    AnalysisDocumentRecord(row_number=5, text="I don't know"),
+                    AnalysisDocumentRecord(row_number=6, text="Not sure"),
+                ],
+            ),
+        ]
+
+        def _fake_urlopen(_request, timeout):
+            self.assertEqual(timeout, 8)
+            return _FakeHttpResponse(
+                {
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "text": json.dumps(
+                                            {
+                                                "labels": [
+                                                    {"group_id": "0", "label": "Printed Bound Teacher"},
+                                                    {"group_id": "1", "label": "Existing Confidence In Twinkl"},
+                                                    {"group_id": "2", "label": "Don Know"},
+                                                ]
+                                            }
+                                        )
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            )
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            result = service.label_groups(
+                groups,
+                model_key=AnalysisModelKey.COMMUNITY,
+                text_column_name="verbatim",
+            )
+
+        self.assertEqual(
+            result.labels_by_group_id,
+            {
+                "0": "Printed Teaching Materials",
+                "1": "Confidence In Twinkl",
+                "2": "Unclear Or Unsure Feedback",
+            },
+        )
+
     def test_evidence_builder_keeps_context_around_top_terms(self) -> None:
         builder = TopicLabelEvidenceBuilder(
             max_groups=10,

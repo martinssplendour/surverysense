@@ -12,6 +12,7 @@ import {
     setAnalysisDocumentTranslationLoading,
     setAnalysisExportState,
     setAnalysisGroupModalLoading,
+    setAnalysisGroupModalUnavailable,
     setAnalysisResult,
     setAnalysisRunning,
     setAnalysisSelection,
@@ -172,12 +173,14 @@ describe("results/shared/state", () => {
             warning: "",
         });
         setAnalysisDocumentTranslationLoading("1:Useful", false);
+        setAnalysisGroupModalUnavailable("Refresh this analysis.");
 
         expect(state.analysisExportFormat).toBe("docx");
         expect(state.dataExportRunning).toBe(true);
         expect(state.dataPreviewDataset).toBe("community_analysis");
         expect(state.previewColumnOffset).toBe(3);
-        expect(state.analysisGroupModalDocuments).toEqual([{ text: "Useful" }]);
+        expect(state.analysisGroupModalDocuments).toEqual([]);
+        expect(state.analysisGroupModalUnavailableReason).toBe("Refresh this analysis.");
         expect(state.analysisGroupModalHitCount).toBe(2);
         expect(state.analysisGroupModalTranslations["1:Useful"].text).toBe("Useful");
         expect(state.analysisGroupModalTranslationLoading).toEqual({});

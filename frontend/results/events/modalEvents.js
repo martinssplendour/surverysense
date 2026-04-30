@@ -13,6 +13,7 @@ import {
     renderColumnRoleSelectionState,
 } from "../columnRoles.js";
 import { closeFilterModal, handleDocumentKeydown, openFilterModal } from "../workspace/workspace.js";
+import { runAnalysis } from "../analysis.js";
 
 export function bindModalEvents() {
     elements.openFilterModalButton?.addEventListener("click", openFilterModal);
@@ -43,15 +44,22 @@ export function bindModalEvents() {
         }
         void loadAnalysisGroupDocuments();
     });
-    elements.analysisGroupDocuments?.addEventListener("click", handleTranslateDocumentClick);
+    elements.analysisGroupDocuments?.addEventListener("click", handleAnalysisGroupDocumentsClick);
     document.addEventListener("keydown", handleDocumentKeydown);
 }
 
-function handleTranslateDocumentClick(event) {
+function handleAnalysisGroupDocumentsClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
         return;
     }
+    const rerunButton = target.closest("[data-rerun-analysis]");
+    if (rerunButton instanceof HTMLElement) {
+        closeAnalysisGroupModal();
+        void runAnalysis({ scrollIntoView: true });
+        return;
+    }
+
     const translateButton = target.closest("[data-translate-document]");
     if (!(translateButton instanceof HTMLElement)) {
         return;
