@@ -507,6 +507,30 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
 
         self.assertEqual(label, "Group 7")
 
+    def test_label_fallback_polishes_low_quality_phrase_labels(self) -> None:
+        keyword_service = TopicAnalysisKeywordService()
+        narrative_service = TopicAnalysisNarrativeService(keyword_service)
+
+        cases = [
+            (["I don't know", "don know", "do not know"], "Unclear Or Unsure Feedback"),
+            (["doing doing", "doing doing", "doing doing"], "Unclear Or Repeated Feedback"),
+            (["printed bound teacher", "printed bound teacher"], "Printed Teaching Materials"),
+            (["proposed activities", "proposed activities"], "Activity Suggestions"),
+            (["existing confidence in Twinkl", "confidence in Twinkl"], "Confidence In Twinkl"),
+        ]
+
+        for texts, expected_label in cases:
+            with self.subTest(expected_label=expected_label):
+                label = narrative_service.build_label(
+                    texts=texts,
+                    terms=[],
+                    is_noise=False,
+                    fallback_prefix="Group",
+                    fallback_id="7",
+                )
+
+                self.assertEqual(label, expected_label)
+
 
 class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
     def test_run_uses_leiden_when_available(self) -> None:
