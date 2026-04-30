@@ -40,8 +40,6 @@ class TopicLabelPromptBuilder:
             "- tightest_responses are the most central responses in the cluster; base the label on what most of them share.\n"
             "- Use document_count as the stronger frequency signal when phrase counts disagree.\n"
             "- Ignore function words or connector words in any language, such as 'para', 'los', 'que', and 'las'.\n"
-            "- Fix typos and fragments into professional labels; for example 'don know' should become 'Unclear Or Unsure Feedback'.\n"
-            "- Do not output awkward noun chains such as 'Printed Bound Teacher'; write 'Printed Teaching Materials' when that is the real topic.\n"
             "- Remove filler words such as 'Existing' or 'Proposed' unless they change the meaning.\n"
             "- If the evidence genuinely covers multiple unrelated topics, label it 'Mixed Responses'.\n"
             "- Never use placeholders or vague labels such as 'Blah Blah Blah', 'Other', 'Miscellaneous', 'General Feedback', or 'Responses'.\n"
