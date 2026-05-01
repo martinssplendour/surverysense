@@ -21,7 +21,7 @@ export function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             l: Math.max(Number(baseMargin.l || 0), exportLeftMargin),
             r: Math.max(Number(baseMargin.r || 0), 12),
             t: Math.max(Number(baseMargin.t || 0), 44),
-            b: Math.max(Number(baseMargin.b || 0), 40),
+            b: Math.max(Number(baseMargin.b || 0), 112),
         };
         overrides.font = {
             ...baseFont,
@@ -31,6 +31,8 @@ export function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             ...baseXAxis,
             title: {
                 ...(baseXAxis && typeof baseXAxis.title === "object" ? baseXAxis.title : {}),
+                text: "Number of occurrences",
+                standoff: 18,
                 font: {
                     ...((baseXAxis && typeof baseXAxis.title === "object" && typeof baseXAxis.title.font === "object")
                         ? baseXAxis.title.font

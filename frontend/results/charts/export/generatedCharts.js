@@ -283,7 +283,7 @@ function buildGeneratedNgramBarData(items) {
             },
             hovertemplate: [
                 "<b>%{y}</b>",
-                "Occurrences: %{x}",
+                "Number of occurrences: %{x}",
                 "Matching responses: %{customdata[0]}",
                 "<extra></extra>",
             ].join("<br>"),
@@ -347,7 +347,7 @@ function buildGeneratedNgramBarLayout(items, { width, height }) {
         margin: {
             t: 30,
             r: 42,
-            b: 74,
+            b: 112,
             l: 190,
         },
         paper_bgcolor: "rgba(0, 0, 0, 0)",
@@ -364,7 +364,8 @@ function buildGeneratedNgramBarLayout(items, { width, height }) {
         bargap: 0.24,
         xaxis: {
             title: {
-                text: "Occurrences",
+                text: "Number of occurrences",
+                standoff: 18,
             },
             gridcolor: "rgba(89, 104, 128, 0.12)",
             zeroline: false,

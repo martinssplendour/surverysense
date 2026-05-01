@@ -143,5 +143,7 @@ describe("results/charts/export/generatedCharts", () => {
         expect(harness.plotly.purge).toHaveBeenCalledTimes(6);
         expect(harness.plotly.newPlot.mock.calls[3][2].yaxis.tickfont.size).toBe(12);
         expect(harness.plotly.newPlot.mock.calls[5][2].yaxis.tickfont.size).toBe(12);
+        expect(harness.plotly.newPlot.mock.calls[5][2].margin.b).toBeGreaterThanOrEqual(112);
+        expect(harness.plotly.newPlot.mock.calls[5][2].xaxis.title.text).toBe("Number of occurrences");
     });
 });
