@@ -63,7 +63,6 @@ class TopicAiLabelService:
             "miscellaneous",
             "mixed",
             "mixed feedback",
-            "mixed responses",
             "other",
             "other feedback",
             "other responses",
@@ -292,6 +291,8 @@ class TopicAiLabelService:
         tokens = self._label_tokens(label)
         if not normalized or not tokens:
             return False
+        if normalized == "mixed responses":
+            return True
         if normalized in self.GENERIC_LABELS:
             return False
         if any(token in self.PLACEHOLDER_TOKENS for token in tokens):

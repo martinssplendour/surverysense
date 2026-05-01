@@ -1,6 +1,7 @@
 """Reads a raw CSV payload into DataFrames and produces preview/architect samples."""
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
@@ -25,6 +26,9 @@ class IngestedCsv:
 
 class CsvIngestionService:
     """Orchestrates encoding detection, CSV parsing, and sample slicing for an uploaded file."""
+    DELIMITER_CANDIDATES = (",", "\t", ";", "|")
+    DETECTION_SAMPLE_BYTES = 65536
+
     def __init__(
         self,
         encoding_service: EncodingDetectionService,
@@ -67,13 +71,65 @@ class CsvIngestionService:
 
     @staticmethod
     def _read_csv(payload: bytes, encoding: str) -> pd.DataFrame:
+        delimiters = CsvIngestionService._candidate_delimiters(payload, encoding)
+        last_error: Exception | None = None
+        for delimiter in delimiters:
+            try:
+                return pd.read_csv(
+                    BytesIO(payload),
+                    encoding=encoding,
+                    sep=delimiter,
+                    dtype=object,
+                    keep_default_na=False,
+                    low_memory=False,
+                )
+            except (UnicodeDecodeError, ParserError) as exc:
+                last_error = exc
+
+        raise CsvDecodeError("please reexport to csv") from last_error
+
+    @classmethod
+    def _candidate_delimiters(cls, payload: bytes, encoding: str) -> list[str]:
+        detected = cls._detect_delimiter(payload, encoding)
+        if detected:
+            return [detected]
+        return list(cls.DELIMITER_CANDIDATES)
+
+    @classmethod
+    def _detect_delimiter(cls, payload: bytes, encoding: str) -> str:
+        sample = cls._decode_detection_sample(payload, encoding)
+        if not sample.strip():
+            return ""
+
         try:
-            return pd.read_csv(
-                BytesIO(payload),
-                encoding=encoding,
-                dtype=object,
-                keep_default_na=False,
-                low_memory=False,
-            )
-        except (UnicodeDecodeError, ParserError) as exc:
-            raise CsvDecodeError(f"Unable to parse uploaded CSV using {encoding}.") from exc
+            dialect = csv.Sniffer().sniff(sample, delimiters="".join(cls.DELIMITER_CANDIDATES))
+        except csv.Error:
+            return cls._guess_delimiter_from_sample(sample)
+
+        delimiter = str(dialect.delimiter or "")
+        return delimiter if delimiter in cls.DELIMITER_CANDIDATES else ""
+
+    @classmethod
+    def _decode_detection_sample(cls, payload: bytes, encoding: str) -> str:
+        return payload[: cls.DETECTION_SAMPLE_BYTES].decode(encoding, errors="ignore")
+
+    @classmethod
+    def _guess_delimiter_from_sample(cls, sample: str) -> str:
+        lines = [line for line in sample.splitlines()[:25] if line.strip()]
+        if not lines:
+            return ""
+
+        best_delimiter = ""
+        best_score: tuple[int, int, int] = (0, 0, 0)
+        for delimiter in cls.DELIMITER_CANDIDATES:
+            counts = [line.count(delimiter) for line in lines]
+            positive_counts = [count for count in counts if count > 0]
+            if not positive_counts:
+                continue
+            common_count = max(set(positive_counts), key=positive_counts.count)
+            consistent_rows = positive_counts.count(common_count)
+            score = (consistent_rows, common_count, len(positive_counts))
+            if score > best_score:
+                best_score = score
+                best_delimiter = delimiter
+        return best_delimiter

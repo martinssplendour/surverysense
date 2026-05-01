@@ -109,8 +109,9 @@ class TopicLabelEvidenceBuilder:
 
     def build_group_evidence(self, groups: list[AnalysisGroupRecord]) -> list[TopicLabelEvidenceGroup]:
         evidence_groups: list[TopicLabelEvidenceGroup] = []
+        group_limit = int(self.max_groups or 0)
         for group in groups:
-            if len(evidence_groups) >= max(1, self.max_groups):
+            if group_limit > 0 and len(evidence_groups) >= group_limit:
                 break
             if group.is_noise:
                 continue

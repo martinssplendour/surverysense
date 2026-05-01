@@ -65,7 +65,7 @@ class Settings:
     topic_translation_batch_size: int = int(os.getenv("TOPIC_TRANSLATION_BATCH_SIZE", "8"))
     topic_ai_labeling_enabled: bool = os.getenv("TOPIC_AI_LABELING_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
     topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "30"))
-    topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "15"))
+    topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "0"))
     topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "15"))
     topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
     topic_ai_labeling_max_unigrams: int = int(os.getenv("TOPIC_AI_LABELING_MAX_UNIGRAMS", "5"))
@@ -73,7 +73,7 @@ class Settings:
     topic_ai_labeling_max_trigrams: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TRIGRAMS", "3"))
     topic_ai_labeling_min_ngram_document_count: int = int(os.getenv("TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT", "4"))
     topic_ai_labeling_max_chars_per_example: int = int(os.getenv("TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE", "220"))
-    topic_ai_labeling_batch_size: int = int(os.getenv("TOPIC_AI_LABELING_BATCH_SIZE", "5"))
+    topic_ai_labeling_batch_size: int = int(os.getenv("TOPIC_AI_LABELING_BATCH_SIZE", "10"))
     topic_ai_labeling_max_retries: int = int(os.getenv("TOPIC_AI_LABELING_MAX_RETRIES", "1"))
     topic_ai_labeling_retry_base_seconds: float = float(os.getenv("TOPIC_AI_LABELING_RETRY_BASE_SECONDS", "0.75"))
     session_secret: str = os.getenv("SESSION_SECRET", "").strip()

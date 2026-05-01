@@ -203,3 +203,13 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
         self.assertIn("comment", verbatim_text)
         self.assertNotIn("country__idx_0", verbatim_text)
         self.assertNotIn("score__idx_3", verbatim_text)
+
+    def test_upload_rejects_non_csv_extension_with_clear_message(self) -> None:
+        upload_response = self.client.post(
+            "/upload-ingest",
+            files={"file": ("sample.tsv", "country\tcomment\nUK\tUseful\n", "text/tab-separated-values")},
+            data={"diagnostic_mode": "rule_based"},
+        )
+
+        self.assertEqual(upload_response.status_code, 400)
+        self.assertEqual(upload_response.json()["detail"], "csv files only")

@@ -274,6 +274,56 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         )
         self.assertEqual(result.warnings, [])
 
+    def test_label_groups_uses_all_groups_when_max_groups_is_zero(self) -> None:
+        service = TopicAiLabelService(
+            config=TopicAiLabelingConfig(
+                enabled=True,
+                gemini_api_key="test-key",
+                gemini_model="gemini-2.5-flash",
+                gemini_temperature=0.1,
+                timeout_seconds=8,
+                max_groups=0,
+                max_examples_per_group=1,
+                max_terms_per_group=2,
+                max_chars_per_example=80,
+                batch_size=10,
+                max_retries=0,
+            )
+        )
+        groups = [
+            AnalysisGroupRecord(
+                group_id=str(index),
+                label=f"Resource Theme {index}",
+                count=3,
+                share=0.1,
+                terms=[f"resource {index}"],
+                documents=[AnalysisDocumentRecord(row_number=index + 1, text=f"Resource {index} response")],
+            )
+            for index in range(12)
+        ]
+        calls: list[str] = []
+
+        def _fake_urlopen(request, timeout):
+            self.assertEqual(timeout, 8)
+            prompt = request.data.decode("utf-8")
+            calls.append(prompt)
+            labels = []
+            for group_id in range(12):
+                if f'\\"group_id\\":\\"{group_id}\\"' in prompt:
+                    labels.append({"group_id": str(group_id), "label": f"Resource {group_id} Theme"})
+            return _FakeHttpResponse({"candidates": [{"content": {"parts": [{"text": json.dumps({"labels": labels})}]}}]})
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            result = service.label_groups(
+                groups,
+                model_key=AnalysisModelKey.COMMUNITY,
+                text_column_name="verbatim",
+            )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result.labeled_group_count, 12)
+        self.assertEqual(set(result.labels_by_group_id), {str(index) for index in range(12)})
+
     def test_label_groups_keeps_successful_batches_when_one_batch_fails(self) -> None:
         service = TopicAiLabelService(
             config=TopicAiLabelingConfig(
@@ -407,6 +457,54 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         self.assertEqual(result.labels_by_group_id, {"2": "Better Search Filters"})
         self.assertEqual(result.labeled_group_count, 1)
         self.assertIn("low-quality labels for 2 group(s)", " ".join(result.warnings))
+
+    def test_label_groups_accepts_mixed_responses_for_incoherent_groups(self) -> None:
+        service = TopicAiLabelService(
+            config=TopicAiLabelingConfig(
+                enabled=True,
+                gemini_api_key="test-key",
+                gemini_model="gemini-2.5-flash",
+                gemini_temperature=0.1,
+                timeout_seconds=8,
+                max_groups=10,
+                max_examples_per_group=3,
+                max_terms_per_group=3,
+                max_chars_per_example=120,
+                max_retries=0,
+            )
+        )
+        group = AnalysisGroupRecord(
+            group_id="0",
+            label="Mixed or unclear responses",
+            count=6,
+            share=1.0,
+            terms=["resources", "pricing", "login"],
+            documents=[
+                AnalysisDocumentRecord(row_number=1, text="The search filters are difficult to use"),
+                AnalysisDocumentRecord(row_number=2, text="The subscription is too expensive"),
+                AnalysisDocumentRecord(row_number=3, text="I cannot log in to my account"),
+            ],
+        )
+
+        def _fake_urlopen(_request, timeout):
+            self.assertEqual(timeout, 8)
+            return _FakeHttpResponse(
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": json.dumps({"labels": [{"group_id": "0", "label": "Mixed Responses"}]})}]}}
+                    ]
+                }
+            )
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            result = service.label_groups(
+                [group],
+                model_key=AnalysisModelKey.COMMUNITY,
+                text_column_name="verbatim",
+            )
+
+        self.assertEqual(result.labels_by_group_id, {"0": "Mixed Responses"})
+        self.assertEqual(result.warnings, [])
 
     def test_label_groups_rejects_unsupported_short_ai_labels(self) -> None:
         service = TopicAiLabelService(
