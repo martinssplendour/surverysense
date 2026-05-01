@@ -1525,7 +1525,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
     def test_run_community_merges_groups_with_duplicate_ai_labels(self) -> None:
         service = self._build_service(
             community_detection_service=_DuplicateLabelCommunityDetectionService(),
-            ai_label_service=_FakeAiLabelService({"0": "Mixed Responses", "1": "Mixed Responses"}),
+            ai_label_service=_FakeAiLabelService({"0": "Search And Curriculum Issues", "1": "Search And Curriculum Issues"}),
         )
         dataframe = pd.DataFrame(
             {
@@ -1548,11 +1548,11 @@ class TopicAnalysisServiceTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(len(result.groups), 1)
-        self.assertEqual(result.groups[0].label, "Mixed Responses")
+        self.assertEqual(result.groups[0].label, "Search And Curriculum Issues")
         self.assertEqual(result.groups[0].count, 4)
         self.assertEqual([document.row_number for document in result.groups[0].documents], [1, 2, 4, 3])
         self.assertEqual({point.group_id for point in result.scatter_points}, {"0"})
-        self.assertEqual({point.group_label for point in result.scatter_points}, {"Mixed Responses"})
+        self.assertEqual({point.group_label for point in result.scatter_points}, {"Search And Curriculum Issues"})
 
     def test_run_keeps_heuristic_labels_when_ai_labeling_fails(self) -> None:
         service = self._build_service(
