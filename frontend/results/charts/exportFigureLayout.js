@@ -53,7 +53,7 @@ export function buildAnalysisExportLayoutOverrides(definition, baseLayout) {
             tickangle: 0,
             tickfont: {
                 ...(baseYAxis.tickfont || {}),
-                size: ngramSize === 2 ? 12 : (ngramSize === 3 ? 17 : 24),
+                size: ngramSize === 2 || ngramSize === 3 ? 12 : 24,
             },
         };
     }

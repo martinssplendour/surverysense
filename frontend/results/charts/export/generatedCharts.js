@@ -7,6 +7,9 @@ import {
 } from "../exportMetadata.js";
 
 
+const MAX_GENERATED_NGRAM_BARS = 12;
+
+
 export async function captureRenderedAnalysisCharts() {
     const plotly = getPlotly();
     if (!plotly || typeof plotly.toImage !== "function" || !(elements.analysisChart instanceof HTMLElement)) {
@@ -16,6 +19,10 @@ export async function captureRenderedAnalysisCharts() {
     if (Array.isArray(state.analysisResult?.groups) && state.analysisResult.groups.length) {
         const generatedGroupChart = await captureGeneratedGroupBarChart(plotly);
         return generatedGroupChart ? [generatedGroupChart] : [];
+    }
+
+    if (Array.isArray(state.analysisResult?.ngram_buckets) && state.analysisResult.ngram_buckets.length) {
+        return captureGeneratedNgramCharts(plotly);
     }
 
     const plotSurfaces = Array.from(elements.analysisChart.querySelectorAll(".analysis-plot-surface"));
@@ -61,6 +68,86 @@ export async function captureRenderedAnalysisCharts() {
     );
 
     return images.filter(Boolean);
+}
+
+
+async function captureGeneratedNgramCharts(plotly) {
+    const definitions = buildAnalysisChartDefinitions(state.analysisResult.ngram_buckets.length);
+    const buckets = state.analysisResult.ngram_buckets
+        .map((bucket, index) => ({
+            ...bucket,
+            definition: definitions[index],
+            items: normalizeNgramItems(bucket.items),
+        }))
+        .filter((bucket) => bucket.items.length);
+    if (!buckets.length) {
+        return [];
+    }
+
+    const images = [];
+    for (const [index, bucket] of buckets.entries()) {
+        const image = await captureGeneratedNgramChart(plotly, bucket, bucket.definition, index);
+        if (image) {
+            images.push(image);
+        }
+    }
+    return images;
+}
+
+
+async function captureGeneratedNgramChart(plotly, bucket, definition, index) {
+    const chartDefinition = definition || {
+        title: bucket.label || `${bucket.ngram_size}-grams`,
+        caption: "",
+        kind: "ngram",
+        ngramSize: Number(bucket.ngram_size || 0),
+    };
+    const dimensions = resolveAnalysisExportDimensions({
+        definition: chartDefinition,
+        fallbackWidth: 900,
+        fallbackHeight: Math.max(760, bucket.items.length * 64 + 220),
+    });
+    const plotSurface = document.createElement("div");
+    plotSurface.style.position = "fixed";
+    plotSurface.style.left = "-10000px";
+    plotSurface.style.top = "0";
+    plotSurface.style.pointerEvents = "none";
+    plotSurface.style.width = `${dimensions.width}px`;
+    plotSurface.style.height = `${dimensions.height}px`;
+    document.body.appendChild(plotSurface);
+
+    try {
+        await plotly.newPlot(
+            plotSurface,
+            buildGeneratedNgramBarData(bucket.items),
+            buildGeneratedNgramBarLayout(bucket.items, dimensions),
+            {
+                displaylogo: false,
+                responsive: false,
+                staticPlot: true,
+            },
+        );
+        return {
+            title: chartDefinition.title || bucket.label || `N-gram chart ${index + 1}`,
+            caption: chartDefinition.caption || "",
+            image_data_url: await captureAnalysisChartImage(plotly, plotSurface, {
+                width: dimensions.width,
+                height: dimensions.height,
+                definition: chartDefinition,
+            }),
+        };
+    } catch (error) {
+        console.warn(
+            `[Verbatim App] Failed to generate n-gram export chart ${index + 1}; the report will skip that chart.`,
+            error,
+        );
+        return null;
+    } finally {
+        if (typeof plotly.purge === "function") {
+            plotly.purge(plotSurface);
+        }
+        plotSurface.remove();
+    }
 }
 
 
@@ -125,6 +212,22 @@ async function captureGeneratedGroupBarChart(plotly) {
 }
 
 
+function normalizeNgramItems(items) {
+    return Array.isArray(items)
+        ? [...items]
+            .map((item) => ({
+                ...item,
+                count: Number(item.count || 0),
+                document_count: Number(item.document_count || 0),
+                term: `${item.term || ""}`.trim(),
+            }))
+            .filter((item) => item.term && item.count > 0)
+            .sort((left, right) => right.count - left.count)
+            .slice(0, MAX_GENERATED_NGRAM_BARS)
+        : [];
+}
+
+
 function buildGeneratedGroupBarData(groups) {
     return [
         {
@@ -149,6 +252,39 @@ function buildGeneratedGroupBarData(groups) {
             hovertemplate: [
                 "<b>%{y}</b>",
                 "Responses: %{x}",
+                "<extra></extra>",
+            ].join("<br>"),
+        },
+    ];
+}
+
+
+function buildGeneratedNgramBarData(items) {
+    return [
+        {
+            type: "bar",
+            orientation: "h",
+            y: items.map((item) => item.term),
+            x: items.map((item) => item.count),
+            text: items.map((item) => String(item.count)),
+            textposition: "outside",
+            textfont: {
+                size: 15,
+                color: "#172033",
+            },
+            cliponaxis: false,
+            customdata: items.map((item) => [item.document_count]),
+            marker: {
+                color: "#2477F8",
+                line: {
+                    color: "#1b5dcc",
+                    width: 1,
+                },
+            },
+            hovertemplate: [
+                "<b>%{y}</b>",
+                "Occurrences: %{x}",
+                "Matching responses: %{customdata[0]}",
                 "<extra></extra>",
             ].join("<br>"),
         },
@@ -195,6 +331,52 @@ function buildGeneratedGroupBarLayout(groups, { width, height }) {
             tickangle: 0,
             tickfont: {
                 size: 18,
+            },
+            fixedrange: true,
+        },
+    };
+}
+
+
+function buildGeneratedNgramBarLayout(items, { width, height }) {
+    const maxCount = Math.max(...items.map((item) => Number(item.count || 0)), 1);
+    return {
+        width,
+        height,
+        autosize: false,
+        margin: {
+            t: 30,
+            r: 42,
+            b: 74,
+            l: 190,
+        },
+        paper_bgcolor: "rgba(0, 0, 0, 0)",
+        plot_bgcolor: "#ffffff",
+        font: {
+            family: "\"Segoe UI\", Aptos, sans-serif",
+            color: "#172033",
+            size: 14,
+        },
+        uniformtext: {
+            minsize: 14,
+            mode: "show",
+        },
+        bargap: 0.24,
+        xaxis: {
+            title: {
+                text: "Occurrences",
+            },
+            gridcolor: "rgba(89, 104, 128, 0.12)",
+            zeroline: false,
+            range: [0, Math.ceil(maxCount * 1.08)],
+            fixedrange: true,
+        },
+        yaxis: {
+            automargin: true,
+            autorange: "reversed",
+            tickangle: 0,
+            tickfont: {
+                size: 16,
             },
             fixedrange: true,
         },

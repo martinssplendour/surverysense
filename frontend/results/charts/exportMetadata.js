@@ -61,13 +61,12 @@ export function buildAnalysisChartDefinitions(surfaceCount) {
     if (!result) {
         return [];
     }
-    const chartCaption = elements.analysisChart?.querySelector(".analysis-chart-caption")?.textContent?.trim() || "";
     const chartTitle = elements.analysisChart?.querySelector(".analysis-chart-title")?.textContent?.trim() || "";
 
     if (Array.isArray(result.ngram_buckets) && result.ngram_buckets.length) {
         return result.ngram_buckets.slice(0, surfaceCount).map((bucket) => ({
             title: bucket.label || `${bucket.ngram_size}-grams`,
-            caption: chartCaption,
+            caption: "",
             kind: "ngram",
             ngramSize: Number(bucket.ngram_size || 0),
         }));
