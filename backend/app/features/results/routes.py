@@ -7,7 +7,7 @@ from typing import Literal
 from fastapi import Query, Request
 from fastapi.responses import Response
 
-from app.core.auth import require_authenticated_user, require_session_result_access
+from app.core.auth import remove_session_result_id, require_authenticated_user, require_session_result_access
 from app.features.common.route_context import WorkspaceRouteContext
 from app.features.results.models import DatasetName
 from app.models.api import (
@@ -21,6 +21,21 @@ ResultExportScope = Literal["clean_data", "verbatim_only"]
 
 def register_result_routes(context: WorkspaceRouteContext) -> None:
     router = context.router
+
+    @router.delete("/result/{result_id}", status_code=204, response_class=Response)
+    async def delete_result(
+        request: Request,
+        result_id: str,
+    ) -> Response:
+        require_authenticated_user(request)
+        require_session_result_access(request, result_id)
+
+        def _execute() -> Response:
+            context.result_store_service.delete(result_id)
+            remove_session_result_id(request, result_id)
+            return Response(status_code=204)
+
+        return context.execute_api_action("delete_result", _execute)
 
     @router.post("/result-columns/{result_id}", response_model=ColumnRoleUpdateResponse)
     async def update_result_columns(

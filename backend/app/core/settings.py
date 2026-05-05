@@ -38,7 +38,7 @@ class Settings:
     row_limit: int = int(os.getenv("TRANSFORM_ROW_LIMIT", "5000"))
     result_store_max_results: int = int(os.getenv("RESULT_STORE_MAX_RESULTS", "8"))
     result_store_ttl_seconds: int = int(os.getenv("RESULT_STORE_TTL_SECONDS", "900"))
-    result_store_cleanup_interval_seconds: int = int(os.getenv("RESULT_STORE_CLEANUP_INTERVAL_SECONDS", "300"))
+    result_store_cleanup_interval_seconds: int = int(os.getenv("RESULT_STORE_CLEANUP_INTERVAL_SECONDS", "60"))
     topic_embedding_provider: str = os.getenv("TOPIC_EMBEDDING_PROVIDER", "gemini").strip().casefold() or "gemini"
     topic_embedding_model: str = os.getenv("TOPIC_EMBEDDING_MODEL", "").strip()
     topic_embedding_api_key: str = os.getenv("TOPIC_EMBEDDING_API_KEY", "").strip()

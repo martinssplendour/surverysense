@@ -118,7 +118,8 @@ def build_application_services(settings: Settings) -> ApplicationServices:
             source_language=settings.topic_translation_source_language,
             target_language=settings.topic_translation_target_language,
             batch_size=settings.topic_translation_batch_size,
-        )
+        ),
+        cache_ttl_seconds=settings.result_store_ttl_seconds,
     )
     topic_analysis_service = _build_topic_analysis_service(
         settings,
@@ -205,14 +206,24 @@ def register_startup_hooks(
                 await asyncio.sleep(interval_seconds)
                 try:
                     purged_count = await asyncio.to_thread(result_store_service.cleanup_expired)
+                    user_data_purged = await asyncio.to_thread(topic_analysis_service.cleanup_expired_user_data)
                 except Exception as exc:  # pragma: no cover - defensive background-task guard
                     logger.warning(
-                        "Result-store cleanup failed unexpectedly (%s). The cleaner will retry on the next interval.",
+                        "User-data cleanup failed unexpectedly (%s). The cleaner will retry on the next interval.",
                         type(exc).__name__,
                     )
                     continue
-                if purged_count > 0:
-                    logger.info("Result-store cleanup purged %s expired result(s) from memory.", purged_count)
+                purged_translation_count = int(user_data_purged.get("translation_cache_entries", 0))
+                purged_embedding_count = int(user_data_purged.get("embedding_cache_entries", 0))
+                if purged_count > 0 or purged_translation_count > 0 or purged_embedding_count > 0:
+                    logger.info(
+                        "User-data cleanup purged %s expired result(s), %s translation cache entr%s, and %s embedding cache entr%s from memory.",
+                        purged_count,
+                        purged_translation_count,
+                        "y" if purged_translation_count == 1 else "ies",
+                        purged_embedding_count,
+                        "y" if purged_embedding_count == 1 else "ies",
+                    )
 
         app.state.result_store_cleanup_task = asyncio.create_task(_cleanup_expired_results_periodically())
 
@@ -309,6 +320,7 @@ def _build_topic_analysis_service(
         representative_example_service=RepresentativeExampleSelectionService(),
         embedding_service=SentenceEmbeddingService(
             cache_size=settings.topic_embedding_cache_size,
+            cache_ttl_seconds=settings.result_store_ttl_seconds,
             max_retries=settings.topic_embedding_max_retries,
             retry_base_seconds=settings.topic_embedding_retry_base_seconds,
         ),

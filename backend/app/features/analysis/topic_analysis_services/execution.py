@@ -38,6 +38,12 @@ class TopicModelExecutionService:
             model_name=self.config.embedding_model,
         )
 
+    def cleanup_expired(self) -> int:
+        cleanup = getattr(self.embedding_service, "cleanup_expired", None)
+        if not callable(cleanup):
+            return 0
+        return int(cleanup())
+
     def execute(
         self,
         *,

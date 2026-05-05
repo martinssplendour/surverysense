@@ -1,4 +1,4 @@
-import { elements, setCurrentWorkspace } from "../shared.js";
+import { elements, setCurrentWorkspace, state } from "../shared.js";
 import { closeAnalysisGroupModal } from "../modals.js";
 import { closeColumnRoleModal } from "../columnRoles.js";
 import { on } from "../events/bus.js";
@@ -43,6 +43,7 @@ export async function loadResultsPage() {
 }
 
 export function resetToUploadState() {
+    void deleteServerResult(state.resultId);
     clearStoredPayload();
     resetStoredResultState();
     setCurrentWorkspace("dashboard");
@@ -103,6 +104,21 @@ function renderResults(payload) {
     closeFilterModal();
     closeColumnRoleModal();
     closeAnalysisGroupModal();
+}
+
+async function deleteServerResult(resultId) {
+    const normalizedResultId = String(resultId || "").trim();
+    if (!normalizedResultId) {
+        return;
+    }
+
+    try {
+        await fetch(`/result/${encodeURIComponent(normalizedResultId)}`, {
+            method: "DELETE",
+        });
+    } catch (error) {
+        console.warn("[Verbatim App] Failed to delete server-side result during workspace reset.", error);
+    }
 }
 
 function setWorkspaceBodyClasses(mode) {

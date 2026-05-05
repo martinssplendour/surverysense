@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from threading import Lock
+from time import monotonic
+from typing import Callable
 
 from app.features.analysis.language_detection_service import LanguageDetectionService
 from app.features.analysis.translation_gateway_service import (
@@ -40,9 +43,19 @@ class _TranslationCacheEntry:
 class EnglishTranslationService:
     """Detects the source language for each text, then translates non-English texts to English."""
 
-    def __init__(self, *, config: EnglishTranslationConfig) -> None:
+    def __init__(
+        self,
+        *,
+        config: EnglishTranslationConfig,
+        cache_ttl_seconds: int = 900,
+        clock: Callable[[], float] = monotonic,
+    ) -> None:
         self.config = config
         self._translation_cache: dict[str, _TranslationCacheEntry] = {}
+        self._translation_cache_saved_at: dict[str, float] = {}
+        self.cache_ttl_seconds = max(0, int(cache_ttl_seconds or 0))
+        self._clock = clock
+        self._cache_lock = Lock()
         self.language_detection_service = LanguageDetectionService(
             source_language=config.source_language,
         )
@@ -56,6 +69,10 @@ class EnglishTranslationService:
     def detect_languages(self, texts: list[str]) -> EnglishTranslationBatchResult:
         return self._build_detection_only_result(texts)
 
+    def cleanup_expired(self) -> int:
+        with self._cache_lock:
+            return self._purge_expired_locked()
+
     def translate(self, texts: list[str]) -> EnglishTranslationBatchResult:
         """Translate a batch of texts to English, returning original texts if translation is disabled or fails."""
         passthrough = self._build_passthrough_result(texts)
@@ -66,7 +83,9 @@ class EnglishTranslationService:
 
         warnings: list[str] = []
         unique_texts = list(dict.fromkeys(texts))
-        pending_texts = [text for text in unique_texts if text not in self._translation_cache]
+        with self._cache_lock:
+            self._purge_expired_locked()
+            pending_texts = [text for text in unique_texts if text not in self._translation_cache]
 
         if pending_texts:
             try:
@@ -80,7 +99,13 @@ class EnglishTranslationService:
                     "English translation is unavailable because language detection is not installed. Reinstall backend requirements to enable translate-to-English features."
                 )
                 return self._build_passthrough_result(texts, warnings=warnings)
-            self._translation_cache.update(entries)
+            if self.cache_ttl_seconds > 0:
+                cached_at = self._clock()
+                with self._cache_lock:
+                    self._purge_expired_locked()
+                    self._translation_cache.update(entries)
+                    for text in entries:
+                        self._translation_cache_saved_at[text] = cached_at
 
         return self._finalize_result(texts, warnings=warnings)
 
@@ -188,18 +213,20 @@ class EnglishTranslationService:
         translated_flags: list[bool] = []
         detected_languages: list[str | None] = []
 
-        for text in texts:
-            cached = self._translation_cache.get(
-                text,
-                _TranslationCacheEntry(
-                    translated_text=text,
-                    translated=False,
-                    detected_language=None,
-                ),
-            )
-            translated_texts.append(cached.translated_text)
-            translated_flags.append(cached.translated)
-            detected_languages.append(cached.detected_language)
+        with self._cache_lock:
+            self._purge_expired_locked()
+            for text in texts:
+                cached = self._translation_cache.get(
+                    text,
+                    _TranslationCacheEntry(
+                        translated_text=text,
+                        translated=False,
+                        detected_language=None,
+                    ),
+                )
+                translated_texts.append(cached.translated_text)
+                translated_flags.append(cached.translated)
+                detected_languages.append(cached.detected_language)
 
         translated_count = sum(1 for translated in translated_flags if translated)
         return EnglishTranslationBatchResult(
@@ -265,3 +292,21 @@ class EnglishTranslationService:
     @staticmethod
     def _normalize_translated_text(source_text: str, translated_text: str) -> str:
         return TranslationGatewayService.normalize_translated_text(source_text, translated_text)
+
+    def _purge_expired_locked(self) -> int:
+        if self.cache_ttl_seconds <= 0:
+            purged = len(self._translation_cache)
+            self._translation_cache.clear()
+            self._translation_cache_saved_at.clear()
+            return purged
+
+        expires_before = self._clock() - self.cache_ttl_seconds
+        expired_texts = [
+            text
+            for text, saved_at in self._translation_cache_saved_at.items()
+            if saved_at <= expires_before
+        ]
+        for text in expired_texts:
+            self._translation_cache.pop(text, None)
+            self._translation_cache_saved_at.pop(text, None)
+        return len(expired_texts)

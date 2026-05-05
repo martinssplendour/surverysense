@@ -97,6 +97,18 @@ def pop_session_result_ids(request: Request) -> list[str]:
     return _normalize_result_ids(stored_ids)
 
 
+def remove_session_result_id(request: Request, result_id: str) -> None:
+    normalized_result_id = str(result_id).strip()
+    if not normalized_result_id:
+        return
+    remaining_ids = [
+        stored_result_id
+        for stored_result_id in get_session_result_ids(request)
+        if stored_result_id != normalized_result_id
+    ]
+    request.session[SESSION_RESULT_IDS_KEY] = remaining_ids
+
+
 def require_session_result_access(request: Request, result_id: str) -> str:
     """Ensure the current signed session was issued the requested result_id."""
     normalized_result_id = str(result_id).strip()

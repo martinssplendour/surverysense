@@ -97,6 +97,20 @@ class TopicAnalysisService:
         self.text_preparation_service.warm_up()
         self.model_execution_service.warm_up()
 
+    def cleanup_expired_user_data(self) -> dict[str, int]:
+        translation_cache_entries = 0
+        translation_service = self.text_preparation_service.translation_service
+        if translation_service is not None:
+            cleanup = getattr(translation_service, "cleanup_expired", None)
+            if callable(cleanup):
+                translation_cache_entries = int(cleanup())
+
+        embedding_cache_entries = self.model_execution_service.cleanup_expired()
+        return {
+            "translation_cache_entries": translation_cache_entries,
+            "embedding_cache_entries": embedding_cache_entries,
+        }
+
     def run(
         self,
         *,

@@ -47,4 +47,4 @@ services:
       - key: RESULT_STORE_TTL_SECONDS
         value: "900"
       - key: RESULT_STORE_CLEANUP_INTERVAL_SECONDS
-        value: "300"
+        value: "60"

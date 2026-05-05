@@ -1087,6 +1087,41 @@ class SentenceEmbeddingServiceTests(unittest.TestCase):
         self.assertEqual(cached_vector.dtype.name, "float32")
         self.assertFalse(cached_vector.flags.writeable)
 
+    def test_cleanup_expired_purges_embedding_cache_entries(self) -> None:
+        current_time = 1000.0
+
+        def fake_post(*args, **kwargs):
+            return _FakeEmbeddingResponse(
+                {
+                    "embeddings": [
+                        {"values": [1.0, 0.0]},
+                    ]
+                }
+            )
+
+        service = SentenceEmbeddingService(
+            cache_size=10,
+            cache_ttl_seconds=900,
+            max_retries=0,
+            clock=lambda: current_time,
+        )
+        with patch("requests.post", side_effect=fake_post):
+            service.encode(
+                ["same text"],
+                provider="gemini",
+                model_name="gemini-embedding-001",
+                api_key="test-key",
+            )
+
+        self.assertEqual(len(service._cache), 1)
+
+        current_time += 901
+
+        self.assertEqual(service.cleanup_expired(), 1)
+        self.assertEqual(service.cleanup_expired(), 0)
+        self.assertEqual(service._cache, {})
+        self.assertEqual(service._cache_saved_at, {})
+
     def test_model_execution_uses_fallback_embeddings_when_primary_provider_fails(self) -> None:
         _FakeFallbackEmbeddingService.calls = []
         config = TopicAnalysisConfig(

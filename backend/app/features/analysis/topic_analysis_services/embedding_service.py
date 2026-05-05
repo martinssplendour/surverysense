@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from threading import Lock
+from time import monotonic
 from typing import Any
+from collections.abc import Callable
 
 from app.core.exceptions import TopicAnalysisDependencyError
 from app.features.analysis.topic_analysis_services.embedding_cache import EmbeddingCacheMixin
@@ -22,13 +24,18 @@ class SentenceEmbeddingService(EmbeddingCacheMixin, EmbeddingProviderErrorMixin)
         self,
         *,
         cache_size: int = 512,
+        cache_ttl_seconds: int = 900,
         max_retries: int = 1,
         retry_base_seconds: float = 0.75,
+        clock: Callable[[], float] = monotonic,
     ) -> None:
         self.cache_size = max(0, int(cache_size or 0))
+        self.cache_ttl_seconds = max(0, int(cache_ttl_seconds or 0))
         self.max_retries = max(0, int(max_retries or 0))
         self.retry_base_seconds = max(0.0, float(retry_base_seconds or 0.0))
+        self._clock = clock
         self._cache: OrderedDict[str, Any] = OrderedDict()
+        self._cache_saved_at: dict[str, float] = {}
         self._cache_lock = Lock()
 
     @staticmethod
@@ -67,6 +74,10 @@ class SentenceEmbeddingService(EmbeddingCacheMixin, EmbeddingProviderErrorMixin)
         provider: str = "gemini",
     ) -> None:
         return
+
+    def cleanup_expired(self) -> int:
+        with self._cache_lock:
+            return self._purge_expired_locked()
 
     def encode(
         self,
@@ -131,6 +142,7 @@ class SentenceEmbeddingService(EmbeddingCacheMixin, EmbeddingProviderErrorMixin)
         missing: OrderedDict[str, str] = OrderedDict()
 
         with self._cache_lock:
+            self._purge_expired_locked()
             for index, (key, text) in enumerate(zip(cache_keys, texts)):
                 cached_vector = self._cache.get(key)
                 if cached_vector is None:
@@ -307,3 +319,21 @@ class SentenceEmbeddingService(EmbeddingCacheMixin, EmbeddingProviderErrorMixin)
     def _iter_batches(texts: list[str], batch_size: int):
         for index in range(0, len(texts), batch_size):
             yield texts[index:index + batch_size]
+
+    def _purge_expired_locked(self) -> int:
+        if self.cache_ttl_seconds <= 0:
+            purged = len(self._cache)
+            self._cache.clear()
+            self._cache_saved_at.clear()
+            return purged
+
+        expires_before = self._clock() - self.cache_ttl_seconds
+        expired_keys = [
+            key
+            for key, saved_at in self._cache_saved_at.items()
+            if saved_at <= expires_before
+        ]
+        for key in expired_keys:
+            self._cache.pop(key, None)
+            self._cache_saved_at.pop(key, None)
+        return len(expired_keys)
