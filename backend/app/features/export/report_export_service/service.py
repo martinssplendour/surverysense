@@ -135,6 +135,22 @@ class AnalysisReportExportService:
     def _trim_pptx_chart_image(self, chart: DecodedChartImage) -> DecodedChartImage:
         return self._get_chart_image_service().trim_pptx_chart_image(chart)
 
+    @property
+    def chart_image_service(self) -> ReportChartImageService:
+        return self._get_chart_image_service()
+
+    @property
+    def pdf_builder(self) -> PdfReportBuilder:
+        return self._get_pdf_builder()
+
+    @property
+    def docx_builder(self) -> DocxReportBuilder:
+        return self._get_docx_builder()
+
+    @property
+    def pptx_builder(self) -> PptxReportBuilder:
+        return self._get_pptx_builder()
+
     def _get_chart_image_service(self) -> ReportChartImageService:
         if self._chart_image_service is None:
             from app.features.export.report_export_service.chart_image import ReportChartImageService
