@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import Query, Request, Response
 
-from app.core.auth import require_authenticated_user
+from app.core.auth import require_authenticated_user, require_session_result_access
 from app.features.common.route_context import WorkspaceRouteContext
 from app.models.api import (
     AnalysisExportRequest,
@@ -27,6 +27,7 @@ def _register_run_analysis_route(context: WorkspaceRouteContext) -> None:
         analysis_request: AnalysisRunRequest,
     ) -> AnalysisRunResponse:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
         fast_result = context.result_store_service.get_fast_filtered_result(
             result_id,
             model_key=analysis_request.model_key,
@@ -78,6 +79,7 @@ def _register_group_documents_route(context: WorkspaceRouteContext) -> None:
         limit: int = Query(100, ge=1, le=500),
     ) -> AnalysisGroupDocumentsResponse:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
 
         def _execute() -> AnalysisGroupDocumentsResponse:
             page = context.result_store_service.get_analysis_group_page(
@@ -112,6 +114,7 @@ def _register_ngram_documents_route(context: WorkspaceRouteContext) -> None:
         limit: int = Query(100, ge=1, le=500),
     ) -> AnalysisNgramDocumentsResponse:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
 
         def _execute() -> AnalysisNgramDocumentsResponse:
             page = context.result_store_service.get_analysis_ngram_page(
@@ -145,6 +148,7 @@ def _register_export_route(context: WorkspaceRouteContext) -> None:
         export_request: AnalysisExportRequest,
     ) -> Response:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
 
         def _execute() -> Response:
             context.result_store_service.get_filters(result_id)

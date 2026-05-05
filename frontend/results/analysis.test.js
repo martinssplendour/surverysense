@@ -219,6 +219,28 @@ describe("results/analysis", () => {
         expect(harness.state.analysisRunning).toBe(false);
     });
 
+    it("hands session-forbidden result state back to the workspace layer on 403", async () => {
+        const fetchMock = vi.fn(async () => createJsonResponse({
+            ok: false,
+            status: 403,
+            payload: { detail: "This result is not available in the current session." },
+        }));
+        const harness = await loadAnalysisHarness({ fetchImpl: fetchMock });
+
+        harness.state.resultId = "result-123";
+        harness.state.analysisVerbatimColumns = ["comment"];
+        harness.state.selectedAnalysisColumn = "comment";
+        harness.state.selectedAnalysisModel = "bertopic";
+
+        await harness.analysis.runAnalysis();
+
+        expect(harness.handleMissingResultState).toHaveBeenCalledWith(
+            "This result is not available in the current session.",
+        );
+        expect(harness.state.analysisResult).toBeNull();
+        expect(harness.state.analysisRunning).toBe(false);
+    });
+
     it("stores a structured failure result when the analysis request fails", async () => {
         const fetchMock = vi.fn(async () => createJsonResponse({
             ok: false,

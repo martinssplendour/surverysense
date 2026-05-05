@@ -68,16 +68,7 @@ def clear_authenticated_user(request: Request) -> None:
 
 def register_session_result_id(request: Request, result_id: str) -> None:
     """Append a result_id to the session's list of uploaded results, deduplicating as needed."""
-    existing_ids = request.session.get(SESSION_RESULT_IDS_KEY, [])
-    normalized_ids: list[str] = []
-    seen_ids: set[str] = set()
-
-    for raw_value in list(existing_ids) + [result_id]:
-        normalized = str(raw_value).strip()
-        if not normalized or normalized in seen_ids:
-            continue
-        seen_ids.add(normalized)
-        normalized_ids.append(normalized)
+    normalized_ids = _normalize_result_ids(list(get_session_result_ids(request)) + [result_id])
 
     # Track result ids in the session so logout can delete only this user's
     # in-memory uploads instead of flushing the whole process cache.
@@ -92,20 +83,29 @@ def replace_session_result_id(request: Request, result_id: str) -> list[str]:
     return [previous_id for previous_id in previous_ids if previous_id != normalized]
 
 
+def get_session_result_ids(request: Request) -> list[str]:
+    stored_ids = request.session.get(SESSION_RESULT_IDS_KEY, [])
+    if not isinstance(stored_ids, list):
+        return []
+    return _normalize_result_ids(stored_ids)
+
+
 def pop_session_result_ids(request: Request) -> list[str]:
     stored_ids = request.session.pop(SESSION_RESULT_IDS_KEY, [])
     if not isinstance(stored_ids, list):
         return []
+    return _normalize_result_ids(stored_ids)
 
-    normalized_ids: list[str] = []
-    seen_ids: set[str] = set()
-    for raw_value in stored_ids:
-        normalized = str(raw_value).strip()
-        if not normalized or normalized in seen_ids:
-            continue
-        seen_ids.add(normalized)
-        normalized_ids.append(normalized)
-    return normalized_ids
+
+def require_session_result_access(request: Request, result_id: str) -> str:
+    """Ensure the current signed session was issued the requested result_id."""
+    normalized_result_id = str(result_id).strip()
+    if normalized_result_id and normalized_result_id in get_session_result_ids(request):
+        return normalized_result_id
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="This result is not available in the current session.",
+    )
 
 
 def require_authenticated_user(request: Request) -> AuthenticatedUser:
@@ -128,6 +128,18 @@ def _rotate_authenticated_session(request: Request) -> None:
 
 def _touch_session_activity(request: Request) -> None:
     request.session[SESSION_LAST_ACTIVITY_KEY] = int(time.time())
+
+
+def _normalize_result_ids(raw_values: list[object]) -> list[str]:
+    normalized_ids: list[str] = []
+    seen_ids: set[str] = set()
+    for raw_value in raw_values:
+        normalized = str(raw_value).strip()
+        if not normalized or normalized in seen_ids:
+            continue
+        seen_ids.add(normalized)
+        normalized_ids.append(normalized)
+    return normalized_ids
 
 
 def _is_session_idle_expired(session_payload: dict) -> bool:

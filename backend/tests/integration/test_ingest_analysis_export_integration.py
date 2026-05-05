@@ -213,3 +213,46 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
 
         self.assertEqual(upload_response.status_code, 400)
         self.assertEqual(upload_response.json()["detail"], "csv files only")
+
+    def test_result_ids_are_rejected_outside_the_uploading_session(self) -> None:
+        csv_payload = (
+            "country,team,comment\n"
+            "UK,Maths,Need more classroom resources.\n"
+            "US,Science,More printable materials would help.\n"
+        )
+
+        upload_response = self.client.post(
+            "/upload-ingest",
+            files={"file": ("sample.csv", csv_payload, "text/csv")},
+            data={"diagnostic_mode": "rule_based"},
+        )
+
+        self.assertEqual(upload_response.status_code, 200)
+        upload_payload = upload_response.json()
+        result_id = upload_payload["result_id"]
+        text_column_name = upload_payload["analysis_verbatim_column_names"][0]
+
+        other_client = TestClient(self.client.app)
+        self.addCleanup(other_client.close)
+
+        rows_response = other_client.get(
+            f"/result-rows/{result_id}",
+            params={
+                "dataset": "analysis",
+                "offset": 0,
+                "limit": 10,
+            },
+        )
+        self.assertEqual(rows_response.status_code, 403)
+        self.assertEqual(rows_response.json()["detail"], "This result is not available in the current session.")
+
+        analysis_response = other_client.post(
+            f"/run-analysis/{result_id}",
+            json={
+                "model_key": "bertopic",
+                "text_column_name": text_column_name,
+                "filters": {},
+            },
+        )
+        self.assertEqual(analysis_response.status_code, 403)
+        self.assertEqual(analysis_response.json()["detail"], "This result is not available in the current session.")

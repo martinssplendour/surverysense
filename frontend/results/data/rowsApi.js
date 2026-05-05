@@ -17,7 +17,7 @@ export async function fetchRowsPage(dataset, offset, limit, { hasActiveFilters, 
         window.location.assign("/login");
         throw new Error("Session expired.");
     }
-    if (response.status === 404) {
+    if (response.status === 403 || response.status === 404) {
         const payload = await parseJson(response);
         handleMissingResultState(payload.detail || "The processed result is no longer available.");
         throw new Error("The processed result is no longer available.");

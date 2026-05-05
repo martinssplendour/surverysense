@@ -112,24 +112,18 @@ CURATED_MULTILINGUAL_STOPWORDS = frozenset(
 
 
 def _load_standard_stopwords() -> frozenset[str]:
-    words: set[str] = set()
-    try:
-        from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
-    except Exception:  # pragma: no cover - defensive fallback for partial installs
-        words.update(
-            {
-                "a", "about", "all", "also", "am", "an", "and", "are", "as", "at",
-                "be", "been", "but", "by", "can", "could", "do", "does", "for",
-                "from", "had", "has", "have", "he", "her", "him", "his", "how",
-                "i", "if", "in", "into", "is", "it", "its", "me", "more", "my",
-                "not", "of", "on", "or", "our", "she", "should", "so", "that",
-                "the", "their", "them", "then", "there", "these", "they", "this",
-                "those", "to", "too", "us", "was", "we", "were", "what", "when",
-                "which", "who", "will", "with", "would", "you", "your",
-            }
-        )
-    else:
-        words.update(str(word).casefold() for word in ENGLISH_STOP_WORDS)
+    # Keep a built-in English floor so app startup does not import scikit-learn
+    # just to fetch its stopword constant.
+    words: set[str] = {
+        "a", "about", "all", "also", "am", "an", "and", "are", "as", "at",
+        "be", "been", "but", "by", "can", "could", "do", "does", "for",
+        "from", "had", "has", "have", "he", "her", "him", "his", "how",
+        "i", "if", "in", "into", "is", "it", "its", "me", "more", "my",
+        "not", "of", "on", "or", "our", "she", "should", "so", "that",
+        "the", "their", "them", "then", "there", "these", "they", "this",
+        "those", "to", "too", "us", "was", "we", "were", "what", "when",
+        "which", "who", "will", "with", "would", "you", "your",
+    }
 
     words.update(
         {

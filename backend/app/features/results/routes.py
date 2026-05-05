@@ -7,7 +7,7 @@ from typing import Literal
 from fastapi import Query, Request
 from fastapi.responses import Response
 
-from app.core.auth import require_authenticated_user
+from app.core.auth import require_authenticated_user, require_session_result_access
 from app.features.common.route_context import WorkspaceRouteContext
 from app.features.results.models import DatasetName
 from app.models.api import (
@@ -29,6 +29,7 @@ def register_result_routes(context: WorkspaceRouteContext) -> None:
         update_request: ColumnRoleUpdateRequest,
     ) -> ColumnRoleUpdateResponse:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
 
         def _execute() -> ColumnRoleUpdateResponse:
             stored = context.result_store_service.update_column_role(
@@ -57,6 +58,7 @@ def register_result_routes(context: WorkspaceRouteContext) -> None:
         filters: str | None = Query(None),
     ) -> ResultRowsResponse:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
 
         def _execute() -> ResultRowsResponse:
             page = context.result_store_service.get_page(
@@ -89,6 +91,7 @@ def register_result_routes(context: WorkspaceRouteContext) -> None:
         source_filename: str | None = Query(None),
     ) -> Response:
         require_authenticated_user(request)
+        require_session_result_access(request, result_id)
 
         def _execute() -> Response:
             parsed_filters = context.parse_filters(filters)

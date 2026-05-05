@@ -121,7 +121,7 @@ export async function applyColumnRoleChange() {
             window.location.assign("/login");
             return;
         }
-        if (response.status === 404) {
+        if (response.status === 403 || response.status === 404) {
             const payload = await parseJson(response);
             callbacks.handleMissingResultState(payload.detail || "The processed result is no longer available.");
             return;

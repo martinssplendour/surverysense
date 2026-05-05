@@ -11,13 +11,12 @@ import {
 } from "../shared.js";
 import { showAnalysisGroupModalMessage, hideAnalysisGroupModalMessage } from "../filters.js";
 import { parseJson } from "../data/rows.js";
+import { emit } from "../events/bus.js";
 import { renderAnalysisGroupModal } from "./render.js";
 import { buildDocumentKey, getActiveAnalysisGroup } from "./state.js";
 
-const MISSING_ANALYSIS_PATTERNS = [
-    /No stored analysis snapshot exists/i,
-    /No stored result exists/i,
-];
+const MISSING_ANALYSIS_PATTERNS = [/No stored analysis snapshot exists/i];
+const MISSING_RESULT_PATTERNS = [/No stored result exists/i];
 const STALE_ANALYSIS_MESSAGE = "These saved response details are no longer available. Run the analysis again to refresh them.";
 
 function isMissingAnalysisPayload(response, payload) {
@@ -26,6 +25,17 @@ function isMissingAnalysisPayload(response, payload) {
     }
     const detail = typeof payload?.detail === "string" ? payload.detail : "";
     return MISSING_ANALYSIS_PATTERNS.some((pattern) => pattern.test(detail));
+}
+
+function isMissingResultPayload(response, payload) {
+    if (response.status === 403) {
+        return true;
+    }
+    if (response.status !== 404) {
+        return false;
+    }
+    const detail = typeof payload?.detail === "string" ? payload.detail : "";
+    return MISSING_RESULT_PATTERNS.some((pattern) => pattern.test(detail));
 }
 
 function markAnalysisDocumentsUnavailable() {
@@ -105,6 +115,12 @@ export async function loadAnalysisGroupDocuments({ reset = false } = {}) {
             return;
         }
         const payload = await parseJson(response);
+        if (isMissingResultPayload(response, payload)) {
+            emit("workspace:missing-result", {
+                message: payload.detail || "The processed result is no longer available.",
+            });
+            return;
+        }
         if (isMissingAnalysisPayload(response, payload)) {
             markAnalysisDocumentsUnavailable();
             return;
@@ -156,6 +172,12 @@ export async function loadAnalysisNgramDocuments({ reset = false } = {}) {
             return;
         }
         const payload = await parseJson(response);
+        if (isMissingResultPayload(response, payload)) {
+            emit("workspace:missing-result", {
+                message: payload.detail || "The processed result is no longer available.",
+            });
+            return;
+        }
         if (isMissingAnalysisPayload(response, payload)) {
             markAnalysisDocumentsUnavailable();
             return;

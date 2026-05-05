@@ -1,6 +1,6 @@
 # Verbatim App
 
-Internal verbatim-analysis app for uploading CSV survey data, selecting freeform text columns, running topic modelling, and exporting stakeholder-ready reports.
+Internal verbatim-analysis app is for uploading CSV survey data, selecting freeform text columns, running topic modelling, and exporting stakeholder-ready reports.
 
 The app is designed for small-team internal use. It runs on a single Render web service and does not use durable server-side storage for uploaded results.
 
@@ -143,6 +143,7 @@ Current auth model:
 - secure-cookie support via `SESSION_HTTPS_ONLY`
 - session rotation on login
 - idle session expiry
+- result ids scoped to the signed browser session
 - uploaded result ids cleared on logout
 
 ## Processing Model

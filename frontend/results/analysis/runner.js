@@ -254,7 +254,7 @@ async function handleAnalysisResponse(response) {
         return null;
     }
     const payload = await parseJson(response);
-    if (response.status === 404) {
+    if (response.status === 403 || response.status === 404) {
         emit("workspace:missing-result", {
             message: payload.detail || "The processed result is no longer available.",
         });
