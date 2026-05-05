@@ -249,7 +249,7 @@ class IngestAnalysisExportIntegrationTests(unittest.TestCase):
         analysis_response = other_client.post(
             f"/run-analysis/{result_id}",
             json={
-                "model_key": "bertopic",
+                "model_key": "community",
                 "text_column_name": text_column_name,
                 "filters": {},
             },
