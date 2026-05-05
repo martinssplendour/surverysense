@@ -63,6 +63,11 @@ class ResultStoreService:
         self.snapshot_service = ResultStoreSnapshotService()
         self.paging_service = ResultStorePagingService()
 
+    def cleanup_expired(self) -> int:
+        """Remove expired results and snapshots, returning the number of purged result ids."""
+        with self._lock:
+            return self._purge_expired_locked()
+
     def save(
         self,
         transformed_df: pd.DataFrame,
@@ -398,9 +403,9 @@ class ResultStoreService:
         """Build a stable, case-insensitive lookup key combining n-gram size and term text."""
         return f"{int(ngram_size)}::{str(term).strip().casefold()}"
 
-    def _purge_expired_locked(self) -> None:
+    def _purge_expired_locked(self) -> int:
         if self.ttl_seconds <= 0:
-            return
+            return 0
         expires_before = self._clock() - self.ttl_seconds
         expired_result_ids = [
             result_id
@@ -409,6 +414,7 @@ class ResultStoreService:
         ]
         for result_id in expired_result_ids:
             self._delete_locked(result_id)
+        return len(expired_result_ids)
 
     def _delete_locked(self, result_id: str) -> StoredResultDatasets | None:
         removed = self._results.pop(result_id, None)

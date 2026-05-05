@@ -178,7 +178,13 @@ def mount_frontend(app: FastAPI, *, frontend_dir: Path = FRONTEND_DIR) -> None:
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
 
-def register_startup_hooks(app: FastAPI, *, topic_analysis_service: TopicAnalysisService) -> None:
+def register_startup_hooks(
+    app: FastAPI,
+    *,
+    topic_analysis_service: TopicAnalysisService,
+    result_store_service: ResultStoreService,
+    result_store_cleanup_interval_seconds: int,
+) -> None:
     @app.on_event("startup")
     async def warm_topic_models() -> None:
         async def _warm_models_after_startup() -> None:
@@ -192,6 +198,35 @@ def register_startup_hooks(app: FastAPI, *, topic_analysis_service: TopicAnalysi
                 )
 
         app.state.topic_model_warmup_task = asyncio.create_task(_warm_models_after_startup())
+
+        async def _cleanup_expired_results_periodically() -> None:
+            interval_seconds = max(60, int(result_store_cleanup_interval_seconds or 0))
+            while True:
+                await asyncio.sleep(interval_seconds)
+                try:
+                    purged_count = await asyncio.to_thread(result_store_service.cleanup_expired)
+                except Exception as exc:  # pragma: no cover - defensive background-task guard
+                    logger.warning(
+                        "Result-store cleanup failed unexpectedly (%s). The cleaner will retry on the next interval.",
+                        type(exc).__name__,
+                    )
+                    continue
+                if purged_count > 0:
+                    logger.info("Result-store cleanup purged %s expired result(s) from memory.", purged_count)
+
+        app.state.result_store_cleanup_task = asyncio.create_task(_cleanup_expired_results_periodically())
+
+    @app.on_event("shutdown")
+    async def cancel_background_tasks() -> None:
+        for task_name in ("topic_model_warmup_task", "result_store_cleanup_task"):
+            task = getattr(app.state, task_name, None)
+            if task is None:
+                continue
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 def register_frontend_routes(app: FastAPI, *, frontend_dir: Path = FRONTEND_DIR) -> None:

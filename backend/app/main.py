@@ -72,7 +72,12 @@ def create_app() -> FastAPI:
     configure_session_middleware(app, settings)
     register_application_routers(app, settings=settings, services=services)
     mount_frontend(app)
-    register_startup_hooks(app, topic_analysis_service=services.topic_analysis_service)
+    register_startup_hooks(
+        app,
+        topic_analysis_service=services.topic_analysis_service,
+        result_store_service=services.result_store_service,
+        result_store_cleanup_interval_seconds=settings.result_store_cleanup_interval_seconds,
+    )
     register_frontend_routes(app)
     return app
 

@@ -557,6 +557,28 @@ class ResultStoreServiceTests(unittest.TestCase):
         with self.assertRaises(ResultNotFoundError):
             service.get_analysis_group_page(result_id, group_id="0", offset=0, limit=10)
 
+    def test_cleanup_expired_purges_expired_results_without_waiting_for_next_request(self) -> None:
+        current_time = 1000.0
+        service = self.build_service_with_clock(
+            ttl_seconds=900,
+            clock=lambda: current_time,
+        )
+        frame = pd.DataFrame([{"country__idx_1": "UK", "verbatim": "Need more maths"}])
+
+        result_id = service.save(
+            frame,
+            frame,
+            metadata_columns=["country__idx_1"],
+            verbatim_columns=["verbatim"],
+        )
+
+        current_time += 901
+
+        self.assertEqual(service.cleanup_expired(), 1)
+        self.assertEqual(service.cleanup_expired(), 0)
+        with self.assertRaises(ResultNotFoundError):
+            service.get_page(result_id, dataset="analysis", offset=0, limit=10)
+
     def test_lru_eviction_removes_saved_timestamp(self) -> None:
         current_time = 1000.0
         service = self.build_service_with_clock(
