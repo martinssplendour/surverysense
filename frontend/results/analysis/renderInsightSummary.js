@@ -48,10 +48,10 @@ function buildTopGroupInsight(group, result) {
         ? `${formatNumber(count)} response(s) mention this theme.`
         : `${percent} of responses mention this theme.`;
 
-    const unassignedRing = buildUnassignedRing(result);
+    const assignmentRing = buildAssignmentRing(result);
 
     return `
-        <article class="analysis-insight-card${unassignedRing ? " analysis-insight-card-with-unassigned" : ""}">
+        <article class="analysis-insight-card${assignmentRing ? " analysis-insight-card-with-unassigned" : ""}">
             <div class="analysis-insight-icon" aria-hidden="true">
                 <span></span>
             </div>
@@ -60,7 +60,7 @@ function buildTopGroupInsight(group, result) {
                 <h3>${escapeHtml(label)}</h3>
                 <p>${escapeHtml(insightCopy)}</p>
             </div>
-            ${unassignedRing}
+            ${assignmentRing}
             ${buildInsightRing(result)}
         </article>
     `;
@@ -70,7 +70,7 @@ function buildTopGroupInsight(group, result) {
 function buildUnassignedOnlyInsight(result) {
     return `
         <article class="analysis-insight-card analysis-insight-card-unassigned-only">
-            ${buildUnassignedRing(result)}
+            ${buildAssignmentRing(result)}
         </article>
     `;
 }
@@ -79,9 +79,9 @@ function buildUnassignedOnlyInsight(result) {
 function buildTopNgramInsight(item, result) {
     const term = normalizeValue(item.term) || "Repeated Language";
     const count = Number(item.document_count || item.count || 0);
-    const unassignedRing = buildUnassignedRing(result);
+    const assignmentRing = buildAssignmentRing(result);
     return `
-        <article class="analysis-insight-card${unassignedRing ? " analysis-insight-card-with-unassigned" : ""}">
+        <article class="analysis-insight-card${assignmentRing ? " analysis-insight-card-with-unassigned" : ""}">
             <div class="analysis-insight-icon" aria-hidden="true">
                 <span></span>
             </div>
@@ -90,24 +90,51 @@ function buildTopNgramInsight(item, result) {
                 <h3>${escapeHtml(term)}</h3>
                 <p>${formatNumber(count)} response(s) include this word or phrase.</p>
             </div>
-            ${unassignedRing}
+            ${assignmentRing}
             ${buildInsightRing(result)}
         </article>
     `;
 }
 
-function buildUnassignedRing(result) {
-    const unassignedCount = getUnassignedCount(result);
+function buildAssignmentRing(result) {
+    const { assigned, unassigned } = getAssignmentCounts(result);
+    const unassignedCount = unassigned;
     if (!unassignedCount) {
         return "";
     }
 
+    const total = assigned + unassignedCount;
+
+    const r = 26;
+    const circ = 2 * Math.PI * r;
+    const assignedArc = total > 0 ? (assigned / total) * circ : 0;
+
     return `
-        <div class="unassigned-panel" aria-label="${formatNumber(unassignedCount)} unassigned responses">
-            <div class="unassigned-ring">
-                <span>${formatNumber(unassignedCount)}</span>
+        <div class="air-panel air-panel--assignment" aria-label="${formatNumber(assigned)} assigned responses, ${formatNumber(unassignedCount)} unassigned responses">
+            <div class="air-donut">
+                <svg viewBox="0 0 68 68" aria-hidden="true">
+                    <circle class="air-track" cx="34" cy="34" r="${r}" />
+                    <circle class="air-fill air-fill--assigned" cx="34" cy="34" r="${r}"
+                        stroke-dasharray="${assignedArc.toFixed(2)} ${circ.toFixed(2)}"
+                        transform="rotate(-90 34 34)" />
+                </svg>
+                <div class="air-center">
+                    <span class="air-count">${formatNumber(unassignedCount)}</span>
+                    <span class="air-sub">unassigned</span>
+                </div>
             </div>
-            <p>Unassigned responses</p>
+            <div class="air-legend">
+                <div class="air-legend-row">
+                    <span class="air-dot air-dot--assigned"></span>
+                    <span class="air-legend-num">${formatNumber(assigned)}</span>
+                    <span class="air-legend-label">Assigned</span>
+                </div>
+                <div class="air-legend-row">
+                    <span class="air-dot air-dot--unassigned"></span>
+                    <span class="air-legend-num">${formatNumber(unassignedCount)}</span>
+                    <span class="air-legend-label">Unassigned</span>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -118,6 +145,49 @@ function getUnassignedCount(result) {
     return groups
         .filter((group) => group?.is_noise)
         .reduce((total, group) => total + Number(group.count || 0), 0);
+}
+
+function getAssignmentCounts(result) {
+    const groups = Array.isArray(result.groups) ? result.groups : [];
+    const noiseGroupIds = new Set(
+        groups
+            .filter((group) => group?.is_noise)
+            .map((group) => String(group.group_id)),
+    );
+    const points = Array.isArray(result.scatter_points) ? result.scatter_points : [];
+    const assignedRows = new Set();
+    const unassignedRows = new Set();
+
+    for (const point of points) {
+        const rowNumber = Number(point?.row_number || 0);
+        if (!Number.isFinite(rowNumber) || rowNumber <= 0) {
+            continue;
+        }
+
+        if (noiseGroupIds.has(String(point.group_id))) {
+            if (!assignedRows.has(rowNumber)) {
+                unassignedRows.add(rowNumber);
+            }
+            continue;
+        }
+
+        assignedRows.add(rowNumber);
+        unassignedRows.delete(rowNumber);
+    }
+
+    if (assignedRows.size || unassignedRows.size) {
+        return {
+            assigned: assignedRows.size,
+            unassigned: unassignedRows.size,
+        };
+    }
+
+    return {
+        assigned: groups
+            .filter((group) => !group?.is_noise)
+            .reduce((total, group) => total + Number(group.count || 0), 0),
+        unassigned: getUnassignedCount(result),
+    };
 }
 
 

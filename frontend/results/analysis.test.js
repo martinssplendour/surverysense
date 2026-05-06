@@ -269,6 +269,49 @@ describe("results/analysis", () => {
         ]);
     });
 
+    it("counts assigned and unassigned response rows instead of sentence chunks in the summary", async () => {
+        const payload = {
+            ok: true,
+            result_id: "result-123",
+            model_key: "community",
+            text_column_name: "comment",
+            filtered_row_count: 4,
+            valid_document_count: 6,
+            original_response_count: 4,
+            skipped_document_count: 0,
+            groups: [
+                { group_id: "0", label: "Pricing", count: 3, share: 0.5, examples: [], is_noise: false },
+                { group_id: "1", label: "Product", count: 1, share: 0.1667, examples: [], is_noise: false },
+                { group_id: "-1", label: "Unassigned", count: 2, share: 0.3333, examples: [], is_noise: true },
+            ],
+            ngram_buckets: [],
+            scatter_points: [
+                { row_number: 1, group_id: "0" },
+                { row_number: 1, group_id: "0" },
+                { row_number: 2, group_id: "-1" },
+                { row_number: 3, group_id: "1" },
+                { row_number: 3, group_id: "-1" },
+                { row_number: 4, group_id: "-1" },
+            ],
+            network_edges: [],
+        };
+        const fetchMock = vi.fn(async () => createJsonResponse({ ok: true, status: 200, payload }));
+        const harness = await loadAnalysisHarness({ fetchImpl: fetchMock });
+
+        harness.state.resultId = "result-123";
+        harness.state.analysisVerbatimColumns = ["comment"];
+        harness.state.selectedAnalysisColumn = "comment";
+        harness.state.selectedAnalysisModel = "community";
+
+        await harness.analysis.runAnalysis();
+
+        const summary = harness.dom.elements.get("analysis-summary").innerHTML;
+        expect(summary).toContain("2</span>\n                    <span class=\"air-sub\">unassigned</span>");
+        expect(summary).toContain("<span class=\"air-legend-num\">2</span>");
+        expect(summary).toContain("<span class=\"air-legend-label\">Assigned</span>");
+        expect(summary).toContain("<span class=\"air-legend-label\">Unassigned</span>");
+    });
+
     it("hands missing result state back to the workspace layer on 404", async () => {
         const fetchMock = vi.fn(async () => createJsonResponse({
             ok: false,
