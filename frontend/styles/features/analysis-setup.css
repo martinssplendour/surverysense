@@ -208,6 +208,14 @@ body.analysis-setup-workspace-active .community-similarity-slider {
     accent-color: #1266f1;
 }
 
+body.analysis-setup-workspace-active .community-similarity-note {
+    max-width: 76ch;
+    margin: 8px 0 0;
+    color: #687386;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
 body.analysis-setup-workspace-active .analysis-method-active {
     border-color: #2f80ff;
     background: linear-gradient(180deg, rgba(247, 251, 255, 0.98), #ffffff);
