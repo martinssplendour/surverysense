@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Callable
 from threading import Lock
 from time import monotonic
 from typing import Any
-from collections.abc import Callable
 
 from app.core.exceptions import TopicAnalysisDependencyError
 from app.features.analysis.topic_analysis_services.embedding_cache import EmbeddingCacheMixin

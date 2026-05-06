@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
-from typing import Callable
 
 from app.features.analysis.language_detection_service import LanguageDetectionService
 from app.features.analysis.translation_gateway_service import (
