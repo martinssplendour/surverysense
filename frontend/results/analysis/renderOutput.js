@@ -56,7 +56,9 @@ export function renderAnalysisOutput() {
     }
 
     const groups = Array.isArray(result.groups) ? result.groups : [];
-    const assignedGroups = groups.filter((group) => !group?.is_noise);
+    const assignedGroups = groups
+        .map((group, index) => ({ ...group, analysis_group_index: index }))
+        .filter((group) => !group?.is_noise);
     elements.analysisNgramGrid.innerHTML = "";
     elements.analysisList.innerHTML = assignedGroups.length
         ? ""

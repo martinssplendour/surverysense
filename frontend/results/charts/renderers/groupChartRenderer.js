@@ -10,7 +10,10 @@ import {
 export function renderGroupDistributionChart(groups, { controlsHtml = "", openAnalysisGroupModalByIndex }) {
     elements.analysisChart.hidden = false;
     const sortedGroups = groups
-        .map((group, index) => ({ group, index }))
+        .map((group, index) => ({
+            group,
+            index: Number.isInteger(group.analysis_group_index) ? group.analysis_group_index : index,
+        }))
         .sort((left, right) => Number(right.group.count || 0) - Number(left.group.count || 0));
     const maxCount = Math.max(...sortedGroups.map(({ group }) => Number(group.count || 0)), 1);
 

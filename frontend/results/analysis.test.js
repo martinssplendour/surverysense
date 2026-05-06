@@ -71,6 +71,7 @@ async function loadAnalysisHarness({ fetchImpl }) {
     const closeAnalysisGroupModal = vi.fn();
     const handleMissingResultState = vi.fn();
     const renderFilterBar = vi.fn();
+    const renderAnalysisChart = vi.fn();
 
     globalThis.fetch = fetchImpl;
     globalThis.window = {
@@ -91,7 +92,7 @@ async function loadAnalysisHarness({ fetchImpl }) {
 
     vi.doMock("./charts.js", () => ({
         clearAnalysisChart: vi.fn(),
-        renderAnalysisChart: vi.fn(),
+        renderAnalysisChart,
         renderNgramCharts: vi.fn(),
     }));
     vi.doMock("./charts/export.js", () => ({
@@ -127,6 +128,7 @@ async function loadAnalysisHarness({ fetchImpl }) {
         dom,
         handleMissingResultState,
         locationAssign,
+        renderAnalysisChart,
         scrollTo,
         state,
         storage,
@@ -229,6 +231,42 @@ describe("results/analysis", () => {
             model_key: "community",
             community_similarity_threshold: 0.82,
         });
+    });
+
+    it("keeps original group indexes when unassigned groups are hidden from the bar plot", async () => {
+        const payload = {
+            ok: true,
+            result_id: "result-123",
+            model_key: "community",
+            text_column_name: "comment",
+            filtered_row_count: 12,
+            valid_document_count: 12,
+            original_response_count: 12,
+            skipped_document_count: 0,
+            groups: [
+                { group_id: "-1", label: "Unassigned", count: 4, share: 0.3333, examples: [], is_noise: true },
+                { group_id: "0", label: "Affordability", count: 5, share: 0.4167, examples: [], is_noise: false },
+                { group_id: "1", label: "Lesson planning", count: 3, share: 0.25, examples: [], is_noise: false },
+            ],
+            ngram_buckets: [],
+            scatter_points: [],
+            network_edges: [],
+        };
+        const fetchMock = vi.fn(async () => createJsonResponse({ ok: true, status: 200, payload }));
+        const harness = await loadAnalysisHarness({ fetchImpl: fetchMock });
+
+        harness.state.resultId = "result-123";
+        harness.state.analysisVerbatimColumns = ["comment"];
+        harness.state.selectedAnalysisColumn = "comment";
+        harness.state.selectedAnalysisModel = "community";
+
+        await harness.analysis.runAnalysis();
+
+        expect(harness.renderAnalysisChart).toHaveBeenCalledTimes(1);
+        expect(harness.renderAnalysisChart.mock.calls[0][0]).toEqual([
+            expect.objectContaining({ group_id: "0", analysis_group_index: 1 }),
+            expect.objectContaining({ group_id: "1", analysis_group_index: 2 }),
+        ]);
     });
 
     it("hands missing result state back to the workspace layer on 404", async () => {
