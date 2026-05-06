@@ -278,8 +278,5 @@ class TopicLabelEvidenceGroup:
         return {
             "group_id": self.group_id,
             "terms": list(self.terms),
-            "top_unigrams": [item.to_prompt_payload() for item in self.top_unigrams],
-            "top_bigrams": [item.to_prompt_payload() for item in self.top_bigrams],
-            "top_trigrams": [item.to_prompt_payload() for item in self.top_trigrams],
-            "tightest_responses": list(self.tightest_responses),
+            "top_comments": list(self.tightest_responses),
         }

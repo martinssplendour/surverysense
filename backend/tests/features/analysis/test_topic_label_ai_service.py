@@ -114,13 +114,11 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             self.assertNotIn("share_percent", group_payload)
             self.assertNotIn("frequent_phrases", group_payload)
             self.assertEqual(group_payload["terms"], ["curriculum", "resources", "planning"])
-            self.assertIn("top_unigrams", group_payload)
-            self.assertIn("top_bigrams", group_payload)
-            self.assertIn("top_trigrams", group_payload)
-            self.assertIn("tightest_responses", group_payload)
-            self.assertEqual(group_payload["top_unigrams"][0]["term"], "curriculum")
-            self.assertEqual(group_payload["top_bigrams"][0]["term"], "curriculum resources")
-            self.assertEqual(len(group_payload["top_bigrams"][0]["documents"]), 2)
+            self.assertNotIn("top_unigrams", group_payload)
+            self.assertNotIn("top_bigrams", group_payload)
+            self.assertNotIn("top_trigrams", group_payload)
+            self.assertNotIn("tightest_responses", group_payload)
+            self.assertEqual(len(group_payload["top_comments"]), 2)
             self.assertIn("Need more curriculum resources for mat", prompt)
             return _FakeHttpResponse(
                 {
