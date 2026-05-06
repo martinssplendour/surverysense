@@ -50,6 +50,7 @@ class TopicModelExecutionService:
         model_key: AnalysisModelKey,
         texts: list[str],
         languages: list[str | None] | None = None,
+        community_similarity_threshold: float | None = None,
     ) -> TopicModelExecution:
         if model_key != AnalysisModelKey.COMMUNITY:
             raise ValueError(f"Unsupported analysis mode '{model_key.value}'.")
@@ -58,7 +59,11 @@ class TopicModelExecutionService:
         return TopicModelExecution(
             result=self.community_detection_service.run(
                 embeddings,
-                similarity_threshold=self.config.community_similarity_threshold,
+                similarity_threshold=(
+                    self.config.community_similarity_threshold
+                    if community_similarity_threshold is None
+                    else community_similarity_threshold
+                ),
                 max_neighbors=self.config.community_max_neighbors,
                 resolution=self.config.community_resolution,
                 mutual_neighbors=self.config.community_mutual_neighbors,

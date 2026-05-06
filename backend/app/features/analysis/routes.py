@@ -32,6 +32,7 @@ def _register_run_analysis_route(context: WorkspaceRouteContext) -> None:
             result_id,
             model_key=analysis_request.model_key,
             text_column_name=analysis_request.text_column_name,
+            community_similarity_threshold=analysis_request.community_similarity_threshold,
             filters=analysis_request.filters or {},
         )
         if fast_result is not None:
@@ -49,6 +50,7 @@ def _register_run_analysis_route(context: WorkspaceRouteContext) -> None:
                 model_key=analysis_request.model_key,
                 text_column_name=analysis_request.text_column_name,
                 available_verbatim_columns=selection.verbatim_columns,
+                community_similarity_threshold=analysis_request.community_similarity_threshold,
             )
             if result.error_code != "gemini_rate_limited":
                 context.result_store_service.save_analysis_snapshot(

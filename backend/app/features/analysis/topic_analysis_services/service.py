@@ -119,6 +119,7 @@ class TopicAnalysisService:
         model_key: AnalysisModelKey,
         text_column_name: str,
         available_verbatim_columns: Iterable[str],
+        community_similarity_threshold: float | None = None,
     ) -> AnalysisRunResult:
         base_result = AnalysisRunResult.empty(
             result_id=result_id,
@@ -126,6 +127,10 @@ class TopicAnalysisService:
             text_column_name=text_column_name,
             filtered_row_count=int(len(dataframe)),
         )
+        if model_key == AnalysisModelKey.COMMUNITY:
+            base_result.community_similarity_threshold = self._normalize_community_similarity_threshold(
+                community_similarity_threshold
+            )
 
         try:
             prepared_run = self._prepare_run(
@@ -141,6 +146,7 @@ class TopicAnalysisService:
                 prepared_run=prepared_run,
                 model_key=model_key,
                 text_column_name=text_column_name,
+                community_similarity_threshold=community_similarity_threshold,
             )
         except TopicAnalysisError as exc:
             if isinstance(exc, TopicAnalysisInputError):
@@ -237,7 +243,9 @@ class TopicAnalysisService:
         prepared_run: _PreparedAnalysisRun,
         model_key: AnalysisModelKey,
         text_column_name: str,
+        community_similarity_threshold: float | None,
     ) -> AnalysisRunResult:
+        normalized_threshold = self._normalize_community_similarity_threshold(community_similarity_threshold)
         execution = self.model_execution_service.execute(
             model_key=model_key,
             texts=list(prepared_run.prepared.texts),
@@ -245,6 +253,7 @@ class TopicAnalysisService:
                 None if document.translated_to_english else document.detected_language
                 for document in prepared_run.prepared.documents
             ],
+            community_similarity_threshold=normalized_threshold,
         )
         warnings = list(prepared_run.result.warnings)
         warnings.extend(execution.warnings or [])
@@ -279,6 +288,7 @@ class TopicAnalysisService:
             prepared_run.result,
             ok=True,
             translated_document_count=prepared_run.prepared.translated_document_count + translated_group_count,
+            community_similarity_threshold=normalized_threshold,
             warnings=warnings,
             groups=groups,
             scatter_points=scatter_points,
@@ -451,3 +461,8 @@ class TopicAnalysisService:
             seen.add(key)
             merged_terms.append(normalized)
         return merged_terms
+
+    def _normalize_community_similarity_threshold(self, value: float | None) -> float:
+        if value is None:
+            return float(self.config.community_similarity_threshold)
+        return max(0.4, min(1.0, float(value)))

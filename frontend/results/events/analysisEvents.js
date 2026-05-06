@@ -2,6 +2,7 @@ import { elements, setAnalysisExportState, state } from "../shared.js";
 import { downloadAnalysisReport, normalizeAnalysisExportFormat, previewAnalysisReport } from "../charts/export.js";
 import {
     handleAnalysisColumnChange,
+    handleCommunitySimilarityChange,
     handleAnalysisMethodClick,
     handleRunAnalysis,
     renderAnalysisExportControls,
@@ -20,6 +21,8 @@ export function bindAnalysisEvents() {
     elements.analysisExportMenu?.addEventListener("click", handleExportMenuClick);
     elements.analysisColumnSelect?.addEventListener("change", handleAnalysisColumnChange);
     elements.analysisMethods?.addEventListener("click", handleAnalysisMethodClick);
+    elements.communitySimilaritySlider?.addEventListener("input", handleCommunitySimilarityChange);
+    elements.communitySimilaritySlider?.addEventListener("change", handleCommunitySimilarityChange);
     elements.runAnalysisButton?.addEventListener("click", handleRunAnalysis);
     document.addEventListener("click", handleAnalysisExportDocumentClick);
     window.addEventListener("resize", resizeAnalysisPlots);

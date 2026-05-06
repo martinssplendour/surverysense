@@ -187,6 +187,7 @@ describe("results/analysis", () => {
         expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
             model_key: "community",
             text_column_name: "comment",
+            community_similarity_threshold: 0.72,
             filters: { country: ["UK"] },
         });
         expect(harness.closeAnalysisGroupModal).toHaveBeenCalledTimes(1);
@@ -197,6 +198,37 @@ describe("results/analysis", () => {
         const subtitle = harness.dom.elements.get("analysis-results-subtitle");
         expect(subtitle.innerHTML).toContain("comment");
         expect(subtitle.innerHTML).toContain("2");
+    });
+
+    it("sends the selected community cosine similarity threshold", async () => {
+        const payload = {
+            ok: true,
+            result_id: "result-123",
+            model_key: "community",
+            text_column_name: "comment",
+            filtered_row_count: 3,
+            valid_document_count: 3,
+            original_response_count: 3,
+            skipped_document_count: 0,
+            groups: [],
+            ngram_buckets: [],
+            scatter_points: [],
+        };
+        const fetchMock = vi.fn(async () => createJsonResponse({ ok: true, status: 200, payload }));
+        const harness = await loadAnalysisHarness({ fetchImpl: fetchMock });
+
+        harness.state.resultId = "result-123";
+        harness.state.analysisVerbatimColumns = ["comment"];
+        harness.state.selectedAnalysisColumn = "comment";
+        harness.state.selectedAnalysisModel = "community";
+        harness.state.communitySimilarityThreshold = 0.82;
+
+        await harness.analysis.runAnalysis();
+
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+            model_key: "community",
+            community_similarity_threshold: 0.82,
+        });
     });
 
     it("hands missing result state back to the workspace layer on 404", async () => {

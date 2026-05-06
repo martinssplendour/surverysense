@@ -84,8 +84,9 @@ class CommunityGraphMixin:
     @classmethod
     def _build_candidate_neighbors(
         cls,
-        normalized_embeddings: Any,
+        normalized_candidate_embeddings: Any,
         *,
+        normalized_verification_embeddings: Any,
         threshold: float,
         language_edge_threshold: float,
         neighbor_limit: int,
@@ -93,19 +94,20 @@ class CommunityGraphMixin:
         languages: list[str | None] | None = None,
     ) -> list[dict[int, float]]:
         candidate_neighbors: list[dict[int, float]] = []
-        document_count = int(normalized_embeddings.shape[0])
+        document_count = int(normalized_verification_embeddings.shape[0])
         for row_index in range(document_count):
-            similarities = normalized_embeddings @ normalized_embeddings[row_index]
-            similarities[row_index] = -1.0
+            candidate_similarities = normalized_candidate_embeddings @ normalized_candidate_embeddings[row_index]
+            candidate_similarities[row_index] = -1.0
             candidate_indices = cls._top_candidate_indices(
-                similarities,
+                candidate_similarities,
                 neighbor_limit=neighbor_limit,
                 np=np,
             )
+            verification_similarities = normalized_verification_embeddings @ normalized_verification_embeddings[row_index]
             row_neighbors: dict[int, float] = {}
             for candidate_index in candidate_indices:
                 neighbor_index = int(candidate_index)
-                similarity = float(similarities[neighbor_index])
+                similarity = float(verification_similarities[neighbor_index])
                 required_threshold = cls._pair_similarity_threshold(
                     source_index=row_index,
                     target_index=neighbor_index,

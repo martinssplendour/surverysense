@@ -1,9 +1,11 @@
 import {
     RESULT_STORAGE_KEY,
+    COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT,
     invalidateRowDatasetsAfterAnalysis,
     setAnalysisResult,
     setAnalysisRunning,
     setAnalysisSelection,
+    setCommunitySimilarityThreshold,
     setCurrentWorkspace,
     state,
 } from "../shared.js";
@@ -63,6 +65,23 @@ export function handleAnalysisMethodClick(event) {
         return;
     }
     setAnalysisSelection({ column: state.selectedAnalysisColumn, model: modelKey });
+    setAnalysisResult(null);
+    renderAnalysisControls();
+    renderAnalysisOutput();
+}
+
+/**
+ * Updates the selected cosine similarity threshold for community detection.
+ *
+ * @param {Event} event Range input event.
+ * @returns {void}
+ */
+export function handleCommunitySimilarityChange(event) {
+    const target = event.target;
+    if (!target || !("value" in target)) {
+        return;
+    }
+    setCommunitySimilarityThreshold(target.value);
     setAnalysisResult(null);
     renderAnalysisControls();
     renderAnalysisOutput();
@@ -167,11 +186,17 @@ function beginAnalysisRun({ textColumnName, modelKey, preserveCurrentOutput }) {
 }
 
 function buildAnalysisRequestBody({ modelKey, textColumnName }) {
-    return {
+    const body = {
         model_key: modelKey,
         text_column_name: textColumnName,
         filters: state.activeFilters,
     };
+    if (modelKey === "community") {
+        body.community_similarity_threshold = Number(
+            state.communitySimilarityThreshold || COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT,
+        );
+    }
+    return body;
 }
 
 async function runAnalysisWithGeminiRateLimitRetries({ signal, modelKey, textColumnName }) {
@@ -273,6 +298,9 @@ function finishSuccessfulAnalysis({
     scrollIntoView,
 }) {
     setAnalysisResult(payload);
+    if (typeof payload.community_similarity_threshold === "number") {
+        setCommunitySimilarityThreshold(payload.community_similarity_threshold);
+    }
     setAnalysisSelection({
         column: payload.text_column_name || textColumnName,
         model: payload.model_key || modelKey,

@@ -51,10 +51,10 @@ class Settings:
     topic_embedding_fallback_provider: str = os.getenv("TOPIC_EMBEDDING_FALLBACK_PROVIDER", "openai").strip().casefold()
     topic_embedding_fallback_model: str = os.getenv("TOPIC_EMBEDDING_FALLBACK_MODEL", "").strip()
     topic_embedding_fallback_api_key: str = os.getenv("TOPIC_EMBEDDING_FALLBACK_API_KEY", "").strip()
-    topic_community_similarity_threshold: float = float(os.getenv("TOPIC_COMMUNITY_SIMILARITY_THRESHOLD", "0.66"))
+    topic_community_similarity_threshold: float = float(os.getenv("TOPIC_COMMUNITY_SIMILARITY_THRESHOLD", "0.72"))
     topic_community_max_neighbors: int = int(os.getenv("TOPIC_COMMUNITY_MAX_NEIGHBORS", "16"))
     topic_community_resolution: float = float(os.getenv("TOPIC_COMMUNITY_RESOLUTION", "0.9"))
-    topic_community_mutual_neighbors: bool = os.getenv("TOPIC_COMMUNITY_MUTUAL_NEIGHBORS", "false").strip().casefold() in {"1", "true", "yes", "on"}
+    topic_community_mutual_neighbors: bool = os.getenv("TOPIC_COMMUNITY_MUTUAL_NEIGHBORS", "true").strip().casefold() in {"1", "true", "yes", "on"}
     topic_top_terms: int = int(os.getenv("TOPIC_TOP_TERMS", "6"))
     topic_top_ngrams: int = int(os.getenv("TOPIC_TOP_NGRAMS", "12"))
     topic_representative_examples: int = int(os.getenv("TOPIC_REPRESENTATIVE_EXAMPLES", "3"))

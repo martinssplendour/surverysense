@@ -12,6 +12,7 @@ export {
 export {
     getActiveAnalysisRequest,
     handleAnalysisColumnChange,
+    handleCommunitySimilarityChange,
     handleAnalysisMethodClick,
     handleRunAnalysis,
     runAnalysis,

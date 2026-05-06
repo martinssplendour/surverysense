@@ -125,6 +125,23 @@
                         <p class="analysis-step-label">2. Choose an analysis method</p>
                         <div class="analysis-methods" id="analysis-methods" aria-label="Analysis method"></div>
                     </div>
+
+                    <div class="analysis-setup-section community-similarity-section" id="community-similarity-section">
+                        <div class="community-similarity-header">
+                            <label class="analysis-step-label" for="community-similarity-slider">3. Set cosine similarity</label>
+                            <output class="community-similarity-value" id="community-similarity-value" for="community-similarity-slider">0.72</output>
+                        </div>
+                        <input
+                            type="range"
+                            class="community-similarity-slider"
+                            id="community-similarity-slider"
+                            min="0.4"
+                            max="1"
+                            value="0.72"
+                            step="0.01"
+                            aria-label="Cosine similarity threshold"
+                        >
+                    </div>
                     <p class="analysis-help" id="analysis-help">
                         Bar plots are used to show analysis result.
                     </p>

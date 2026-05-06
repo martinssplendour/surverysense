@@ -755,6 +755,49 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.groups["-1"].is_noise)
         self.assertIn("marked 2 weakly connected response", " ".join(result.warnings))
 
+    def test_umap_candidate_projection_still_verifies_original_cosine_similarity(self) -> None:
+        class _CandidateReducer:
+            fit_calls = 0
+
+            def __init__(self, **kwargs) -> None:
+                self.n_components = int(kwargs["n_components"])
+
+            def fit_transform(self, embeddings):
+                type(self).fit_calls += 1
+                positions = []
+                for row_index, _embedding in enumerate(embeddings):
+                    if row_index == 0:
+                        positions.append([0.0 for _component in range(self.n_components)])
+                    elif row_index == 1:
+                        positions.append([0.001 for _component in range(self.n_components)])
+                    else:
+                        positions.append([float(row_index * 10) for _component in range(self.n_components)])
+                return positions
+
+        fake_umap = types.ModuleType("umap")
+        fake_umap.UMAP = _CandidateReducer
+        service = CommunityDetectionAnalysisService()
+        embeddings = []
+        for row_index in range(10):
+            vector = [0.0 for _dimension in range(31)]
+            vector[row_index] = 1.0
+            embeddings.append(vector)
+
+        with (
+            patch.object(CommunityDetectionAnalysisService, "_has_incompatible_umap_runtime", return_value=False),
+            patch.dict(sys.modules, {"umap": fake_umap}),
+        ):
+            result = service.run(
+                embeddings,
+                similarity_threshold=0.8,
+                max_neighbors=1,
+                mutual_neighbors=True,
+            )
+
+        self.assertGreaterEqual(_CandidateReducer.fit_calls, 1)
+        self.assertNotIn((0, 1, 0.0), result.network_edges)
+        self.assertIn("did not find responses above the similarity threshold", " ".join(result.warnings))
+
     def test_normalize_languages_pads_and_ignores_auto_values(self) -> None:
         normalized = CommunityDetectionAnalysisService._normalize_languages(
             [" EN ", "auto", "ES"],

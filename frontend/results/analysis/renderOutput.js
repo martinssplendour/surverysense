@@ -56,8 +56,9 @@ export function renderAnalysisOutput() {
     }
 
     const groups = Array.isArray(result.groups) ? result.groups : [];
+    const assignedGroups = groups.filter((group) => !group?.is_noise);
     elements.analysisNgramGrid.innerHTML = "";
-    elements.analysisList.innerHTML = groups.length
+    elements.analysisList.innerHTML = assignedGroups.length
         ? ""
         : `
             <div class="analysis-item">
@@ -66,7 +67,7 @@ export function renderAnalysisOutput() {
             </div>
         `;
     renderAnalysisChart(
-        groups,
+        assignedGroups,
         Array.isArray(result.scatter_points) ? result.scatter_points : [],
         Array.isArray(result.network_edges) ? result.network_edges : [],
     );

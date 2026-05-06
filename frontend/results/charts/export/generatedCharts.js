@@ -172,6 +172,7 @@ async function captureGeneratedNgramChart(plotly, bucket, definition, index) {
 async function captureGeneratedGroupBarChart(plotly) {
     const groups = Array.isArray(state.analysisResult?.groups)
         ? [...state.analysisResult.groups]
+            .filter((group) => !group?.is_noise)
             .sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
             .slice(0, 10)
         : [];

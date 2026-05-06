@@ -33,6 +33,7 @@ class _FakeTopicAnalysisService:
         model_key: AnalysisModelKey,
         text_column_name: str,
         available_verbatim_columns,
+        community_similarity_threshold: float | None = None,
     ) -> AnalysisRunResult:
         texts = [
             str(value).strip()

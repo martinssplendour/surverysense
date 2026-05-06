@@ -287,6 +287,7 @@ class ResultStoreService:
         *,
         model_key: AnalysisModelKey,
         text_column_name: str,
+        community_similarity_threshold: float | None = None,
         filters: dict[str, list[str]] | None,
     ) -> AnalysisRunResult | None:
         """Return a filtered analysis result from the cached snapshot without re-running ML.
@@ -302,6 +303,11 @@ class ResultStoreService:
             return None
         if snapshot.model_key != model_key or snapshot.text_column_name != text_column_name:
             return None
+        if model_key == AnalysisModelKey.COMMUNITY and community_similarity_threshold is not None:
+            if snapshot.community_similarity_threshold is None:
+                return None
+            if abs(float(snapshot.community_similarity_threshold) - float(community_similarity_threshold)) > 1e-9:
+                return None
 
         return self.snapshot_service.build_fast_filtered_result(
             result_id=result_id,

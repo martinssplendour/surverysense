@@ -1,6 +1,10 @@
 // Renders analysis setup controls and report export controls.
 import {
     ANALYSIS_MODE_OPTIONS,
+    COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT,
+    COMMUNITY_SIMILARITY_THRESHOLD_MAX,
+    COMMUNITY_SIMILARITY_THRESHOLD_MIN,
+    COMMUNITY_SIMILARITY_THRESHOLD_STEP,
     elements,
     setAnalysisExportState,
     setAnalysisSelection,
@@ -65,6 +69,27 @@ export function renderAnalysisControls() {
     elements.runAnalysisButton.innerHTML = state.analysisRunning
         ? '<span class="analysis-run-button-content"><span class="analysis-run-spinner" aria-hidden="true"></span><span>Running Analysis...</span></span>'
         : '<span class="analysis-run-button-content"><span class="analysis-run-icon" aria-hidden="true"></span><span>Run Analysis</span></span>';
+
+    const showCommunityThreshold = state.selectedAnalysisModel === "community";
+    if (elements.communitySimilaritySection) {
+        elements.communitySimilaritySection.hidden = !showCommunityThreshold;
+    }
+    if (elements.communitySimilaritySlider && "value" in elements.communitySimilaritySlider) {
+        const threshold = formatCommunitySimilarityThreshold(state.communitySimilarityThreshold);
+        elements.communitySimilaritySlider.min = String(COMMUNITY_SIMILARITY_THRESHOLD_MIN);
+        elements.communitySimilaritySlider.max = String(COMMUNITY_SIMILARITY_THRESHOLD_MAX);
+        elements.communitySimilaritySlider.step = String(COMMUNITY_SIMILARITY_THRESHOLD_STEP);
+        elements.communitySimilaritySlider.value = threshold;
+        elements.communitySimilaritySlider.disabled = state.analysisRunning;
+    }
+    if (elements.communitySimilarityValue) {
+        elements.communitySimilarityValue.textContent = formatCommunitySimilarityThreshold(state.communitySimilarityThreshold);
+    }
+}
+
+function formatCommunitySimilarityThreshold(value) {
+    const threshold = Number(value);
+    return (Number.isFinite(threshold) ? threshold : COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT).toFixed(2);
 }
 
 

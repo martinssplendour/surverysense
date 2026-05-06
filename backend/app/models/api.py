@@ -89,6 +89,7 @@ class AnalysisRunRequest(BaseModel):
     model_key: AnalysisModelKey
     text_column_name: str
     filters: dict[str, list[str]] = Field(default_factory=dict)
+    community_similarity_threshold: float | None = Field(default=None, ge=0.4, le=1.0)
 
 
 class AnalysisExampleModel(BaseModel):
@@ -168,6 +169,7 @@ class AnalysisRunResponse(BaseModel):
     error: str | None = None
     error_code: str | None = None
     retry_after_seconds: int | None = None
+    community_similarity_threshold: float | None = None
     groups: list[AnalysisGroupModel] = Field(default_factory=list)
     ngram_buckets: list[AnalysisNgramBucketModel] = Field(default_factory=list)
     scatter_points: list[AnalysisScatterPointModel] = Field(default_factory=list)

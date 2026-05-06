@@ -14,6 +14,7 @@ charset-normalizer==3.4.4
 networkx==3.5
 igraph>=0.11,<0.12
 leidenalg>=0.10,<0.11
+umap-learn==0.5.7
 nltk==3.9.2
 scikit-learn<1.8
 

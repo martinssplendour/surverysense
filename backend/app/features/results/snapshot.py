@@ -71,6 +71,7 @@ class ResultStoreSnapshotService:
         return StoredAnalysisSnapshot(
             text_column_name=text_column_name,
             model_key=analysis_result.model_key,
+            community_similarity_threshold=analysis_result.community_similarity_threshold,
             original_response_count=int(analysis_result.original_response_count or 0),
             groups=groups,
             ngram_items=ngram_items,
@@ -191,6 +192,7 @@ class ResultStoreSnapshotService:
             original_response_count=original_response_count,
             skipped_document_count=max(0, int(len(filtered_df)) - original_response_count),
             translated_document_count=0,
+            community_similarity_threshold=snapshot.community_similarity_threshold,
             warnings=[],
             error=None,
             groups=rebuilt_groups,

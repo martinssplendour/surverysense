@@ -172,6 +172,42 @@ body.analysis-setup-workspace-active .analysis-method-section {
     margin-top: 24px;
 }
 
+body.analysis-setup-workspace-active .community-similarity-section {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid #e7ebf1;
+}
+
+body.analysis-setup-workspace-active .community-similarity-section[hidden] {
+    display: none;
+}
+
+body.analysis-setup-workspace-active .community-similarity-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+body.analysis-setup-workspace-active .community-similarity-header .analysis-step-label {
+    margin-bottom: 0;
+}
+
+body.analysis-setup-workspace-active .community-similarity-value {
+    flex: 0 0 auto;
+    min-width: 48px;
+    color: #1266f1;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+}
+
+body.analysis-setup-workspace-active .community-similarity-slider {
+    width: 100%;
+    margin-top: 16px;
+    accent-color: #1266f1;
+}
+
 body.analysis-setup-workspace-active .analysis-method-active {
     border-color: #2f80ff;
     background: linear-gradient(180deg, rgba(247, 251, 255, 0.98), #ffffff);

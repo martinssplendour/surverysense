@@ -1,3 +1,5 @@
+import { COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT } from "./constants.js";
+
 /**
  * Central mutable state for the results page.
  *
@@ -51,6 +53,7 @@ const initialState = () => ({
     analysis: {
         selectedColumn: "",
         selectedModel: "community",
+        communitySimilarityThreshold: COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT,
         communityChartView: "bar",
         result: null,
         running: false,
@@ -121,6 +124,7 @@ const aliasPaths = {
     dataExportRunning: ["dataExport", "running"],
     selectedAnalysisColumn: ["analysis", "selectedColumn"],
     selectedAnalysisModel: ["analysis", "selectedModel"],
+    communitySimilarityThreshold: ["analysis", "communitySimilarityThreshold"],
     communityChartView: ["analysis", "communityChartView"],
     analysisResult: ["analysis", "result"],
     analysisRunning: ["analysis", "running"],
@@ -266,6 +270,19 @@ export function setSelectedAnalysisColumn(column) {
  */
 export function setSelectedAnalysisModel(model) {
     state.analysis.selectedModel = String(model || state.analysis.selectedModel || "community");
+}
+
+/**
+ * Updates the selected community cosine similarity threshold.
+ *
+ * @param {number|string} value Threshold value from 0.4 to 1.0.
+ * @returns {void}
+ */
+export function setCommunitySimilarityThreshold(value) {
+    const threshold = Number(value);
+    state.analysis.communitySimilarityThreshold = Number.isFinite(threshold)
+        ? Math.min(1, Math.max(0.4, threshold))
+        : COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT;
 }
 
 /**
@@ -474,6 +491,7 @@ export function applyResultPayload(payload) {
     };
     state.analysis.selectedColumn = state.columns.analysisVerbatim[0] || "";
     state.analysis.selectedModel = "community";
+    state.analysis.communitySimilarityThreshold = COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT;
     state.analysis.communityChartView = "bar";
     state.analysis.result = null;
     state.analysis.running = false;

@@ -87,6 +87,7 @@ class StoredAnalysisSnapshot:
 
     text_column_name: str
     model_key: AnalysisModelKey
+    community_similarity_threshold: float | None
     original_response_count: int
     groups: dict[str, StoredAnalysisGroupSnapshot]
     ngram_items: dict[str, StoredAnalysisNgramSnapshot]
