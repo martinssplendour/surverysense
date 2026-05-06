@@ -62,8 +62,7 @@ class CommunityDetectionAnalysisService(
             )
 
         warnings: list[str] = []
-        cluster_embeddings, used_reduction = self._reduce_for_clustering(embedding_array, np, warnings=warnings)
-        normalized_embeddings = self._normalize_rows(cluster_embeddings, np)
+        normalized_embeddings = self._normalize_rows(embedding_array, np)
         graph = nx.Graph()
         graph.add_nodes_from(range(document_count))
 
@@ -105,7 +104,6 @@ class CommunityDetectionAnalysisService(
                     graph,
                     nx,
                     np,
-                    reduced_embeddings=cluster_embeddings if used_reduction else None,
                 ),
             )
 
@@ -149,6 +147,5 @@ class CommunityDetectionAnalysisService(
                 graph,
                 nx,
                 np,
-                reduced_embeddings=cluster_embeddings if used_reduction else None,
             ),
         )

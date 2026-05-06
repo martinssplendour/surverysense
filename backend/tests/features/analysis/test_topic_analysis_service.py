@@ -755,64 +755,6 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.groups["-1"].is_noise)
         self.assertIn("marked 2 weakly connected response", " ".join(result.warnings))
 
-    def test_run_falls_back_to_raw_embeddings_when_umap_reduction_fails(self) -> None:
-        class _FailingReducer:
-            def __init__(self, **kwargs) -> None:
-                pass
-
-            def fit_transform(self, embeddings):
-                raise TypeError("check_array() got an unexpected keyword argument 'force_all_finite'")
-
-        fake_umap = types.ModuleType("umap")
-        fake_umap.UMAP = _FailingReducer
-        service = CommunityDetectionAnalysisService()
-        embeddings = [[1.0, *([0.0] * 15)] for _index in range(10)]
-
-        with (
-            patch.object(CommunityDetectionAnalysisService, "_has_incompatible_umap_runtime", return_value=False),
-            patch.dict(sys.modules, {"umap": fake_umap}),
-        ):
-            result = service.run(
-                embeddings,
-                similarity_threshold=0.8,
-                max_neighbors=3,
-            )
-
-        self.assertEqual(len(result.assignments), 10)
-        self.assertIn("UMAP clustering reduction was skipped", " ".join(result.warnings))
-
-    def test_run_reuses_umap_clustering_projection_for_layout(self) -> None:
-        class _CountingReducer:
-            fit_calls = 0
-
-            def __init__(self, **kwargs) -> None:
-                self.n_components = int(kwargs["n_components"])
-
-            def fit_transform(self, embeddings):
-                type(self).fit_calls += 1
-                return [
-                    [float(row_index + component_index) for component_index in range(self.n_components)]
-                    for row_index, _embedding in enumerate(embeddings)
-                ]
-
-        fake_umap = types.ModuleType("umap")
-        fake_umap.UMAP = _CountingReducer
-        service = CommunityDetectionAnalysisService()
-        embeddings = [[float(index), *([0.0] * 15)] for index in range(10)]
-
-        with (
-            patch.object(CommunityDetectionAnalysisService, "_has_incompatible_umap_runtime", return_value=False),
-            patch.dict(sys.modules, {"umap": fake_umap}),
-        ):
-            result = service.run(
-                embeddings,
-                similarity_threshold=0.99,
-                max_neighbors=3,
-            )
-
-        self.assertEqual(_CountingReducer.fit_calls, 1)
-        self.assertEqual(result.layout_positions[0], (0.0, 1.0))
-
     def test_normalize_languages_pads_and_ignores_auto_values(self) -> None:
         normalized = CommunityDetectionAnalysisService._normalize_languages(
             [" EN ", "auto", "ES"],
