@@ -67,7 +67,7 @@ class Settings:
     topic_ai_labeling_enabled: bool = os.getenv("TOPIC_AI_LABELING_ENABLED", "true").strip().casefold() in {"1", "true", "yes", "on"}
     topic_ai_labeling_timeout_seconds: int = int(os.getenv("TOPIC_AI_LABELING_TIMEOUT_SECONDS", "30"))
     topic_ai_labeling_max_groups: int = int(os.getenv("TOPIC_AI_LABELING_MAX_GROUPS", "0"))
-    topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "15"))
+    topic_ai_labeling_max_examples: int = int(os.getenv("TOPIC_AI_LABELING_MAX_EXAMPLES", "50"))
     topic_ai_labeling_max_terms: int = int(os.getenv("TOPIC_AI_LABELING_MAX_TERMS", "4"))
     topic_ai_labeling_max_unigrams: int = int(os.getenv("TOPIC_AI_LABELING_MAX_UNIGRAMS", "5"))
     topic_ai_labeling_max_bigrams: int = int(os.getenv("TOPIC_AI_LABELING_MAX_BIGRAMS", "3"))

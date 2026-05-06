@@ -36,6 +36,7 @@ class TopicLabelPromptBuilder:
             "- Write natural human topic names, not a stitched list of keywords.\n"
             "- Prefer clear nouns such as Resources, Materials, Support, Search, Pricing, Content, Activities, Planning, or Usability when they fit the evidence.\n"
             "- Capture consistent sentiment where it is clear: 'Poor Customer Support' not 'Customer Support'.\n"
+            "- terms and top_unigrams are the strongest single-word signals for the cluster.\n"
             "- top_bigrams and top_trigrams are the strongest phrase signals; each phrase includes count, document_count, and up to three matching documents.\n"
             "- tightest_responses are the most central responses in the cluster; base the label on what most of them share.\n"
             "- Use document_count as the stronger frequency signal when phrase counts disagree.\n"
