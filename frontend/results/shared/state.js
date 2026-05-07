@@ -1,4 +1,8 @@
-import { COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT } from "./constants.js";
+import {
+    COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT,
+    COMMUNITY_SIMILARITY_THRESHOLD_MAX,
+    COMMUNITY_SIMILARITY_THRESHOLD_MIN,
+} from "./constants.js";
 
 /**
  * Central mutable state for the results page.
@@ -275,13 +279,13 @@ export function setSelectedAnalysisModel(model) {
 /**
  * Updates the selected community cosine similarity threshold.
  *
- * @param {number|string} value Threshold value from 0.4 to 1.0.
+ * @param {number|string} value Threshold value from 0.6 to 1.0.
  * @returns {void}
  */
 export function setCommunitySimilarityThreshold(value) {
     const threshold = Number(value);
     state.analysis.communitySimilarityThreshold = Number.isFinite(threshold)
-        ? Math.min(1, Math.max(0.4, threshold))
+        ? Math.min(COMMUNITY_SIMILARITY_THRESHOLD_MAX, Math.max(COMMUNITY_SIMILARITY_THRESHOLD_MIN, threshold))
         : COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT;
 }
 

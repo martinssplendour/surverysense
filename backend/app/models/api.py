@@ -89,7 +89,7 @@ class AnalysisRunRequest(BaseModel):
     model_key: AnalysisModelKey
     text_column_name: str
     filters: dict[str, list[str]] = Field(default_factory=dict)
-    community_similarity_threshold: float | None = Field(default=None, ge=0.4, le=1.0)
+    community_similarity_threshold: float | None = Field(default=None, ge=0.6, le=1.0)
 
 
 class AnalysisExampleModel(BaseModel):

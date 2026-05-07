@@ -465,4 +465,4 @@ class TopicAnalysisService:
     def _normalize_community_similarity_threshold(self, value: float | None) -> float:
         if value is None:
             return float(self.config.community_similarity_threshold)
-        return max(0.4, min(1.0, float(value)))
+        return max(0.6, min(1.0, float(value)))
