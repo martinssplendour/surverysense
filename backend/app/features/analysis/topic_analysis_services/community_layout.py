@@ -8,6 +8,9 @@ from typing import Any
 class CommunityLayoutMixin:
     """UMAP-assisted candidate search and visualization behavior."""
 
+    UMAP_CANDIDATE_NEIGHBOR_COUNT = 10
+    UMAP_LAYOUT_NEIGHBOR_COUNT = 15
+
     @classmethod
     def _build_candidate_projection(
         cls,
@@ -41,7 +44,7 @@ class CommunityLayoutMixin:
 
         reducer = umap_lib.UMAP(
             n_components=min(30, n_docs - 2),
-            n_neighbors=min(15, n_docs - 1),
+            n_neighbors=min(cls.UMAP_CANDIDATE_NEIGHBOR_COUNT, n_docs - 1),
             min_dist=0.0,
             metric="cosine",
             random_state=42,
@@ -106,7 +109,7 @@ class CommunityLayoutMixin:
 
         reducer = umap_lib.UMAP(
             n_components=2,
-            n_neighbors=min(15, n_docs - 1),
+            n_neighbors=min(cls.UMAP_LAYOUT_NEIGHBOR_COUNT, n_docs - 1),
             min_dist=0.1,
             metric="cosine",
             random_state=42,
