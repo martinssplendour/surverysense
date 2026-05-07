@@ -330,7 +330,7 @@ def _build_topic_analysis_service(
             config=TopicAiLabelingConfig(
                 enabled=settings.topic_ai_labeling_enabled,
                 gemini_api_key=settings.gemini_api_key,
-                gemini_model=settings.gemini_model,
+                gemini_model=settings.topic_ai_labeling_model,
                 gemini_temperature=settings.gemini_temperature,
                 timeout_seconds=settings.topic_ai_labeling_timeout_seconds,
                 max_groups=settings.topic_ai_labeling_max_groups,

@@ -315,7 +315,7 @@ class TopicAiLabelService:
 
     @classmethod
     def _has_reasonable_length(cls, label: str, tokens: list[str]) -> bool:
-        if len(tokens) < 3 or len(tokens) > 6:
+        if len(tokens) < 3 or len(tokens) > 8:
             return False
         stripped = label.strip()
         return 4 <= len(stripped) <= 80
