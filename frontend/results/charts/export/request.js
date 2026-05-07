@@ -20,7 +20,7 @@ export async function requestAnalysisReportBlob({ format, callbacks }) {
         subtitle: elements.analysisResultsSubtitle?.textContent?.trim() || "",
         active_filters: buildAnalysisExportFilters(),
         charts,
-        analysis_result: state.analysisResult,
+        analysis_result: buildAnalysisExportResultPayload(),
     };
     const response = await fetch(`/analysis-export/${encodeURIComponent(state.resultId)}`, {
         method: "POST",
@@ -52,5 +52,14 @@ export async function requestAnalysisReportBlob({ format, callbacks }) {
         filename,
         format: normalizedFormat,
         exportPayload,
+    };
+}
+
+export function buildAnalysisExportResultPayload() {
+    const result = state.analysisResult || {};
+    const textColumnName = String(result.text_column_name || "").trim() || state.selectedAnalysisColumn || "";
+    return {
+        ...result,
+        text_column_name: textColumnName,
     };
 }

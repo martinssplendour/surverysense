@@ -189,7 +189,7 @@ describe("results/analysis", () => {
         expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
             model_key: "community",
             text_column_name: "comment",
-            community_similarity_threshold: 0.72,
+            community_similarity_threshold: 0.89,
             filters: { country: ["UK"] },
         });
         expect(harness.closeAnalysisGroupModal).toHaveBeenCalledTimes(1);

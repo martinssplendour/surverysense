@@ -75,7 +75,7 @@ export function renderAnalysisControls() {
         elements.communitySimilaritySection.hidden = !showCommunityThreshold;
     }
     if (elements.communitySimilaritySlider && "value" in elements.communitySimilaritySlider) {
-        const threshold = formatCommunitySimilarityThreshold(state.communitySimilarityThreshold);
+        const threshold = formatCommunitySimilaritySliderValue(state.communitySimilarityThreshold);
         elements.communitySimilaritySlider.min = String(COMMUNITY_SIMILARITY_THRESHOLD_MIN);
         elements.communitySimilaritySlider.max = String(COMMUNITY_SIMILARITY_THRESHOLD_MAX);
         elements.communitySimilaritySlider.step = String(COMMUNITY_SIMILARITY_THRESHOLD_STEP);
@@ -83,13 +83,19 @@ export function renderAnalysisControls() {
         elements.communitySimilaritySlider.disabled = state.analysisRunning;
     }
     if (elements.communitySimilarityValue) {
-        elements.communitySimilarityValue.textContent = formatCommunitySimilarityThreshold(state.communitySimilarityThreshold);
+        elements.communitySimilarityValue.textContent = formatCommunitySimilarityDisplay(state.communitySimilarityThreshold);
     }
 }
 
-function formatCommunitySimilarityThreshold(value) {
+function formatCommunitySimilaritySliderValue(value) {
     const threshold = Number(value);
     return (Number.isFinite(threshold) ? threshold : COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT).toFixed(2);
+}
+
+function formatCommunitySimilarityDisplay(value) {
+    const threshold = Number(value);
+    const normalizedThreshold = Number.isFinite(threshold) ? threshold : COMMUNITY_SIMILARITY_THRESHOLD_DEFAULT;
+    return `${Math.round(normalizedThreshold * 100)}%`;
 }
 
 
