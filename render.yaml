@@ -44,6 +44,8 @@ services:
         value: "4"
       - key: TOPIC_AI_LABELING_MAX_EXAMPLES
         value: "15"
+      - key: TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS
+        value: "true"
       - key: RESULT_STORE_TTL_SECONDS
         value: "900"
       - key: RESULT_STORE_CLEANUP_INTERVAL_SECONDS

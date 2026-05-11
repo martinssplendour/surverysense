@@ -344,6 +344,7 @@ def _build_topic_analysis_service(
                 batch_size=settings.topic_ai_labeling_batch_size,
                 max_retries=settings.topic_ai_labeling_max_retries,
                 retry_base_seconds=settings.topic_ai_labeling_retry_base_seconds,
+                consolidate_similar_labels=settings.topic_ai_labeling_consolidate_similar_labels,
             )
         ),
     )

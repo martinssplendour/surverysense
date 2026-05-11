@@ -41,6 +41,7 @@ class TopicAiLabelingConfig:
     batch_size: int = 5
     max_retries: int = 1
     retry_base_seconds: float = 0.75
+    consolidate_similar_labels: bool = False
 
 
 @dataclass(slots=True)
@@ -137,6 +138,7 @@ class TopicAiLabelService:
         labels_by_group_id: dict[str, str] = {}
         failed_group_count = 0
         rejected_label_count = 0
+        consolidation_warnings: list[str] = []
         for evidence_batch in self._iter_batches(evidence_groups):
             try:
                 batch_labels, batch_rejected_count = self._label_batch(
@@ -158,13 +160,23 @@ class TopicAiLabelService:
             labels_by_group_id.update(batch_labels)
             rejected_label_count += batch_rejected_count
 
+        labels_by_group_id, consolidation_warnings = self._consolidate_similar_labels(
+            labels_by_group_id,
+            groups=list(groups),
+            model_key=model_key,
+            text_column_name=text_column_name,
+        )
+
         return TopicAiLabelingBatchResult(
             labels_by_group_id=labels_by_group_id,
-            warnings=self._build_labeling_warnings(
-                failed_group_count=failed_group_count,
-                rejected_label_count=rejected_label_count,
-                total_group_count=len(evidence_groups),
-            ),
+            warnings=[
+                *self._build_labeling_warnings(
+                    failed_group_count=failed_group_count,
+                    rejected_label_count=rejected_label_count,
+                    total_group_count=len(evidence_groups),
+                ),
+                *consolidation_warnings,
+            ],
             labeled_group_count=len(labels_by_group_id),
         )
 
@@ -241,6 +253,78 @@ class TopicAiLabelService:
         )
         return response
 
+    def _consolidate_similar_labels(
+        self,
+        labels_by_group_id: dict[str, str],
+        *,
+        groups: list[AnalysisGroupRecord],
+        model_key: AnalysisModelKey,
+        text_column_name: str,
+    ) -> tuple[dict[str, str], list[str]]:
+        if not self.config.consolidate_similar_labels or len(labels_by_group_id) < 2:
+            return labels_by_group_id, []
+
+        groups_by_id = {str(group.group_id): group for group in groups}
+        topics = [
+            {
+                "group_id": group_id,
+                "label": label,
+                "count": int(groups_by_id[group_id].count or 0),
+                "is_noise": bool(groups_by_id[group_id].is_noise),
+            }
+            for group_id, label in labels_by_group_id.items()
+            if group_id in groups_by_id and label.strip() and not groups_by_id[group_id].is_noise
+        ]
+        if len(topics) < 2:
+            return labels_by_group_id, []
+
+        try:
+            response_json = self._request_label_consolidation_with_retries(
+                topics,
+                model_key=model_key,
+                text_column_name=text_column_name,
+            )
+            response_text = self._extract_gemini_text(response_json)
+            if not response_text:
+                raise ValueError("Gemini returned an empty label consolidation response.")
+            payload = json.loads(response_text)
+            if not isinstance(payload, dict):
+                raise ValueError("Gemini label consolidation response was not a JSON object.")
+            canonical_labels = self._parse_label_consolidation(
+                payload,
+                allowed_group_ids={str(topic["group_id"]) for topic in topics},
+            )
+        except Exception as exc:
+            logger.warning(
+                "AI topic label consolidation was skipped for model=%s column=%s (%s: %s).",
+                model_key.value,
+                text_column_name,
+                type(exc).__name__,
+                exc,
+            )
+            return labels_by_group_id, ["AI topic label consolidation was skipped; generated labels were kept."]
+
+        if not canonical_labels:
+            return labels_by_group_id, []
+
+        consolidated = dict(labels_by_group_id)
+        for group_id, canonical_label in canonical_labels.items():
+            consolidated[group_id] = canonical_label
+        return consolidated, [f"AI consolidated similar labels for {len(canonical_labels)} group(s)."]
+
+    def _request_label_consolidation(
+        self,
+        topics: list[dict[str, object]],
+        *,
+        model_key: AnalysisModelKey,
+        text_column_name: str,
+    ) -> dict[str, object]:
+        return self.client.request_label_consolidation(
+            topics,
+            model_key=model_key,
+            text_column_name=text_column_name,
+        )
+
     def _build_prompt(
         self,
         groups: list[TopicLabelEvidenceGroup],
@@ -262,6 +346,35 @@ class TopicAiLabelService:
 
     def _parse_labels(self, payload: dict[str, object], *, allowed_group_ids: set[str]) -> dict[str, str]:
         return self.response_parser.parse_labels(payload, allowed_group_ids=allowed_group_ids)
+
+    def _parse_label_consolidation(
+        self,
+        payload: dict[str, object],
+        *,
+        allowed_group_ids: set[str],
+    ) -> dict[str, str]:
+        canonical_by_group_id: dict[str, str] = {}
+        for item in payload.get("merged_topics", []):
+            if not isinstance(item, dict):
+                continue
+            canonical_label = self._normalize_label(str(item.get("canonical_label", "")).strip())
+            if not canonical_label:
+                continue
+            raw_group_ids = item.get("group_ids", [])
+            if not isinstance(raw_group_ids, list):
+                continue
+            group_ids = [str(group_id).strip() for group_id in raw_group_ids if str(group_id).strip() in allowed_group_ids]
+            unique_group_ids = list(dict.fromkeys(group_ids))
+            if len(unique_group_ids) < 2:
+                continue
+            tokens = self._label_tokens(canonical_label)
+            if not self._has_reasonable_length(canonical_label, tokens):
+                continue
+            if self._normalize_for_validation(canonical_label) in self.GENERIC_LABELS:
+                continue
+            for group_id in unique_group_ids:
+                canonical_by_group_id[group_id] = canonical_label
+        return canonical_by_group_id
 
     def _filter_valid_labels(
         self,
@@ -405,6 +518,41 @@ class TopicAiLabelService:
                     time.sleep(delay)
 
         raise RuntimeError("AI topic labeling retry loop ended without a response.")
+
+    def _request_label_consolidation_with_retries(
+        self,
+        topics: list[dict[str, object]],
+        *,
+        model_key: AnalysisModelKey,
+        text_column_name: str,
+    ) -> dict[str, object]:
+        max_attempts = max(1, int(self.config.max_retries) + 1)
+        for attempt_index in range(max_attempts):
+            try:
+                return self._request_label_consolidation(
+                    topics,
+                    model_key=model_key,
+                    text_column_name=text_column_name,
+                )
+            except Exception as exc:
+                has_attempt_remaining = attempt_index < max_attempts - 1
+                if not has_attempt_remaining or not self._is_retryable_error(exc):
+                    raise
+
+                logger.warning(
+                    "AI topic label consolidation request failed transiently for model=%s column=%s; retrying attempt %s of %s (%s: %s).",
+                    model_key.value,
+                    text_column_name,
+                    attempt_index + 2,
+                    max_attempts,
+                    type(exc).__name__,
+                    exc,
+                )
+                delay = self._retry_delay_seconds(attempt_index)
+                if delay > 0:
+                    time.sleep(delay)
+
+        raise RuntimeError("AI topic label consolidation retry loop ended without a response.")
 
     def _retry_delay_seconds(self, attempt_index: int) -> float:
         base_delay = max(0.0, float(self.config.retry_base_seconds))

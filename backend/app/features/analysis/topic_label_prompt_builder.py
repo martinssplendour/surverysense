@@ -65,3 +65,64 @@ class TopicLabelPromptBuilder:
             },
             "required": ["labels"],
         }
+
+    @staticmethod
+    def build_label_consolidation_prompt(
+        topics: list[dict[str, object]],
+        *,
+        model_key: AnalysisModelKey,
+        text_column_name: str,
+    ) -> str:
+        topics_blob = json.dumps(
+            {
+                "analysis_mode": model_key.value,
+                "text_column_name": text_column_name,
+                "topics": topics,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return (
+            "You are consolidating topic labels from a survey analysis.\n"
+            "Decide which labels should be presented as the same final topic. "
+            "Return only merge groups for labels that describe the same underlying user reason.\n\n"
+            "Rules:\n"
+            "- Merge labels when they are different wording for the same reason, concern, or feedback theme.\n"
+            "- Merge differences in tense, audience, subscription type, timing, or phrasing when the core reason is the same.\n"
+            "- Do not merge labels that are merely related but represent different causes.\n"
+            "- Do not merge positive product feedback into a negative reason unless the main reason is the same.\n"
+            "- Do not merge noise or unclear topics with clear topics.\n"
+            "- Use a canonical_label that is 3 to 8 words, Title Case, plain English, and specific.\n"
+            "- Omit topics that do not need merging.\n"
+            "- Return JSON only.\n\n"
+            "Examples:\n"
+            "- Merge: 'Cannot Afford The Annual Subscription', 'Subscription Price Is Too Expensive', "
+            "'Cannot Afford Personal Subscription Cost' -> 'Subscription Cost Is Too Expensive'.\n"
+            "- Usually keep separate: 'Cannot Afford Subscription' and 'Removal Of Home Education Discount'.\n"
+            "- Usually merge: 'Not Using Resources Enough For The Cost' and "
+            "'Cannot Justify Subscription Cost For Usage' -> 'Low Usage Does Not Justify Cost'.\n\n"
+            f"Topics:{topics_blob}"
+        )
+
+    @staticmethod
+    def gemini_label_consolidation_response_schema() -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "merged_topics": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "canonical_label": {"type": "string"},
+                            "group_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["canonical_label", "group_ids"],
+                    },
+                }
+            },
+            "required": ["merged_topics"],
+        }

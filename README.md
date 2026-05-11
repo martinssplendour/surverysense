@@ -109,6 +109,7 @@ TOPIC_AI_LABELING_MAX_TERMS=4
 TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE=220
 TOPIC_AI_LABELING_MAX_RETRIES=1
 TOPIC_AI_LABELING_RETRY_BASE_SECONDS=0.75
+TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=true
 RESULT_STORE_MAX_RESULTS=8
 RESULT_STORE_TTL_SECONDS=900
 RESULT_STORE_CLEANUP_INTERVAL_SECONDS=60
@@ -117,6 +118,8 @@ RESULT_STORE_CLEANUP_INTERVAL_SECONDS=60
 To use OpenAI embeddings as the primary provider, set `TOPIC_EMBEDDING_PROVIDER=openai`, `OPENAI_API_KEY=...`, and optionally `TOPIC_EMBEDDING_MODEL=text-embedding-3-small`. If Gemini is primary and `OPENAI_API_KEY` is present, OpenAI can be used as the fallback when Gemini returns quota/rate errors.
 
 AI topic labels use the tightest cluster responses plus capped term evidence. The default caps keep prompts focused: `TOPIC_AI_LABELING_MAX_EXAMPLES=15` and `TOPIC_AI_LABELING_MAX_TERMS=4`.
+
+When `TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=true`, the label creation phase makes one additional structured LLM call with generated labels and counts only. The response maps similar label ids to a canonical label, and the backend merges those topic groups before returning analysis results.
 
 Single-word verbatim responses are skipped before embeddings and clustering. This removes low-information rows such as `CVV`, `CCC`, or `hjhh`; it also removes valid one-word answers, so verbatim columns should contain sentence-style feedback for analysis.
 

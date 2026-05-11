@@ -78,6 +78,9 @@ class Settings:
     topic_ai_labeling_batch_size: int = int(os.getenv("TOPIC_AI_LABELING_BATCH_SIZE", "10"))
     topic_ai_labeling_max_retries: int = int(os.getenv("TOPIC_AI_LABELING_MAX_RETRIES", "1"))
     topic_ai_labeling_retry_base_seconds: float = float(os.getenv("TOPIC_AI_LABELING_RETRY_BASE_SECONDS", "0.75"))
+    topic_ai_labeling_consolidate_similar_labels: bool = os.getenv(
+        "TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS", "true"
+    ).strip().casefold() in {"1", "true", "yes", "on"}
     session_secret: str = os.getenv("SESSION_SECRET", "").strip()
     session_https_only: bool = os.getenv("SESSION_HTTPS_ONLY", "false").strip().casefold() in {"1", "true", "yes", "on"}
     session_idle_timeout_seconds: int = int(os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", "1800"))

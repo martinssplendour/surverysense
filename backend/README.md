@@ -19,6 +19,14 @@ Embeddings are cached in memory per process, retried on transient provider error
 fall back to OpenAI when `TOPIC_EMBEDDING_FALLBACK_PROVIDER=openai` and `OPENAI_API_KEY`
 or `TOPIC_EMBEDDING_FALLBACK_API_KEY` are set.
 
+AI labels can be consolidated during label creation with:
+
+```bash
+TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=true
+```
+
+That call sends generated labels and counts, not raw responses, and returns group ids that should share a canonical label. The normal backend merge step then aggregates counts, examples, documents, and chart group ids.
+
 ## In-Memory Results
 
 Uploaded datasets and analysis outputs are kept in process memory. The store is bounded by:

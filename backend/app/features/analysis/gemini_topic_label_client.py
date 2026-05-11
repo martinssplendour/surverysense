@@ -63,3 +63,51 @@ class GeminiTopicLabelClient:
         if not isinstance(payload, dict):
             raise ValueError("Gemini did not return a JSON object.")
         return payload
+
+    def request_label_consolidation(
+        self,
+        topics: list[dict[str, object]],
+        *,
+        model_key: AnalysisModelKey,
+        text_column_name: str,
+    ) -> dict[str, Any]:
+        endpoint = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.model}:generateContent"
+        )
+        request_payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "text": self.prompt_builder.build_label_consolidation_prompt(
+                                topics,
+                                model_key=model_key,
+                                text_column_name=text_column_name,
+                            )
+                        }
+                    ],
+                }
+            ],
+            "generationConfig": {
+                "temperature": self.temperature,
+                "responseMimeType": "application/json",
+                "responseSchema": self.prompt_builder.gemini_label_consolidation_response_schema(),
+            },
+        }
+        payload = json.dumps(request_payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.api_key,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("Gemini did not return a JSON object.")
+        return payload

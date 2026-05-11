@@ -273,6 +273,125 @@ class TopicAiLabelServiceTests(unittest.TestCase):
         )
         self.assertEqual(result.warnings, [])
 
+    def test_label_groups_consolidates_similar_generated_labels(self) -> None:
+        service = TopicAiLabelService(
+            config=TopicAiLabelingConfig(
+                enabled=True,
+                gemini_api_key="test-key",
+                gemini_model="gemini-2.5-flash",
+                gemini_temperature=0.1,
+                timeout_seconds=8,
+                max_groups=10,
+                max_examples_per_group=1,
+                max_terms_per_group=2,
+                max_chars_per_example=80,
+                batch_size=10,
+                max_retries=0,
+                consolidate_similar_labels=True,
+            )
+        )
+        groups = [
+            AnalysisGroupRecord(
+                group_id="0",
+                label="Annual Subscription Cost",
+                count=10,
+                share=0.5,
+                terms=["annual", "subscription", "cost"],
+                documents=[AnalysisDocumentRecord(row_number=1, text="I cannot afford the annual subscription")],
+            ),
+            AnalysisGroupRecord(
+                group_id="1",
+                label="Subscription Too Expensive",
+                count=8,
+                share=0.4,
+                terms=["subscription", "expensive"],
+                documents=[AnalysisDocumentRecord(row_number=2, text="The subscription is too expensive")],
+            ),
+            AnalysisGroupRecord(
+                group_id="2",
+                label="Teaching Job Change",
+                count=2,
+                share=0.1,
+                terms=["job", "teaching"],
+                documents=[AnalysisDocumentRecord(row_number=3, text="I changed teaching jobs")],
+            ),
+        ]
+        calls: list[str] = []
+
+        def _fake_urlopen(request, timeout):
+            self.assertEqual(timeout, 8)
+            prompt = json.loads(request.data.decode("utf-8"))["contents"][0]["parts"][0]["text"]
+            calls.append(prompt)
+            if "You are labelling response groups" in prompt:
+                return _FakeHttpResponse(
+                    {
+                        "candidates": [
+                            {
+                                "content": {
+                                    "parts": [
+                                        {
+                                            "text": json.dumps(
+                                                {
+                                                    "labels": [
+                                                        {"group_id": "0", "label": "Cannot Afford Annual Subscription"},
+                                                        {"group_id": "1", "label": "Subscription Price Is Too Expensive"},
+                                                        {"group_id": "2", "label": "Change In Teaching Job"},
+                                                    ]
+                                                }
+                                            )
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                )
+            self.assertIn("You are consolidating topic labels", prompt)
+            self.assertIn("Cannot Afford Annual Subscription", prompt)
+            self.assertIn("Subscription Price Is Too Expensive", prompt)
+            return _FakeHttpResponse(
+                {
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "text": json.dumps(
+                                            {
+                                                "merged_topics": [
+                                                    {
+                                                        "canonical_label": "Subscription Cost Is Too Expensive",
+                                                        "group_ids": ["0", "1"],
+                                                    }
+                                                ]
+                                            }
+                                        )
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            )
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            result = service.label_groups(
+                groups,
+                model_key=AnalysisModelKey.COMMUNITY,
+                text_column_name="verbatim",
+            )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            result.labels_by_group_id,
+            {
+                "0": "Subscription Cost Is Too Expensive",
+                "1": "Subscription Cost Is Too Expensive",
+                "2": "Change In Teaching Job",
+            },
+        )
+        self.assertIn("AI consolidated similar labels for 2 group(s).", result.warnings)
+
     def test_label_groups_uses_all_groups_when_max_groups_is_zero(self) -> None:
         service = TopicAiLabelService(
             config=TopicAiLabelingConfig(
