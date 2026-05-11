@@ -8,8 +8,8 @@ from typing import Any
 class CommunityLayoutMixin:
     """UMAP-assisted candidate search and visualization behavior."""
 
-    UMAP_CANDIDATE_NEIGHBOR_COUNT = 5
-    UMAP_LAYOUT_NEIGHBOR_COUNT = 5
+    UMAP_CANDIDATE_NEIGHBOR_COUNT = 10
+    UMAP_LAYOUT_NEIGHBOR_COUNT = 10
 
     @classmethod
     def _build_candidate_projection(
