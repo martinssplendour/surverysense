@@ -1516,10 +1516,10 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.groups[0].terms[0], "resources")
         self.assertEqual(
             [document.row_number for document in result.groups[0].documents[:2]],
-            [2, 3],
+            [1, 2],
         )
 
-    def test_run_community_orders_group_documents_by_graph_representativeness_before_terms(self) -> None:
+    def test_run_community_orders_group_documents_by_label_and_terms_before_graph_representativeness(self) -> None:
         service = self._build_service(community_detection_service=_CentralCommunityDetectionService())
         dataframe = pd.DataFrame(
             {
@@ -1543,7 +1543,41 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(
             [document.row_number for document in result.groups[0].documents],
-            [3, 2, 4, 1],
+            [2, 3, 4, 1],
+        )
+
+    def test_run_community_orders_documents_by_label_and_top_term_overlap_then_shorter_text(self) -> None:
+        service = self._build_service(
+            community_detection_service=_SingleCommunityDetectionService(),
+            ai_label_service=_FakeAiLabelService({"0": "Subscription Cost Too Expensive"}),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "The annual subscription cost is too expensive for my household right now",
+                    "Annual subscription cost expensive",
+                    "Subscription only",
+                    "General feedback about teaching resources",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(
+            [document.row_number for document in result.groups[0].documents],
+            [2, 1, 3, 4],
+        )
+        self.assertEqual(
+            [example.row_number for example in result.groups[0].examples],
+            [2, 1],
         )
 
     def test_run_community_merges_groups_with_duplicate_ai_labels(self) -> None:
@@ -1574,7 +1608,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(len(result.groups), 1)
         self.assertEqual(result.groups[0].label, "Search And Curriculum Issues")
         self.assertEqual(result.groups[0].count, 4)
-        self.assertEqual([document.row_number for document in result.groups[0].documents], [1, 2, 4, 3])
+        self.assertEqual([document.row_number for document in result.groups[0].documents], [1, 2, 3, 4])
         self.assertEqual({point.group_id for point in result.scatter_points}, {"0"})
         self.assertEqual({point.group_label for point in result.scatter_points}, {"Search And Curriculum Issues"})
 

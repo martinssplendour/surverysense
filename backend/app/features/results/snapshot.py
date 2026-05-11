@@ -12,6 +12,7 @@ from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisNgramItemRecord,
     AnalysisRunResult,
 )
+from app.features.common.document_relevance import DocumentRelevanceSorter
 from app.features.results.models import (
     StoredAnalysisGroupSnapshot,
     StoredAnalysisNgramSnapshot,
@@ -129,6 +130,16 @@ class ResultStoreSnapshotService:
 
         total_denom = max(1, surviving_total)
         for group in rebuilt_groups:
+            group.documents = DocumentRelevanceSorter.order_by_label_and_terms(
+                group.documents,
+                label=group.label,
+                terms=group.terms,
+            )
+            group.examples = DocumentRelevanceSorter.order_by_label_and_terms(
+                group.examples,
+                label=group.label,
+                terms=group.terms,
+            )
             group.share = round(len(group.documents) / total_denom, 4)
             group.total_documents = total_denom
             group.comment = (

@@ -275,6 +275,8 @@ class TopicAnalysisService:
         translated_group_count, translation_warnings = self.output_translation_service.translate_group_outputs(groups)
         warnings.extend(translation_warnings)
         groups, group_id_aliases = self._merge_duplicate_label_groups(groups)
+        self.group_assembly_service.order_group_outputs_by_label_relevance(groups)
+        self._refresh_group_comments(groups)
         scatter_points, network_edges = self._build_community_plot_records(
             documents=prepared_run.prepared.documents,
             assignments=execution.result.assignments,
@@ -444,6 +446,15 @@ class TopicAnalysisService:
 
         merged_groups.sort(key=lambda group: (-int(group.count), str(group.group_id)))
         return merged_groups, aliases
+
+    def _refresh_group_comments(self, groups: list[AnalysisGroupRecord]) -> None:
+        for group in groups:
+            group.comment = self.output_translation_service.narrative_service.build_comment(
+                label=group.label or "Group",
+                count=int(group.count or len(group.documents)),
+                total_documents=max(1, int(group.total_documents or group.count or len(group.documents))),
+                examples=list(group.examples),
+            )
 
     @staticmethod
     def _normalize_group_label(label: str) -> str:

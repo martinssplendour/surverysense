@@ -21,6 +21,7 @@ from app.features.analysis.topic_analysis_services.keyword_service import (
 from app.features.analysis.topic_analysis_services.narrative_service import (
     TopicAnalysisNarrativeService,
 )
+from app.features.common.document_relevance import DocumentRelevanceSorter
 from app.features.common.protocols import TranslationServiceProtocol
 from app.models.enums import AnalysisModelKey
 
@@ -132,6 +133,20 @@ class TopicGroupAssemblyService:
             )
 
         return groups
+
+    @classmethod
+    def order_group_outputs_by_label_relevance(cls, groups: list[AnalysisGroupRecord]) -> None:
+        for group in groups:
+            group.documents = DocumentRelevanceSorter.order_by_label_and_terms(
+                group.documents,
+                label=group.label,
+                terms=group.terms,
+            )
+            group.examples = DocumentRelevanceSorter.order_by_label_and_terms(
+                group.examples,
+                label=group.label,
+                terms=group.terms,
+            )
 
     @classmethod
     def _order_documents_by_term_evidence(
