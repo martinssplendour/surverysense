@@ -38,6 +38,7 @@ When adding browser behavior, keep event binding, API calls, state mutation, and
 From `frontend/`:
 
 ```bash
+npm install
 npm run lint -- --max-warnings=0
 npm test
 ```

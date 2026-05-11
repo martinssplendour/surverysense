@@ -54,3 +54,5 @@ When a change needs a new cross-feature interaction, add the behavior to the own
 - New workspace restore/reset/navigation behavior goes in `workspace/`.
 - New event listeners go in `events/`, with the actual behavior delegated to the owning feature.
 - New formatting helpers go in `shared/utils.js` only when they are pure and useful across more than one domain.
+
+Run `python scripts/check_architecture.py` from the repo root after moving or adding results modules. It catches private cross-feature imports and new implementation files in the top-level `results/` folder.

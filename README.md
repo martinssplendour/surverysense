@@ -1,6 +1,6 @@
 # Verbatim App
 
-Internal verbatim-analysis app is for uploading CSV survey data, selecting freeform text columns, running topic modelling, and exporting stakeholder-ready reports.
+Internal verbatim-analysis app for uploading CSV survey data, selecting freeform text columns, running topic modelling, and exporting stakeholder-ready reports.
 
 The app is designed for small-team internal use. It runs on a single Render web service and does not use durable server-side storage for uploaded results.
 
@@ -24,16 +24,17 @@ The app is designed for small-team internal use. It runs on a single Render web 
 
 ```text
 .
-├── backend/     FastAPI app, analysis pipeline, auth, export logic
-├── frontend/    HTML, CSS, and browser-side JS
-├── scripts/     local repo maintenance and smoke-test helpers
-├── render.yaml  Render deployment config
-└── .python-version
+|-- backend/     FastAPI app, analysis pipeline, auth, export logic
+|-- frontend/    HTML, CSS, and browser-side JS
+|-- scripts/     local repo maintenance and smoke-test helpers
+|-- render.yaml  Render deployment config
+`-- .python-version
 ```
 
 ## Requirements
 
 - Python `3.12`
+- Node.js for frontend lint/tests
 - Bash-compatible shell for the commands below
 
 ## Local Setup
@@ -85,6 +86,8 @@ TOPIC_EMBEDDING_TIMEOUT_SECONDS=60
 TOPIC_EMBEDDING_MAX_RETRIES=1
 TOPIC_EMBEDDING_CACHE_SIZE=4096
 TOPIC_EMBEDDING_FALLBACK_PROVIDER=openai
+TOPIC_EMBEDDING_FALLBACK_MODEL=text-embedding-3-small
+TOPIC_EMBEDDING_FALLBACK_API_KEY=
 OPENAI_API_KEY=...
 NLTK_DATA=./nltk_data
 TOPIC_INPUT_TRANSLATION_ENABLED=false
@@ -92,36 +95,28 @@ TOPIC_TRANSLATION_ENABLED=true
 TOPIC_TRANSLATION_SOURCE_LANGUAGE=auto
 TOPIC_TRANSLATION_TARGET_LANGUAGE=en
 TOPIC_TRANSLATION_BATCH_SIZE=8
-TOPIC_COMMUNITY_SIMILARITY_THRESHOLD=0.62
-TOPIC_COMMUNITY_MAX_NEIGHBORS=12
+TOPIC_COMMUNITY_SIMILARITY_THRESHOLD=0.66
+TOPIC_COMMUNITY_MAX_NEIGHBORS=16
+TOPIC_COMMUNITY_RESOLUTION=0.9
+TOPIC_COMMUNITY_MUTUAL_NEIGHBORS=false
 TOPIC_AI_LABELING_ENABLED=true
+TOPIC_AI_LABELING_MODEL=gemini-2.5-pro
 TOPIC_AI_LABELING_TIMEOUT_SECONDS=30
 TOPIC_AI_LABELING_MAX_GROUPS=15
 TOPIC_AI_LABELING_BATCH_SIZE=5
 TOPIC_AI_LABELING_MAX_EXAMPLES=15
 TOPIC_AI_LABELING_MAX_TERMS=4
-TOPIC_AI_LABELING_MAX_BIGRAMS=3
-TOPIC_AI_LABELING_MAX_TRIGRAMS=3
-TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT=4
 TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE=220
 TOPIC_AI_LABELING_MAX_RETRIES=1
 TOPIC_AI_LABELING_RETRY_BASE_SECONDS=0.75
+RESULT_STORE_MAX_RESULTS=8
+RESULT_STORE_TTL_SECONDS=900
+RESULT_STORE_CLEANUP_INTERVAL_SECONDS=60
 ```
 
 To use OpenAI embeddings as the primary provider, set `TOPIC_EMBEDDING_PROVIDER=openai`, `OPENAI_API_KEY=...`, and optionally `TOPIC_EMBEDDING_MODEL=text-embedding-3-small`. If Gemini is primary and `OPENAI_API_KEY` is present, OpenAI can be used as the fallback when Gemini returns quota/rate errors.
 
-AI topic labels use the tightest cluster responses plus capped phrase evidence. The default caps keep prompts focused:
-
-```bash
-TOPIC_AI_LABELING_MAX_BIGRAMS=3
-TOPIC_AI_LABELING_MAX_TRIGRAMS=3
-TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT=4
-TOPIC_AI_LABELING_MAX_EXAMPLES=15
-```
-
-For each labelled cluster, Gemini receives the top bigrams and trigrams with up to three matching tight responses per phrase, plus up to `TOPIC_AI_LABELING_MAX_EXAMPLES` tightest responses from the cluster.
-
-`TOPIC_AI_LABELING_MIN_NGRAM_DOCUMENT_COUNT` is adaptive for small clusters. For example, a two-response cluster can still send phrases that appear in both responses, while larger clusters require the configured minimum document count.
+AI topic labels use the tightest cluster responses plus capped term evidence. The default caps keep prompts focused: `TOPIC_AI_LABELING_MAX_EXAMPLES=15` and `TOPIC_AI_LABELING_MAX_TERMS=4`.
 
 Single-word verbatim responses are skipped before embeddings and clustering. This removes low-information rows such as `CVV`, `CCC`, or `hjhh`; it also removes valid one-word answers, so verbatim columns should contain sentence-style feedback for analysis.
 
@@ -154,6 +149,7 @@ The app is intentionally lightweight:
 - results are discarded on restart and logout
 - users persist outputs by downloading reports
 - no durable database is used for uploaded survey results
+- old in-memory results expire by TTL and max-result limits
 
 This means the app is close to stateless in product behavior, but it is not strictly stateless at the server-process level.
 
@@ -200,7 +196,7 @@ Important:
 
 - Python is pinned via `.python-version`
 - NLTK stopwords are downloaded during the Render build and exposed with `NLTK_DATA=./nltk_data`
-- Render should include the AI n-gram labeling env vars listed above when testing label quality
+- Render should include the result-store, embedding, community, and AI-labeling env vars listed above when testing memory and label quality
 - topic embeddings use Gemini/OpenAI API providers by default, avoiding large model downloads during build
 - frontend assets are served by FastAPI from the top-level `frontend/` directory
 
@@ -231,6 +227,7 @@ Frontend lint and unit tests:
 
 ```bash
 cd frontend
+npm install
 npm run lint -- --max-warnings=0
 npm test
 ```
@@ -251,6 +248,7 @@ The repo ignores local caches, generated reports, temporary review folders, logs
 
 - very large files can still take time because embeddings are generated through hosted APIs before community detection runs
 - uploaded results are not durable across app restarts
+- only the active session result is retained for the signed browser session; replacing an upload purges previous session result ids
 - the app is intended for a small internal user group, not large-scale concurrent analysis
 
 ## Current User Flow

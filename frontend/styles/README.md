@@ -13,6 +13,8 @@
 
 The manifest imports component and feature files into two app layers: `app-base` before shared responsive rules, and `app-post-responsive` for modules that intentionally refine the dense results/data/header surfaces. Do not create late "final", "override", or "polish" files; move the rule to the owning component or feature instead.
 
+When adding new CSS, update `../styles.css` only to import the owning module. Keep selectors scoped to the component, feature, or body workspace state that owns the behavior.
+
 ## Ownership
 
 - Upload screen rules: `features/upload.css`.
