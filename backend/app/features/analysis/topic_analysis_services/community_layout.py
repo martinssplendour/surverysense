@@ -1,4 +1,4 @@
-"""UMAP candidate projection and graph layout helpers for community detection."""
+"""Candidate projection and graph layout helpers for community detection."""
 from __future__ import annotations
 
 from importlib import metadata
@@ -6,7 +6,11 @@ from typing import Any
 
 
 class CommunityLayoutMixin:
-    """UMAP-assisted candidate search and visualization behavior."""
+    """Candidate search and visualization behavior.
+
+    UMAP helpers are kept available but currently disconnected from the analysis
+    pipeline so clusters are based only on original embedding cosine similarity.
+    """
 
     UMAP_CANDIDATE_NEIGHBOR_COUNT = 10
     UMAP_LAYOUT_NEIGHBOR_COUNT = 15
@@ -67,14 +71,7 @@ class CommunityLayoutMixin:
         nx: Any,
         np: Any,
     ) -> dict[int, tuple[float, float]]:
-        """2D layout for scatter visualization.
-
-        UMAP is used only for visualization when available. Topic membership is
-        determined by graph edges verified in original embedding space.
-        """
-        umap_positions = cls._build_umap_layout_positions(embedding_array, np)
-        if umap_positions:
-            return umap_positions
+        """2D layout for scatter visualization."""
 
         if graph.number_of_nodes() == 1:
             return {int(next(iter(graph.nodes))): (0.0, 0.0)}

@@ -63,8 +63,6 @@ class CommunityDetectionAnalysisService(
 
         warnings: list[str] = []
         normalized_embeddings = self._normalize_rows(embedding_array, np)
-        candidate_embeddings = self._build_candidate_projection(embedding_array, np, warnings=warnings)
-        normalized_candidate_embeddings = self._normalize_rows(candidate_embeddings, np)
         graph = nx.Graph()
         graph.add_nodes_from(range(document_count))
 
@@ -75,7 +73,7 @@ class CommunityDetectionAnalysisService(
         neighbor_limit = max(1, min(int(max_neighbors or 1), document_count - 1))
 
         candidate_neighbors = self._build_candidate_neighbors(
-            normalized_candidate_embeddings,
+            normalized_embeddings,
             normalized_verification_embeddings=normalized_embeddings,
             threshold=threshold,
             language_edge_threshold=language_edge_threshold,

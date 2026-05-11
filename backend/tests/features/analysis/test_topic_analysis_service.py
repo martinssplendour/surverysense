@@ -755,7 +755,7 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.groups["-1"].is_noise)
         self.assertIn("marked 2 weakly connected response", " ".join(result.warnings))
 
-    def test_umap_candidate_projection_still_verifies_original_cosine_similarity(self) -> None:
+    def test_run_does_not_use_umap_candidate_projection_for_clustering(self) -> None:
         class _CandidateReducer:
             fit_calls = 0
 
@@ -783,10 +783,7 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
             vector[row_index] = 1.0
             embeddings.append(vector)
 
-        with (
-            patch.object(CommunityDetectionAnalysisService, "_has_incompatible_umap_runtime", return_value=False),
-            patch.dict(sys.modules, {"umap": fake_umap}),
-        ):
+        with patch.dict(sys.modules, {"umap": fake_umap}):
             result = service.run(
                 embeddings,
                 similarity_threshold=0.8,
@@ -794,7 +791,7 @@ class CommunityDetectionAnalysisServiceTests(unittest.TestCase):
                 mutual_neighbors=True,
             )
 
-        self.assertGreaterEqual(_CandidateReducer.fit_calls, 1)
+        self.assertEqual(_CandidateReducer.fit_calls, 0)
         self.assertNotIn((0, 1, 0.0), result.network_edges)
         self.assertIn("did not find responses above the similarity threshold", " ".join(result.warnings))
 
