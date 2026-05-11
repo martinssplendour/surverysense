@@ -71,6 +71,13 @@ class DocumentRelevanceSorter:
         return [record for _score, record in scored_records]
 
     @classmethod
+    def overlap_count(cls, text: str, *, label: str, terms: list[str]) -> int:
+        relevance_tokens = cls.build_relevance_tokens(label, terms[:4])
+        if not relevance_tokens:
+            return 0
+        return len(cls.tokenize(text) & relevance_tokens)
+
+    @classmethod
     def build_relevance_tokens(cls, label: str, terms: list[str]) -> set[str]:
         tokens: set[str] = set()
         for value in [label, *terms]:

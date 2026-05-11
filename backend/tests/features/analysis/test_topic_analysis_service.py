@@ -82,6 +82,24 @@ class _SingleCommunityDetectionService:
         return TopicModelRunResult(assignments=[0 for _embedding in embeddings], warnings=[])
 
 
+class _SingleCommunityWithLayoutService:
+    def run(
+        self,
+        embeddings,
+        *,
+        similarity_threshold: float,
+        max_neighbors: int,
+        resolution: float = 1.0,
+        mutual_neighbors: bool = True,
+        languages: list[str | None] | None = None,
+    ) -> TopicModelRunResult:
+        return TopicModelRunResult(
+            assignments=[0 for _embedding in embeddings],
+            warnings=[],
+            layout_positions={index: (float(index), 0.0) for index, _embedding in enumerate(embeddings)},
+        )
+
+
 class _CentralCommunityDetectionService:
     def run(
         self,
@@ -1557,7 +1575,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
                     "The annual subscription cost is too expensive for my household right now",
                     "Annual subscription cost expensive",
                     "Subscription only",
-                    "General feedback about teaching resources",
+                    "Subscription feedback about teaching resources",
                 ]
             }
         )
@@ -1578,6 +1596,57 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(
             [example.row_number for example in result.groups[0].examples],
             [2, 1],
+        )
+
+    def test_run_community_moves_low_evidence_tail_documents_to_noise(self) -> None:
+        service = self._build_service(
+            community_detection_service=_SingleCommunityWithLayoutService(),
+            ai_label_service=_FakeAiLabelService({"0": "Subscription Cost Too Expensive"}),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Subscription cost expensive",
+                    "Annual subscription cost",
+                    "Personal subscription cost",
+                    "Cannot afford subscription",
+                    "Subscription price expensive",
+                    "Cost too expensive",
+                    "Subscription annual price",
+                    "Classroom resources helpful",
+                    "Teaching materials useful",
+                    "Login screen simple",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        groups_by_id = {str(group.group_id): group for group in result.groups}
+        self.assertEqual(
+            {document.row_number for document in groups_by_id["0"].documents},
+            {1, 2, 3, 4, 5, 6, 7},
+        )
+        self.assertEqual(
+            [document.row_number for document in groups_by_id["-1"].documents],
+            [8, 9, 10],
+        )
+        self.assertEqual(groups_by_id["-1"].label, "Unassigned responses")
+        self.assertIn("low-evidence tail", " ".join(result.warnings))
+        self.assertEqual(
+            {point.row_number for point in result.scatter_points if point.group_id == "-1"},
+            {8, 9, 10},
+        )
+        self.assertEqual(
+            {point.group_label for point in result.scatter_points if point.group_id == "-1"},
+            {"Unassigned responses"},
         )
 
     def test_run_community_merges_groups_with_duplicate_ai_labels(self) -> None:

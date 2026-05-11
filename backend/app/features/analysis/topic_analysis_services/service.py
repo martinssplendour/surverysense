@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -18,6 +19,8 @@ from app.features.analysis.topic_analysis_services.config import (
     TopicAnalysisConfig,
 )
 from app.features.analysis.topic_analysis_services.contracts import (
+    AnalysisDocumentRecord,
+    AnalysisExampleRecord,
     AnalysisGroupRecord,
     AnalysisNetworkEdgeRecord,
     AnalysisRunResult,
@@ -41,6 +44,7 @@ from app.features.analysis.topic_analysis_services.output_translation_service im
 )
 from app.features.analysis.topic_analysis_services.text_preparation_service import TopicAnalysisTextPreparationService
 from app.features.analysis.topic_analysis_services.validation_service import TopicAnalysisInputValidationService
+from app.features.common.document_relevance import DocumentRelevanceSorter
 from app.features.common.protocols import TopicLabelServiceProtocol
 from app.models.enums import AnalysisModelKey
 
@@ -276,12 +280,18 @@ class TopicAnalysisService:
         warnings.extend(translation_warnings)
         groups, group_id_aliases = self._merge_duplicate_label_groups(groups)
         self.group_assembly_service.order_group_outputs_by_label_relevance(groups)
+        groups, weak_noise_row_numbers, weak_noise_count = self._move_weak_tail_documents_to_noise(groups)
+        if weak_noise_count:
+            warnings.append(
+                f"Moved {weak_noise_count} low-evidence tail response(s) to unassigned noise because they did not match the topic label or top terms."
+            )
         self._refresh_group_comments(groups)
         scatter_points, network_edges = self._build_community_plot_records(
             documents=prepared_run.prepared.documents,
             assignments=execution.result.assignments,
             groups=groups,
             group_id_aliases=group_id_aliases,
+            noise_row_numbers=weak_noise_row_numbers,
             layout_positions=execution.result.layout_positions,
             network_edges=execution.result.network_edges,
         )
@@ -319,11 +329,13 @@ class TopicAnalysisService:
         assignments: list[int],
         groups: list[AnalysisGroupRecord],
         group_id_aliases: dict[str, str] | None = None,
+        noise_row_numbers: set[int] | None = None,
         layout_positions: dict[int, tuple[float, float]],
         network_edges: list[tuple[int, int, float]],
     ) -> tuple[list[AnalysisScatterPointRecord], list[AnalysisNetworkEdgeRecord]]:
         group_labels = {str(group.group_id): group.label for group in groups}
         aliases = {str(source): str(target) for source, target in (group_id_aliases or {}).items()}
+        noise_rows = {int(row_number) for row_number in (noise_row_numbers or set())}
         scatter_points: list[AnalysisScatterPointRecord] = []
         row_numbers_by_node: dict[int, int] = {}
         for node_index, (document, assignment) in enumerate(zip(documents, assignments)):
@@ -335,7 +347,7 @@ class TopicAnalysisService:
             if position is None:
                 continue
             original_group_id = str(int(assignment))
-            group_id = aliases.get(original_group_id, original_group_id)
+            group_id = "-1" if row_number in noise_rows else aliases.get(original_group_id, original_group_id)
             scatter_points.append(
                 AnalysisScatterPointRecord(
                     point_index=int(node_index),
@@ -446,6 +458,118 @@ class TopicAnalysisService:
 
         merged_groups.sort(key=lambda group: (-int(group.count), str(group.group_id)))
         return merged_groups, aliases
+
+    def _move_weak_tail_documents_to_noise(
+        self,
+        groups: list[AnalysisGroupRecord],
+    ) -> tuple[list[AnalysisGroupRecord], set[int], int]:
+        if not groups:
+            return [], set(), 0
+
+        moved_documents_by_row: dict[int, AnalysisDocumentRecord] = {}
+        for group in list(groups):
+            if group.is_noise:
+                continue
+            documents = list(group.documents)
+            if len(documents) < 2:
+                continue
+
+            tail_start = min(len(documents), math.ceil(len(documents) * 0.7))
+            if tail_start >= len(documents):
+                continue
+
+            keep_documents = documents[:tail_start]
+            for document in documents[tail_start:]:
+                row_number = int(document.row_number)
+                overlap_count = DocumentRelevanceSorter.overlap_count(
+                    document.text,
+                    label=group.label,
+                    terms=group.terms,
+                )
+                if overlap_count > 0:
+                    keep_documents.append(document)
+                    continue
+                if row_number > 0:
+                    moved_documents_by_row[row_number] = document
+
+            group.documents = keep_documents
+            keep_row_numbers = {int(document.row_number) for document in keep_documents}
+            group.examples = [example for example in group.examples if int(example.row_number) in keep_row_numbers]
+            self._backfill_examples_from_documents(group)
+
+        if not moved_documents_by_row:
+            return self._drop_empty_non_noise_groups(groups), set(), 0
+
+        noise_group = self._find_or_create_noise_group(groups)
+        moved_documents = sorted(moved_documents_by_row.values(), key=lambda document: int(document.row_number))
+        existing_noise_rows = {int(document.row_number) for document in noise_group.documents}
+        for document in moved_documents:
+            if int(document.row_number) not in existing_noise_rows:
+                noise_group.documents.append(document)
+        noise_group.documents = sorted(noise_group.documents, key=lambda document: int(document.row_number))
+        self._backfill_examples_from_documents(noise_group)
+
+        rebuilt_groups = self._drop_empty_non_noise_groups(groups)
+        self._refresh_group_counts(rebuilt_groups)
+        return rebuilt_groups, set(moved_documents_by_row), len(moved_documents_by_row)
+
+    def _find_or_create_noise_group(self, groups: list[AnalysisGroupRecord]) -> AnalysisGroupRecord:
+        for group in groups:
+            if group.is_noise or str(group.group_id) == "-1":
+                group.is_noise = True
+                group.group_id = "-1"
+                group.label = "Unassigned responses"
+                return group
+
+        noise_group = AnalysisGroupRecord(
+            group_id="-1",
+            label="Unassigned responses",
+            is_noise=True,
+            count=0,
+            share=0.0,
+            total_documents=0,
+            terms=[],
+            examples=[],
+            documents=[],
+        )
+        groups.append(noise_group)
+        return noise_group
+
+    def _backfill_examples_from_documents(self, group: AnalysisGroupRecord) -> None:
+        if len(group.examples) >= self.config.representative_examples_per_group:
+            group.examples = group.examples[: self.config.representative_examples_per_group]
+            return
+
+        existing_rows = {int(example.row_number) for example in group.examples}
+        for document in group.documents:
+            row_number = int(document.row_number)
+            if row_number in existing_rows:
+                continue
+            group.examples.append(
+                AnalysisExampleRecord(
+                    row_number=row_number,
+                    text=document.text,
+                )
+            )
+            existing_rows.add(row_number)
+            if len(group.examples) >= self.config.representative_examples_per_group:
+                break
+
+    @staticmethod
+    def _drop_empty_non_noise_groups(groups: list[AnalysisGroupRecord]) -> list[AnalysisGroupRecord]:
+        return [
+            group
+            for group in groups
+            if group.is_noise or group.documents
+        ]
+
+    def _refresh_group_counts(self, groups: list[AnalysisGroupRecord]) -> None:
+        total_documents = max(1, sum(len(group.documents) for group in groups))
+        for group in groups:
+            group.count = len(group.documents)
+            group.share = round(group.count / total_documents, 4)
+            group.total_documents = total_documents
+        groups.sort(key=lambda group: (bool(group.is_noise), -int(group.count), str(group.group_id)))
 
     def _refresh_group_comments(self, groups: list[AnalysisGroupRecord]) -> None:
         for group in groups:
