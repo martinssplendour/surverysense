@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -280,10 +279,10 @@ class TopicAnalysisService:
         warnings.extend(translation_warnings)
         groups, group_id_aliases = self._merge_duplicate_label_groups(groups)
         self.group_assembly_service.order_group_outputs_by_label_relevance(groups)
-        groups, weak_noise_row_numbers, weak_noise_count = self._move_weak_tail_documents_to_noise(groups)
+        groups, weak_noise_row_numbers, weak_noise_count = self._move_off_topic_documents_to_noise(groups)
         if weak_noise_count:
             warnings.append(
-                f"Moved {weak_noise_count} low-evidence tail response(s) to unassigned noise because they did not match the topic label or top terms."
+                f"Moved {weak_noise_count} off-topic response(s) to unassigned noise because they did not match the topic label or top terms."
             )
         self._refresh_group_comments(groups)
         scatter_points, network_edges = self._build_community_plot_records(
@@ -459,7 +458,7 @@ class TopicAnalysisService:
         merged_groups.sort(key=lambda group: (-int(group.count), str(group.group_id)))
         return merged_groups, aliases
 
-    def _move_weak_tail_documents_to_noise(
+    def _move_off_topic_documents_to_noise(
         self,
         groups: list[AnalysisGroupRecord],
     ) -> tuple[list[AnalysisGroupRecord], set[int], int]:
@@ -474,12 +473,8 @@ class TopicAnalysisService:
             if len(documents) < 2:
                 continue
 
-            tail_start = min(len(documents), math.ceil(len(documents) * 0.7))
-            if tail_start >= len(documents):
-                continue
-
-            keep_documents = documents[:tail_start]
-            for document in documents[tail_start:]:
+            keep_documents: list[AnalysisDocumentRecord] = []
+            for document in documents:
                 row_number = int(document.row_number)
                 overlap_count = DocumentRelevanceSorter.overlap_count(
                     document.text,

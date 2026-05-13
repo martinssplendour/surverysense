@@ -1598,7 +1598,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             [2, 1],
         )
 
-    def test_run_community_moves_low_evidence_tail_documents_to_noise(self) -> None:
+    def test_run_community_moves_off_topic_documents_to_noise(self) -> None:
         service = self._build_service(
             community_detection_service=_SingleCommunityWithLayoutService(),
             ai_label_service=_FakeAiLabelService({"0": "Subscription Cost Too Expensive"}),
@@ -1639,7 +1639,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             [8, 9, 10],
         )
         self.assertEqual(groups_by_id["-1"].label, "Unassigned responses")
-        self.assertIn("low-evidence tail", " ".join(result.warnings))
+        self.assertIn("off-topic response", " ".join(result.warnings))
         self.assertEqual(
             {point.row_number for point in result.scatter_points if point.group_id == "-1"},
             {8, 9, 10},
@@ -1648,6 +1648,49 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             {point.group_label for point in result.scatter_points if point.group_id == "-1"},
             {"Unassigned responses"},
         )
+
+    def test_run_community_moves_all_non_matching_documents_to_noise(self) -> None:
+        service = self._build_service(
+            community_detection_service=_SingleCommunityWithLayoutService(),
+            ai_label_service=_FakeAiLabelService({"0": "Subscription Cost Too Expensive"}),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Subscription cost expensive",
+                    "Annual subscription cost",
+                    "Personal subscription cost",
+                    "Subscription price expensive",
+                    "Cost too expensive",
+                    "Great classroom resources",
+                    "Helpful worksheets",
+                    "Useful teaching materials",
+                    "Easy lesson planning",
+                    "Quality phonics activities",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        groups_by_id = {str(group.group_id): group for group in result.groups}
+        self.assertEqual(
+            {document.row_number for document in groups_by_id["0"].documents},
+            {1, 2, 3, 4, 5},
+        )
+        self.assertEqual(
+            [document.row_number for document in groups_by_id["-1"].documents],
+            [6, 7, 8, 9, 10],
+        )
+        self.assertEqual(groups_by_id["0"].count, 5)
+        self.assertEqual(groups_by_id["-1"].count, 5)
 
     def test_run_community_merges_groups_with_duplicate_ai_labels(self) -> None:
         service = self._build_service(
