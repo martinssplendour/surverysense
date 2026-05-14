@@ -129,12 +129,33 @@ class TopicAiLabelService:
         text_column_name: str,
     ) -> TopicAiLabelingBatchResult:
         if not self.is_available() or not groups:
+            logger.info(
+                "AI topic labeling skipped: available=%s group_count=%s enabled=%s has_api_key=%s.",
+                self.is_available(),
+                len(groups),
+                self.config.enabled,
+                bool(self.config.gemini_api_key),
+            )
             return TopicAiLabelingBatchResult(labels_by_group_id={}, warnings=[], labeled_group_count=0)
 
         evidence_groups = self._build_group_evidence(groups)
         if not evidence_groups:
+            logger.info(
+                "AI topic labeling skipped: no eligible evidence groups for model=%s column=%s input_group_count=%s.",
+                model_key.value,
+                text_column_name,
+                len(groups),
+            )
             return TopicAiLabelingBatchResult(labels_by_group_id={}, warnings=[], labeled_group_count=0)
 
+        logger.info(
+            "AI topic labeling started: model=%s column=%s evidence_group_count=%s batch_size=%s max_examples_per_group=%s.",
+            model_key.value,
+            text_column_name,
+            len(evidence_groups),
+            self.config.batch_size,
+            self.config.max_examples_per_group,
+        )
         labels_by_group_id: dict[str, str] = {}
         failed_group_count = 0
         rejected_label_count = 0
@@ -159,6 +180,14 @@ class TopicAiLabelService:
                 continue
             labels_by_group_id.update(batch_labels)
             rejected_label_count += batch_rejected_count
+            logger.info(
+                "AI topic labeling batch completed: model=%s column=%s group_count=%s accepted_labels=%s rejected_labels=%s.",
+                model_key.value,
+                text_column_name,
+                len(evidence_batch),
+                len(batch_labels),
+                batch_rejected_count,
+            )
 
         labels_by_group_id, consolidation_warnings = self._consolidate_similar_labels(
             labels_by_group_id,
@@ -262,6 +291,11 @@ class TopicAiLabelService:
         text_column_name: str,
     ) -> tuple[dict[str, str], list[str]]:
         if not self.config.consolidate_similar_labels or len(labels_by_group_id) < 2:
+            logger.info(
+                "AI topic label consolidation skipped: enabled=%s label_count=%s.",
+                self.config.consolidate_similar_labels,
+                len(labels_by_group_id),
+            )
             return labels_by_group_id, []
 
         groups_by_id = {str(group.group_id): group for group in groups}
@@ -276,6 +310,10 @@ class TopicAiLabelService:
             if group_id in groups_by_id and label.strip() and not groups_by_id[group_id].is_noise
         ]
         if len(topics) < 2:
+            logger.info(
+                "AI topic label consolidation skipped: eligible_non_noise_topic_count=%s.",
+                len(topics),
+            )
             return labels_by_group_id, []
 
         try:
@@ -305,11 +343,24 @@ class TopicAiLabelService:
             return labels_by_group_id, ["AI topic label consolidation was skipped; generated labels were kept."]
 
         if not canonical_labels:
+            logger.info(
+                "AI topic label consolidation completed: model=%s column=%s eligible_topic_count=%s merged_group_count=0.",
+                model_key.value,
+                text_column_name,
+                len(topics),
+            )
             return labels_by_group_id, []
 
         consolidated = dict(labels_by_group_id)
         for group_id, canonical_label in canonical_labels.items():
             consolidated[group_id] = canonical_label
+        logger.info(
+            "AI topic label consolidation completed: model=%s column=%s eligible_topic_count=%s merged_group_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(topics),
+            len(canonical_labels),
+        )
         return consolidated, [f"AI consolidated similar labels for {len(canonical_labels)} group(s)."]
 
     def _request_label_consolidation(

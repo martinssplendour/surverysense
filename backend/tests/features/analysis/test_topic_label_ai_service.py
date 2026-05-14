@@ -113,7 +113,7 @@ class TopicAiLabelServiceTests(unittest.TestCase):
             self.assertNotIn("count", group_payload)
             self.assertNotIn("share_percent", group_payload)
             self.assertNotIn("frequent_phrases", group_payload)
-            self.assertEqual(group_payload["terms"], ["curriculum", "resources", "planning"])
+            self.assertEqual(group_payload["terms"], ["curriculum", "planning"])
             self.assertNotIn("top_unigrams", group_payload)
             self.assertNotIn("top_bigrams", group_payload)
             self.assertNotIn("top_trigrams", group_payload)

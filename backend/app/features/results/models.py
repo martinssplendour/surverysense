@@ -66,6 +66,7 @@ class StoredAnalysisGroupSnapshot:
     translated: bool
     ai_generated: bool
     terms: list[str]
+    term_strengths: dict[str, float]
     examples: list[AnalysisExampleRecord]
     is_noise: bool
 

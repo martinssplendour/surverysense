@@ -58,6 +58,7 @@ class AnalysisGroupRecord:
     share: float = 0.0
     total_documents: int = 0
     terms: list[str] = field(default_factory=list)
+    term_strengths: dict[str, float] = field(default_factory=dict)
     examples: list[AnalysisExampleRecord] = field(default_factory=list)
     is_noise: bool = False
     documents: list[AnalysisDocumentRecord] = field(default_factory=list)
@@ -74,6 +75,7 @@ class AnalysisGroupRecord:
             "count": int(self.count),
             "share": float(self.share),
             "terms": list(self.terms),
+            "term_strengths": dict(self.term_strengths),
             "examples": [example.to_api_payload() for example in self.examples],
             "is_noise": bool(self.is_noise),
         }

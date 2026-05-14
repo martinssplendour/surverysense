@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable
@@ -9,6 +10,8 @@ from app.features.analysis.topic_analysis_services.contracts import (
     AnalysisDocumentRecord,
     AnalysisNgramItemRecord,
 )
+
+logger = logging.getLogger(__name__)
 
 CURATED_MULTILINGUAL_STOPWORDS = frozenset(
     {
@@ -130,6 +133,9 @@ def _load_standard_stopwords() -> frozenset[str]:
             "better",
             "looking",
             "need",
+            "resource",
+            "resources",
+            "twinkl",
             "using",
         }
     )
@@ -154,10 +160,27 @@ class TopicAnalysisKeywordService:
     TOKEN_PATTERN = re.compile(r"[^\W_][^\W_'\-]*", re.UNICODE)
 
     def top_terms(self, texts: list[str], *, top_n: int) -> list[str]:
+        return [term for term, _count in self.top_term_counts(texts, top_n=top_n)]
+
+    def top_term_counts(self, texts: list[str], *, top_n: int) -> list[tuple[str, int]]:
         counts: Counter[str] = Counter()
+        raw_token_count = 0
+        kept_token_count = 0
         for text in texts:
-            counts.update(self._tokenize(text))
-        return [term for term, count in counts.most_common() if count > 0][:top_n]
+            raw_token_count += len(self.TOKEN_PATTERN.findall(str(text or "")))
+            tokens = self._tokenize(text)
+            kept_token_count += len(tokens)
+            counts.update(tokens)
+        logger.info(
+            "Top-term extraction completed: text_count=%s raw_tokens=%s kept_tokens=%s removed_tokens=%s top_n=%s unique_terms=%s.",
+            len(texts),
+            raw_token_count,
+            kept_token_count,
+            max(0, raw_token_count - kept_token_count),
+            top_n,
+            len(counts),
+        )
+        return [(term, int(count)) for term, count in counts.most_common() if count > 0][:top_n]
 
     def tokenize_terms(self, text: str) -> list[str]:
         return self._tokenize(text)

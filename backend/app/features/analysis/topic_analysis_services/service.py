@@ -249,6 +249,13 @@ class TopicAnalysisService:
         community_similarity_threshold: float | None,
     ) -> AnalysisRunResult:
         normalized_threshold = self._normalize_community_similarity_threshold(community_similarity_threshold)
+        logger.info(
+            "Grouped analysis started: model=%s column=%s document_count=%s community_similarity_threshold=%.4f.",
+            model_key.value,
+            text_column_name,
+            len(prepared_run.prepared.documents),
+            normalized_threshold,
+        )
         execution = self.model_execution_service.execute(
             model_key=model_key,
             texts=list(prepared_run.prepared.texts),
@@ -261,6 +268,13 @@ class TopicAnalysisService:
         warnings = list(prepared_run.result.warnings)
         warnings.extend(execution.warnings or [])
         warnings.extend(execution.result.warnings)
+        logger.info(
+            "Model execution completed: model=%s column=%s assignment_count=%s execution_warning_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(execution.result.assignments),
+            len(execution.warnings or []) + len(execution.result.warnings or []),
+        )
 
         groups = self.group_assembly_service.build_groups(
             documents=prepared_run.prepared.documents,
@@ -269,21 +283,71 @@ class TopicAnalysisService:
             network_edges=execution.result.network_edges,
             model_key=model_key.value,
         )
+        logger.info(
+            "Initial group assembly completed: model=%s column=%s group_count=%s non_noise_group_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(groups),
+            sum(1 for group in groups if not group.is_noise),
+        )
+        groups, top_term_aliases = self._merge_groups_by_top_term_signature(groups)
+        logger.info(
+            "Top-term signature merge completed: model=%s column=%s group_count=%s alias_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(groups),
+            sum(1 for source, target in top_term_aliases.items() if source != target),
+        )
         _, ai_warnings = self.output_translation_service.apply_ai_labels(
             groups,
             model_key=model_key,
             text_column_name=text_column_name,
         )
         warnings.extend(ai_warnings)
+        logger.info(
+            "AI label application completed: model=%s column=%s warning_count=%s ai_generated_group_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(ai_warnings),
+            sum(1 for group in groups if group.ai_generated),
+        )
         translated_group_count, translation_warnings = self.output_translation_service.translate_group_outputs(groups)
         warnings.extend(translation_warnings)
-        groups, group_id_aliases = self._merge_duplicate_label_groups(groups)
+        logger.info(
+            "Group output translation completed: model=%s column=%s translated_group_count=%s warning_count=%s.",
+            model_key.value,
+            text_column_name,
+            translated_group_count,
+            len(translation_warnings),
+        )
+        groups, label_aliases = self._merge_duplicate_label_groups(groups)
+        group_id_aliases = self._compose_group_aliases(top_term_aliases, label_aliases)
+        logger.info(
+            "Label merge completed: model=%s column=%s group_count=%s alias_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(groups),
+            sum(1 for source, target in label_aliases.items() if source != target),
+        )
         self.group_assembly_service.order_group_outputs_by_label_relevance(groups)
+        logger.info(
+            "Response reranking completed: model=%s column=%s group_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(groups),
+        )
         groups, weak_noise_row_numbers, weak_noise_count = self._move_off_topic_documents_to_noise(groups)
         if weak_noise_count:
             warnings.append(
                 f"Moved {weak_noise_count} off-topic response(s) to unassigned noise because they did not match the topic label or top terms."
             )
+        logger.info(
+            "Off-topic noise reassignment completed: model=%s column=%s moved_response_count=%s group_count=%s.",
+            model_key.value,
+            text_column_name,
+            weak_noise_count,
+            len(groups),
+        )
         self._refresh_group_comments(groups)
         scatter_points, network_edges = self._build_community_plot_records(
             documents=prepared_run.prepared.documents,
@@ -293,6 +357,15 @@ class TopicAnalysisService:
             noise_row_numbers=weak_noise_row_numbers,
             layout_positions=execution.result.layout_positions,
             network_edges=execution.result.network_edges,
+        )
+        logger.info(
+            "Grouped analysis completed: model=%s column=%s final_group_count=%s scatter_point_count=%s network_edge_count=%s warning_count=%s.",
+            model_key.value,
+            text_column_name,
+            len(groups),
+            len(scatter_points),
+            len(network_edges),
+            len(warnings),
         )
 
         return replace(
@@ -382,19 +455,12 @@ class TopicAnalysisService:
         groups: list[AnalysisGroupRecord],
     ) -> tuple[list[AnalysisGroupRecord], dict[str, str]]:
         if not groups:
+            logger.info("Label merge skipped: group_count=0.")
             return [], {}
-
-        grouped_by_label: dict[tuple[str, bool], list[AnalysisGroupRecord]] = {}
-        for group in groups:
-            normalized_label = self._normalize_group_label(group.label)
-            if not normalized_label:
-                normalized_label = str(group.group_id).strip()
-            key = (normalized_label, bool(group.is_noise))
-            grouped_by_label.setdefault(key, []).append(group)
 
         aliases: dict[str, str] = {}
         merged_groups: list[AnalysisGroupRecord] = []
-        for _key, matching_groups in grouped_by_label.items():
+        for matching_groups in self._group_by_matching_labels(groups):
             primary = matching_groups[0]
             primary_id = str(primary.group_id)
             for group in matching_groups:
@@ -432,6 +498,7 @@ class TopicAnalysisService:
                     share=0.0,
                     total_documents=0,
                     terms=terms,
+                    term_strengths=self._merge_term_strengths(matching_groups, terms),
                     examples=examples[: self.config.representative_examples_per_group],
                     is_noise=primary.is_noise,
                     documents=documents,
@@ -456,7 +523,202 @@ class TopicAnalysisService:
             )
 
         merged_groups.sort(key=lambda group: (-int(group.count), str(group.group_id)))
+        logger.info(
+            "Label merge details: input_group_count=%s output_group_count=%s merged_group_count=%s.",
+            len(groups),
+            len(merged_groups),
+            sum(1 for source, target in aliases.items() if source != target),
+        )
         return merged_groups, aliases
+
+    def _merge_groups_by_top_term_signature(
+        self,
+        groups: list[AnalysisGroupRecord],
+    ) -> tuple[list[AnalysisGroupRecord], dict[str, str]]:
+        if not groups:
+            logger.info("Top-term signature merge skipped: group_count=0.")
+            return [], {}
+
+        grouped_by_signature: dict[tuple[str, str], list[AnalysisGroupRecord]] = {}
+        passthrough_groups: list[AnalysisGroupRecord] = []
+        for group in groups:
+            signature = self._top_term_signature(group)
+            if group.is_noise or signature is None:
+                passthrough_groups.append(group)
+                continue
+            grouped_by_signature.setdefault(signature, []).append(group)
+
+        aliases: dict[str, str] = {}
+        merged_groups: list[AnalysisGroupRecord] = list(passthrough_groups)
+        for matching_groups in grouped_by_signature.values():
+            matching_groups = sorted(matching_groups, key=lambda group: (-int(group.count or len(group.documents)), str(group.group_id)))
+            primary = matching_groups[0]
+            primary_id = str(primary.group_id)
+            for group in matching_groups:
+                aliases[str(group.group_id)] = primary_id
+
+            if len(matching_groups) == 1:
+                merged_groups.append(primary)
+                continue
+
+            documents = [
+                document
+                for group in matching_groups
+                for document in group.documents
+            ]
+            examples = [
+                example
+                for group in matching_groups
+                for example in group.examples
+            ]
+            terms = self._merge_unique_terms(
+                term
+                for group in matching_groups
+                for term in group.terms
+            )
+            count = sum(int(group.count or len(group.documents)) for group in matching_groups)
+            merged_groups.append(
+                AnalysisGroupRecord(
+                    group_id=primary_id,
+                    label=primary.label,
+                    source_label=primary.source_label,
+                    translated=any(group.translated for group in matching_groups),
+                    ai_generated=any(group.ai_generated for group in matching_groups),
+                    count=count,
+                    share=0.0,
+                    total_documents=0,
+                    terms=terms,
+                    term_strengths=self._merge_term_strengths(matching_groups, terms),
+                    examples=examples[: self.config.representative_examples_per_group],
+                    is_noise=False,
+                    documents=documents,
+                    label_translation_warnings=[
+                        warning
+                        for group in matching_groups
+                        for warning in group.label_translation_warnings
+                    ],
+                )
+            )
+
+        merged_signature_count = sum(1 for matching_groups in grouped_by_signature.values() if len(matching_groups) > 1)
+        self._refresh_group_counts(merged_groups)
+        logger.info(
+            "Top-term signature merge details: signature_count=%s merged_signature_count=%s passthrough_group_count=%s output_group_count=%s.",
+            len(grouped_by_signature),
+            merged_signature_count,
+            len(passthrough_groups),
+            len(merged_groups),
+        )
+        return merged_groups, aliases
+
+    @staticmethod
+    def _top_term_signature(group: AnalysisGroupRecord) -> tuple[str, str] | None:
+        ranked_terms = sorted(
+            (
+                (str(term), float(group.term_strengths.get(str(term), 0.0)), index)
+                for index, term in enumerate(group.terms)
+                if str(term).strip()
+            ),
+            key=lambda item: (-item[1], item[2], item[0]),
+        )
+        if len(ranked_terms) < 2:
+            return None
+        return tuple(sorted((ranked_terms[0][0].casefold(), ranked_terms[1][0].casefold())))
+
+    @staticmethod
+    def _merge_term_strengths(groups: list[AnalysisGroupRecord], terms: list[str]) -> dict[str, float]:
+        weighted_scores: dict[str, float] = {}
+        for group in groups:
+            weight = max(1, int(group.count or len(group.documents) or 1))
+            for term, strength in group.term_strengths.items():
+                key = str(term)
+                weighted_scores[key] = weighted_scores.get(key, 0.0) + float(strength) * weight
+
+        strongest_score = max([weighted_scores.get(term, 0.0) for term in terms] or [0.0])
+        if strongest_score <= 0:
+            return {}
+        return {
+            term: round(weighted_scores.get(term, 0.0) / strongest_score, 4)
+            for term in terms
+            if weighted_scores.get(term, 0.0) > 0
+        }
+
+    @staticmethod
+    def _compose_group_aliases(*alias_maps: dict[str, str]) -> dict[str, str]:
+        combined: dict[str, str] = {}
+        for alias_map in alias_maps:
+            for source, target in alias_map.items():
+                combined[str(source)] = str(target)
+
+        def resolve(group_id: str) -> str:
+            seen: set[str] = set()
+            current = str(group_id)
+            while current in combined and current not in seen:
+                seen.add(current)
+                next_group_id = combined[current]
+                if next_group_id == current:
+                    break
+                current = next_group_id
+            return current
+
+        return {source: resolve(target) for source, target in combined.items()}
+
+    def _group_by_matching_labels(self, groups: list[AnalysisGroupRecord]) -> list[list[AnalysisGroupRecord]]:
+        parents = list(range(len(groups)))
+
+        def find(index: int) -> int:
+            while parents[index] != index:
+                parents[index] = parents[parents[index]]
+                index = parents[index]
+            return index
+
+        def union(left: int, right: int) -> None:
+            left_root = find(left)
+            right_root = find(right)
+            if left_root != right_root:
+                parents[right_root] = left_root
+
+        exact_label_indexes: dict[tuple[bool, str], int] = {}
+        ngram_indexes: dict[tuple[bool, str], int] = {}
+        for index, group in enumerate(groups):
+            is_noise = bool(group.is_noise)
+            normalized_label = self._normalize_group_label(group.label)
+            exact_label = normalized_label or str(group.group_id).strip()
+            exact_key = (is_noise, exact_label)
+            if exact_key in exact_label_indexes:
+                union(exact_label_indexes[exact_key], index)
+            else:
+                exact_label_indexes[exact_key] = index
+
+            for label_ngram in self._label_merge_ngrams(normalized_label):
+                ngram_key = (is_noise, label_ngram)
+                if ngram_key in ngram_indexes:
+                    union(ngram_indexes[ngram_key], index)
+                else:
+                    ngram_indexes[ngram_key] = index
+
+        grouped: dict[int, list[AnalysisGroupRecord]] = {}
+        for index, group in enumerate(groups):
+            grouped.setdefault(find(index), []).append(group)
+        return list(grouped.values())
+
+    @classmethod
+    def _label_merge_ngrams(cls, label: str) -> set[str]:
+        tokens = cls._label_merge_tokens(label)
+        ngrams: set[str] = set()
+        for ngram_size in (2, 3):
+            for index in range(0, len(tokens) - ngram_size + 1):
+                ngrams.add(" ".join(tokens[index:index + ngram_size]))
+        return ngrams
+
+    @staticmethod
+    def _label_merge_tokens(label: str) -> list[str]:
+        stopwords = set(DocumentRelevanceSorter.STOPWORDS) - {"too"}
+        return [
+            token.casefold()
+            for token in DocumentRelevanceSorter.TOKEN_PATTERN.findall(str(label or ""))
+            if len(token) > 2 and token.casefold() not in stopwords
+        ]
 
     def _move_off_topic_documents_to_noise(
         self,

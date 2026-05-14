@@ -44,6 +44,7 @@ class ResultStoreSnapshotService:
                 translated=bool(group.translated),
                 ai_generated=bool(group.ai_generated),
                 terms=list(group.terms),
+                term_strengths=dict(group.term_strengths),
                 examples=list(group.examples),
                 is_noise=bool(group.is_noise),
             )
@@ -122,6 +123,7 @@ class ResultStoreSnapshotService:
                     share=0.0,
                     total_documents=0,
                     terms=list(group.terms),
+                    term_strengths=dict(group.term_strengths),
                     examples=list(group.examples),
                     is_noise=group.is_noise,
                     documents=documents,

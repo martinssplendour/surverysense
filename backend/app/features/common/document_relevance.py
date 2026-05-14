@@ -34,6 +34,8 @@ class DocumentRelevanceSorter:
             "on",
             "or",
             "our",
+            "resource",
+            "resources",
             "so",
             "that",
             "the",
@@ -41,6 +43,7 @@ class DocumentRelevanceSorter:
             "this",
             "to",
             "too",
+            "twinkl",
             "we",
             "with",
         }
@@ -54,17 +57,24 @@ class DocumentRelevanceSorter:
         label: str,
         terms: list[str],
     ) -> list[TextRecordT]:
-        relevance_tokens = cls.build_relevance_tokens(label, terms[:4])
-        if not records or not relevance_tokens:
+        relevance_tokens = cls.build_relevance_tokens(label, terms)
+        relevance_bigrams = cls.build_relevance_ngrams(label, terms, ngram_size=2)
+        relevance_trigrams = cls.build_relevance_ngrams(label, terms, ngram_size=3)
+        if not records or not (relevance_tokens or relevance_bigrams or relevance_trigrams):
             return list(records)
 
-        scored_records: list[tuple[tuple[int, int, int, int], TextRecordT]] = []
+        scored_records: list[tuple[tuple[int, int, int, int, int, int], TextRecordT]] = []
         for original_index, record in enumerate(records):
             text = str(record.text or "")
             document_tokens = cls.tokenize(text)
+            document_token_list = cls.tokenize_ordered(text)
+            document_bigrams = cls.ngrams(document_token_list, ngram_size=2)
+            document_trigrams = cls.ngrams(document_token_list, ngram_size=3)
+            trigram_count = len(document_trigrams & relevance_trigrams)
+            bigram_count = len(document_bigrams & relevance_bigrams)
             overlap_count = len(document_tokens & relevance_tokens)
             word_count = len(cls.TOKEN_PATTERN.findall(text))
-            score = (-overlap_count, word_count, len(text), original_index)
+            score = (-trigram_count, -bigram_count, -overlap_count, word_count, len(text), original_index)
             scored_records.append((score, record))
 
         scored_records.sort(key=lambda item: item[0])
@@ -72,7 +82,7 @@ class DocumentRelevanceSorter:
 
     @classmethod
     def overlap_count(cls, text: str, *, label: str, terms: list[str]) -> int:
-        relevance_tokens = cls.build_relevance_tokens(label, terms[:4])
+        relevance_tokens = cls.build_relevance_tokens(label, terms)
         if not relevance_tokens:
             return 0
         return len(cls.tokenize(text) & relevance_tokens)
@@ -85,9 +95,28 @@ class DocumentRelevanceSorter:
         return tokens
 
     @classmethod
-    def tokenize(cls, text: str) -> set[str]:
+    def build_relevance_ngrams(cls, label: str, terms: list[str], *, ngram_size: int) -> set[str]:
+        ngrams: set[str] = set()
+        for value in [label, *terms]:
+            ngrams.update(cls.ngrams(cls.tokenize_ordered(str(value or "")), ngram_size=ngram_size))
+        return ngrams
+
+    @staticmethod
+    def ngrams(tokens: list[str], *, ngram_size: int) -> set[str]:
+        size = max(1, int(ngram_size))
         return {
+            " ".join(tokens[index:index + size])
+            for index in range(0, len(tokens) - size + 1)
+        }
+
+    @classmethod
+    def tokenize(cls, text: str) -> set[str]:
+        return set(cls.tokenize_ordered(text))
+
+    @classmethod
+    def tokenize_ordered(cls, text: str) -> list[str]:
+        return [
             token
             for token in cls.TOKEN_PATTERN.findall(str(text or "").casefold())
             if len(token) > 2 and token not in cls.STOPWORDS
-        }
+        ]

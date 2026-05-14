@@ -79,10 +79,12 @@ class TopicGroupAssemblyService:
             grouped_rows = [document for _node_index, document in grouped_entries]
             grouped_texts = [document.text for document in grouped_rows]
             explicit_group = explicit_groups.get(group_key, TopicModelGroupDefinition())
+            term_counts = self.keyword_service.top_term_counts(grouped_texts, top_n=self.config.top_terms_per_group)
             terms = [str(term) for term in explicit_group.terms if term.strip()]
             terms = self.keyword_service.sanitize_terms(terms, top_n=self.config.top_terms_per_group)
             if not terms:
-                terms = self.keyword_service.top_terms(grouped_texts, top_n=self.config.top_terms_per_group)
+                terms = [term for term, _count in term_counts]
+            term_strengths = self._build_term_strengths(terms=terms, term_counts=term_counts)
             ordered_grouped_entries = self._order_documents_by_representativeness(
                 grouped_entries,
                 terms=terms,
@@ -119,6 +121,7 @@ class TopicGroupAssemblyService:
                     share=round(len(grouped_rows) / total_documents, 4),
                     total_documents=total_documents,
                     terms=list(terms),
+                    term_strengths=term_strengths,
                     examples=examples,
                     is_noise=is_noise,
                     documents=[
@@ -133,6 +136,18 @@ class TopicGroupAssemblyService:
             )
 
         return groups
+
+    @staticmethod
+    def _build_term_strengths(*, terms: list[str], term_counts: list[tuple[str, int]]) -> dict[str, float]:
+        counts_by_term = {term: int(count) for term, count in term_counts}
+        strongest_count = max([counts_by_term.get(term, 0) for term in terms] or [0])
+        if strongest_count <= 0:
+            return {}
+        return {
+            term: round(counts_by_term.get(term, 0) / strongest_count, 4)
+            for term in terms
+            if counts_by_term.get(term, 0) > 0
+        }
 
     @classmethod
     def order_group_outputs_by_label_relevance(cls, groups: list[AnalysisGroupRecord]) -> None:
@@ -184,9 +199,9 @@ class TopicGroupAssemblyService:
             weighted_degree, neighbor_count = edge_scores.get(int(node_index), (0.0, 0))
             term_score = cls._score_term_evidence(document.text or "", weighted_patterns)
             score = (
+                *term_score,
                 round(float(weighted_degree), 6),
                 int(neighbor_count),
-                *term_score,
                 -original_index,
             )
             scored_documents.append((score, (node_index, document)))

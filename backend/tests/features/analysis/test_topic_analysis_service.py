@@ -468,7 +468,7 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(terms, ["curriculum", "search", "twinkl", "resources"])
+        self.assertEqual(terms, ["curriculum", "search"])
 
     def test_top_ngrams_remove_stopwords_before_building_ngrams(self) -> None:
         service = TopicAnalysisKeywordService()
@@ -482,7 +482,7 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
             top_n=10,
         )
 
-        self.assertEqual([item["term"] for item in ngrams], ["twinkl", "resources", "classroom"])
+        self.assertEqual([item["term"] for item in ngrams], ["classroom"])
 
     def test_top_terms_drop_two_letter_tokens_during_label_cleanup(self) -> None:
         service = TopicAnalysisKeywordService()
@@ -1317,9 +1317,9 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         dataframe = pd.DataFrame(
             {
                 "verbatim": [
-                    "Need more science resources",
-                    "More science resources help",
-                    "Need more maths resources",
+                    "Need more science lessons",
+                    "More science lessons help",
+                    "Need more maths lessons",
                 ],
             }
         )
@@ -1333,14 +1333,14 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         )
 
         bigram_items = result.ngram_buckets[1].items
-        matching_item = next(item for item in bigram_items if item.term == "science resources")
+        matching_item = next(item for item in bigram_items if item.term == "science lessons")
         self.assertEqual(matching_item.count, 2)
         self.assertEqual(matching_item.document_count, 2)
         self.assertEqual(
             [{"row_number": d.row_number, "text": d.text} for d in matching_item.documents],
             [
-                {"row_number": 1, "text": "Need more science resources"},
-                {"row_number": 2, "text": "More science resources help"},
+                {"row_number": 1, "text": "Need more science lessons"},
+                {"row_number": 2, "text": "More science lessons help"},
             ],
         )
 
@@ -1515,8 +1515,8 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             {
                 "verbatim": [
                     "General feedback about the platform",
-                    "Need more science resources and maths resources",
-                    "Resources should include lesson plans and classroom materials",
+                    "Science science worksheets and maths science",
+                    "Science should include lesson plans and classroom materials",
                     "The login screen is confusing",
                 ]
             }
@@ -1531,7 +1531,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         )
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.groups[0].terms[0], "resources")
+        self.assertEqual(result.groups[0].terms[0], "science")
         self.assertEqual(
             [document.row_number for document in result.groups[0].documents[:2]],
             [1, 2],
@@ -1561,7 +1561,7 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(
             [document.row_number for document in result.groups[0].documents],
-            [2, 3, 4, 1],
+            [3, 2, 4, 1],
         )
 
     def test_run_community_orders_documents_by_label_and_top_term_overlap_then_shorter_text(self) -> None:
@@ -1591,11 +1591,11 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(
             [document.row_number for document in result.groups[0].documents],
-            [2, 1, 3, 4],
+            [1, 2, 3, 4],
         )
         self.assertEqual(
             [example.row_number for example in result.groups[0].examples],
-            [2, 1],
+            [1, 2],
         )
 
     def test_run_community_moves_off_topic_documents_to_noise(self) -> None:
@@ -1720,9 +1720,75 @@ class TopicAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(len(result.groups), 1)
         self.assertEqual(result.groups[0].label, "Search And Curriculum Issues")
         self.assertEqual(result.groups[0].count, 4)
-        self.assertEqual([document.row_number for document in result.groups[0].documents], [1, 2, 3, 4])
+        self.assertEqual([document.row_number for document in result.groups[0].documents], [4, 1, 2, 3])
         self.assertEqual({point.group_id for point in result.scatter_points}, {"0"})
         self.assertEqual({point.group_label for point in result.scatter_points}, {"Search And Curriculum Issues"})
+
+    def test_run_community_merges_smaller_cluster_with_same_two_strongest_terms(self) -> None:
+        service = self._build_service(
+            community_detection_service=_DuplicateLabelCommunityDetectionService(),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Easy simple platform",
+                    "Easy simple login",
+                    "Simple easy dashboard",
+                    "Simple easy navigation",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(len(result.groups), 1)
+        self.assertEqual(result.groups[0].count, 4)
+        self.assertEqual(result.groups[0].terms[:2], ["easy", "simple"])
+        self.assertEqual(result.groups[0].term_strengths["easy"], 1.0)
+        self.assertEqual(result.groups[0].term_strengths["simple"], 1.0)
+        self.assertEqual({point.group_id for point in result.scatter_points}, {"0"})
+
+    def test_run_community_merges_labels_that_share_bigram_or_trigram(self) -> None:
+        service = self._build_service(
+            community_detection_service=_DuplicateLabelCommunityDetectionService(),
+            ai_label_service=_FakeAiLabelService(
+                {
+                    "0": "Subscription Cost Too Expensive",
+                    "1": "Subscription Cost Unaffordable",
+                }
+            ),
+        )
+        dataframe = pd.DataFrame(
+            {
+                "verbatim": [
+                    "Subscription cost is too expensive",
+                    "Annual subscription cost is high",
+                    "Cannot afford subscription cost",
+                    "Subscription cost is unaffordable",
+                ]
+            }
+        )
+
+        result = service.run(
+            result_id="abc123",
+            dataframe=dataframe,
+            model_key=AnalysisModelKey.COMMUNITY,
+            text_column_name="verbatim",
+            available_verbatim_columns=["verbatim"],
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(len(result.groups), 1)
+        self.assertEqual(result.groups[0].label, "Subscription Cost Too Expensive")
+        self.assertEqual(result.groups[0].count, 4)
+        self.assertEqual({point.group_id for point in result.scatter_points}, {"0"})
 
     def test_run_keeps_heuristic_labels_when_ai_labeling_fails(self) -> None:
         service = self._build_service(

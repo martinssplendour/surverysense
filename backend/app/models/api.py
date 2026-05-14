@@ -114,6 +114,7 @@ class AnalysisGroupModel(BaseModel):
     count: int
     share: float
     terms: list[str] = Field(default_factory=list)
+    term_strengths: dict[str, float] = Field(default_factory=dict)
     examples: list[AnalysisExampleModel] = Field(default_factory=list)
     is_noise: bool = False
 
