@@ -27,7 +27,6 @@ The app is designed for small-team internal use. It runs on a single Render web 
 |-- backend/     FastAPI app, analysis pipeline, auth, export logic
 |-- frontend/    HTML, CSS, and browser-side JS
 |-- scripts/     local repo maintenance and smoke-test helpers
-|-- render.yaml  Render deployment config
 `-- .python-version
 ```
 
@@ -102,14 +101,14 @@ TOPIC_COMMUNITY_MUTUAL_NEIGHBORS=false
 TOPIC_AI_LABELING_ENABLED=true
 TOPIC_AI_LABELING_MODEL=gemini-2.5-pro
 TOPIC_AI_LABELING_TIMEOUT_SECONDS=30
-TOPIC_AI_LABELING_MAX_GROUPS=15
+TOPIC_AI_LABELING_MAX_GROUPS=30
 TOPIC_AI_LABELING_BATCH_SIZE=5
 TOPIC_AI_LABELING_MAX_EXAMPLES=15
 TOPIC_AI_LABELING_MAX_TERMS=4
 TOPIC_AI_LABELING_MAX_CHARS_PER_EXAMPLE=220
 TOPIC_AI_LABELING_MAX_RETRIES=1
 TOPIC_AI_LABELING_RETRY_BASE_SECONDS=0.75
-TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=true
+TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=false
 RESULT_STORE_MAX_RESULTS=8
 RESULT_STORE_TTL_SECONDS=900
 RESULT_STORE_CLEANUP_INTERVAL_SECONDS=60
@@ -119,7 +118,7 @@ To use OpenAI embeddings as the primary provider, set `TOPIC_EMBEDDING_PROVIDER=
 
 AI topic labels use the tightest cluster responses plus capped term evidence. The default caps keep prompts focused: `TOPIC_AI_LABELING_MAX_EXAMPLES=15` and `TOPIC_AI_LABELING_MAX_TERMS=4`.
 
-When `TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=true`, the label creation phase makes one additional structured LLM call with generated labels and counts only. The response maps similar label ids to a canonical label, and the backend merges those topic groups before returning analysis results.
+Deterministic backend consolidation merges matching labels, shared label bigrams/trigrams, and smaller groups that share the same two strongest top terms. Keep `TOPIC_AI_LABELING_CONSOLIDATE_SIMILAR_LABELS=false` unless you explicitly want an extra LLM call to consolidate generated labels.
 
 Single-word verbatim responses are skipped before embeddings and clustering. This removes low-information rows such as `CVV`, `CCC`, or `hjhh`; it also removes valid one-word answers, so verbatim columns should contain sentence-style feedback for analysis.
 
@@ -186,19 +185,18 @@ Reports include:
 
 ## Render Deployment
 
-The repo includes `render.yaml`.
+Configure Render from the service dashboard using the environment variables above.
 
-Render build/start behavior:
+Recommended Render build/start behavior:
 
 ```bash
-build: cd backend && pip install -r requirements.txt && python -m nltk.downloader -d ./nltk_data stopwords
+build: cd backend && pip install -r requirements.txt
 start: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
 Important:
 
 - Python is pinned via `.python-version`
-- NLTK stopwords are downloaded during the Render build and exposed with `NLTK_DATA=./nltk_data`
 - Render should include the result-store, embedding, community, and AI-labeling env vars listed above when testing memory and label quality
 - topic embeddings use Gemini/OpenAI API providers by default, avoiding large model downloads during build
 - frontend assets are served by FastAPI from the top-level `frontend/` directory
