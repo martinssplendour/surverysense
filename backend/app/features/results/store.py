@@ -11,10 +11,10 @@ from uuid import uuid4
 
 import pandas as pd
 
-from app.core.constants import COMMUNITY_GROUP_COLUMN_NAME
 from app.features.analysis.topic_analysis_services.contracts import AnalysisRunResult
 from app.features.ingestion.cleaning_services import AnalysisReadyDatasetService
 from app.features.results.community_selection import build_community_analysis_selection
+from app.features.results.group_mapping import apply_group_mapping_column
 from app.features.results.metadata_filter import MetadataFilterDefinition, MetadataFilterService
 from app.features.results.models import (
     AnalysisGroupDocumentsPage,
@@ -25,6 +25,7 @@ from app.features.results.models import (
     StoredDatasetSelection,
     StoredResultDatasets,
 )
+from app.features.results.owner_index import ResultOwnerIndex
 from app.features.results.paging import ResultStorePagingService
 from app.features.results.snapshot import ResultStoreSnapshotService
 from app.models.enums import AnalysisModelKey, ColumnRole
@@ -57,8 +58,9 @@ class ResultStoreService:
         self._results: OrderedDict[str, StoredResultDatasets] = OrderedDict()
         self._analysis_snapshots: dict[str, StoredAnalysisSnapshot] = {}
         self._saved_at: dict[str, float] = {}
-        self._owner_result_ids: dict[str, str] = {}
-        self._result_owners: dict[str, str] = {}
+        self.owner_index = ResultOwnerIndex()
+        self._owner_result_ids = self.owner_index.owner_result_ids
+        self._result_owners = self.owner_index.result_owners
         self._lock = Lock()
         self.snapshot_service = ResultStoreSnapshotService()
         self.paging_service = ResultStorePagingService()
@@ -97,14 +99,12 @@ class ResultStoreService:
         with self._lock:
             self._purge_expired_locked()
             if normalized_owner_key:
-                previous_result_id = self._owner_result_ids.get(normalized_owner_key)
+                previous_result_id = self.owner_index.get_result_id(normalized_owner_key)
                 if previous_result_id:
                     self._delete_locked(previous_result_id)
             self._results[result_id] = stored
             self._saved_at[result_id] = self._clock()
-            if normalized_owner_key:
-                self._owner_result_ids[normalized_owner_key] = result_id
-                self._result_owners[result_id] = normalized_owner_key
+            self.owner_index.remember(owner_key=normalized_owner_key, result_id=result_id)
             self._results.move_to_end(result_id)
             # OrderedDict with last=False pops the oldest (first-inserted) entry.
             while len(self._results) > self.max_results:
@@ -430,13 +430,11 @@ class ResultStoreService:
         return removed
 
     def _forget_owner_locked(self, result_id: str) -> None:
-        owner_key = self._result_owners.pop(result_id, None)
-        if owner_key and self._owner_result_ids.get(owner_key) == result_id:
-            self._owner_result_ids.pop(owner_key, None)
+        self.owner_index.forget_result(result_id)
 
     @staticmethod
     def _normalize_owner_key(owner_key: str | None) -> str:
-        return str(owner_key or "").strip().casefold()
+        return ResultOwnerIndex.normalize_owner_key(owner_key)
 
     @staticmethod
     def _apply_group_mapping_column(
@@ -444,22 +442,7 @@ class ResultStoreService:
         *,
         analysis_result: AnalysisRunResult,
     ) -> None:
-        if analysis_result.model_key != AnalysisModelKey.COMMUNITY:
-            return
-
-        row_to_group_label: dict[int, str] = {}
-        for group in analysis_result.groups:
-            label = str(group.label or f"Community {group.group_id}").strip()
-            for document in group.documents:
-                if int(document.row_number) > 0:
-                    row_to_group_label[int(document.row_number)] = label
-
-        for dataframe in (stored.transformed_df, stored.analysis_df):
-            dataframe[COMMUNITY_GROUP_COLUMN_NAME] = ""
-            for row_number, label in row_to_group_label.items():
-                row_index = row_number - 1
-                if row_index in dataframe.index:
-                    dataframe.at[row_index, COMMUNITY_GROUP_COLUMN_NAME] = label
+        apply_group_mapping_column(stored, analysis_result=analysis_result)
 
     def _build_community_analysis_selection(
         self,
