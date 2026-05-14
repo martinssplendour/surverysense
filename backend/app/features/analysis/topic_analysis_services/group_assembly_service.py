@@ -214,15 +214,16 @@ class TopicGroupAssemblyService:
         cls,
         text: str,
         weighted_patterns: list[tuple[int, str, re.Pattern[str]]],
-    ) -> tuple[int, int, int, int, int, float, int]:
+    ) -> tuple[int, int, int, int, int, int, int, int]:
         if not weighted_patterns:
-            return (0, 0, 0, 0, 0, 0.0, 0)
+            return (0, 0, 0, 0, 0, 0, 0, 0)
 
         total_matches = 0
         unique_hits = 0
         weighted_hits = 0
         best_term_index = len(weighted_patterns)
         first_position = len(text) + 1
+        word_count = len(re.findall(r"\b[\w']+\b", str(text or "")))
         for index, _term, pattern in weighted_patterns:
             matches = list(pattern.finditer(text))
             if not matches:
@@ -235,16 +236,16 @@ class TopicGroupAssemblyService:
             first_position = min(first_position, matches[0].start())
 
         if not unique_hits:
-            return (0, 0, 0, 0, 0, 0.0, 0)
+            return (0, 0, 0, 0, 0, 0, 0, 0)
 
-        length_target = abs(len(text) - 220)
         return (
             1,
-            -best_term_index,
-            weighted_hits,
             unique_hits,
             total_matches,
-            -float(length_target),
+            weighted_hits,
+            -word_count,
+            -len(text),
+            -best_term_index,
             -first_position,
         )
 

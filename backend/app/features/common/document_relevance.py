@@ -57,24 +57,34 @@ class DocumentRelevanceSorter:
         label: str,
         terms: list[str],
     ) -> list[TextRecordT]:
-        relevance_tokens = cls.build_relevance_tokens(label, terms)
-        relevance_bigrams = cls.build_relevance_ngrams(label, terms, ngram_size=2)
-        relevance_trigrams = cls.build_relevance_ngrams(label, terms, ngram_size=3)
-        if not records or not (relevance_tokens or relevance_bigrams or relevance_trigrams):
+        label_tokens = cls.tokenize(str(label or ""))
+        label_bigrams = cls.ngrams(cls.tokenize_ordered(str(label or "")), ngram_size=2)
+        label_trigrams = cls.ngrams(cls.tokenize_ordered(str(label or "")), ngram_size=3)
+        term_tokens = cls.build_relevance_tokens("", terms)
+        if not records or not (label_tokens or label_bigrams or label_trigrams or term_tokens):
             return list(records)
 
-        scored_records: list[tuple[tuple[int, int, int, int, int, int], TextRecordT]] = []
+        scored_records: list[tuple[tuple[int, int, int, int, int, int, int], TextRecordT]] = []
         for original_index, record in enumerate(records):
             text = str(record.text or "")
             document_tokens = cls.tokenize(text)
             document_token_list = cls.tokenize_ordered(text)
             document_bigrams = cls.ngrams(document_token_list, ngram_size=2)
             document_trigrams = cls.ngrams(document_token_list, ngram_size=3)
-            trigram_count = len(document_trigrams & relevance_trigrams)
-            bigram_count = len(document_bigrams & relevance_bigrams)
-            overlap_count = len(document_tokens & relevance_tokens)
+            label_trigram_count = len(document_trigrams & label_trigrams)
+            label_bigram_count = len(document_bigrams & label_bigrams)
+            label_word_count = len(document_tokens & label_tokens)
+            term_word_count = len(document_tokens & term_tokens)
             word_count = len(cls.TOKEN_PATTERN.findall(text))
-            score = (-trigram_count, -bigram_count, -overlap_count, word_count, len(text), original_index)
+            score = (
+                -label_trigram_count,
+                -label_bigram_count,
+                -label_word_count,
+                -term_word_count,
+                word_count,
+                len(text),
+                original_index,
+            )
             scored_records.append((score, record))
 
         scored_records.sort(key=lambda item: item[0])

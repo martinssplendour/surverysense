@@ -49,6 +49,7 @@ Thumbs.db
 
 # Local analysis/report artifacts
 junk/
+deletefolder/
 .qodo/
 .review-friday/
 .smoke-uvicorn-*.log

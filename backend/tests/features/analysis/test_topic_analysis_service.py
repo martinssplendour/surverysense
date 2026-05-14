@@ -9,6 +9,8 @@ from app.features.analysis.language_normalization_service import EnglishTranslat
 from app.features.analysis.topic_analysis_services import (
     CommunityDetectionAnalysisService,
     NgramAnalysisService,
+    AnalysisDocumentRecord,
+    PreparedDocument,
     RepresentativeExampleSelectionService,
     SentenceEmbeddingService,
     TopicAnalysisConfig,
@@ -20,7 +22,9 @@ from app.features.analysis.topic_analysis_services import (
     TopicModelRunResult,
 )
 from app.features.analysis.topic_analysis_services.execution import TopicModelExecutionService
+from app.features.analysis.topic_analysis_services.group_assembly_service import TopicGroupAssemblyService
 from app.features.analysis.topic_label_ai_service import TopicAiLabelingBatchResult
+from app.features.common.document_relevance import DocumentRelevanceSorter
 from app.models.enums import AnalysisModelKey
 
 
@@ -1536,6 +1540,63 @@ class TopicAnalysisServiceTests(unittest.TestCase):
             [document.row_number for document in result.groups[0].documents[:2]],
             [1, 2],
         )
+
+    def test_pre_label_ranking_prefers_shortest_sentence_with_most_top_terms(self) -> None:
+        documents = [
+            (
+                0,
+                PreparedDocument(
+                    row_number=1,
+                    text="Science maths worksheets with extra detail that makes this sentence much longer",
+                    source_text="Science maths worksheets with extra detail that makes this sentence much longer",
+                    original_text="Science maths worksheets with extra detail that makes this sentence much longer",
+                ),
+            ),
+            (
+                1,
+                PreparedDocument(
+                    row_number=2,
+                    text="Science maths worksheets",
+                    source_text="Science maths worksheets",
+                    original_text="Science maths worksheets",
+                ),
+            ),
+            (
+                2,
+                PreparedDocument(
+                    row_number=3,
+                    text="Science worksheets",
+                    source_text="Science worksheets",
+                    original_text="Science worksheets",
+                ),
+            ),
+        ]
+
+        ordered = TopicGroupAssemblyService._order_documents_by_representativeness(
+            documents,
+            terms=["science", "maths", "worksheets"],
+            edge_scores={},
+        )
+
+        self.assertEqual([document.row_number for _node_index, document in ordered], [2, 1, 3])
+
+    def test_post_label_ranking_prioritizes_label_ngrams_before_top_term_words(self) -> None:
+        records = [
+            AnalysisDocumentRecord(
+                row_number=1,
+                text="subscription annual price discount payment billing classroom worksheet planning",
+            ),
+            AnalysisDocumentRecord(row_number=2, text="login error"),
+            AnalysisDocumentRecord(row_number=3, text="login error problems keep happening"),
+        ]
+
+        ordered = DocumentRelevanceSorter.order_by_label_and_terms(
+            records,
+            label="Login Error Problems",
+            terms=["subscription", "annual", "price", "discount", "payment", "billing"],
+        )
+
+        self.assertEqual([record.row_number for record in ordered], [3, 2, 1])
 
     def test_run_community_orders_group_documents_by_label_and_terms_before_graph_representativeness(self) -> None:
         service = self._build_service(community_detection_service=_CentralCommunityDetectionService())
