@@ -1,5 +1,5 @@
 export const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
-export const RESULT_STORAGE_TTL_MS = 2 * 60 * 60 * 1000;
+export const RESULT_STORAGE_TTL_MS = 3 * 60 * 60 * 1000;
 export const ROW_PAGE_SIZE = 250;
 export const INITIAL_VISIBLE_ROW_TARGET = 250;
 export const FULL_DATA_ROW_PAGE_SIZE = 50;

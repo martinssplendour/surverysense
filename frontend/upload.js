@@ -1,7 +1,7 @@
 // Handles CSV file selection, drag-and-drop, and upload submission on the upload page.
 (function () {
 const RESULT_STORAGE_KEY = "verbatim-app:last-upload-result";
-const RESULT_STORAGE_TTL_MS = 2 * 60 * 60 * 1000;
+const RESULT_STORAGE_TTL_MS = 3 * 60 * 60 * 1000;
 
 const state = {
     file: null,

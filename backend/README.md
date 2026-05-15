@@ -33,7 +33,7 @@ Uploaded datasets and analysis outputs are kept in process memory. The store is 
 
 ```bash
 RESULT_STORE_MAX_RESULTS=8
-RESULT_STORE_TTL_SECONDS=900
+RESULT_STORE_TTL_SECONDS=10800
 RESULT_STORE_CLEANUP_INTERVAL_SECONDS=60
 ```
 
