@@ -67,7 +67,7 @@ async function handleCredentialResponse(response) {
         if (!authResponse.ok) {
             throw new Error(payload.detail || "Login failed.");
         }
-        window.location.assign("/");
+        window.location.assign("/app");
     } catch (error) {
         const message = error instanceof Error ? error.message : "Login failed.";
         showStatus("error", message);

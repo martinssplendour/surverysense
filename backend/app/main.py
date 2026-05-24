@@ -19,7 +19,7 @@ from app.core.auth import get_authenticated_user
 from app.core.settings import get_settings
 
 PUBLIC_PATH_PREFIXES = ("/static", "/auth", "/health")
-PUBLIC_PATHS = {"/login"}
+PUBLIC_PATHS = {"/", "/login", "/robots.txt", "/sitemap.xml"}
 NO_CACHE_PATH_PREFIXES = ("/static",)
 NO_CACHE_PATHS = {"/", "/login"}
 
@@ -78,7 +78,7 @@ def create_app() -> FastAPI:
         result_store_service=services.result_store_service,
         result_store_cleanup_interval_seconds=settings.result_store_cleanup_interval_seconds,
     )
-    register_frontend_routes(app)
+    register_frontend_routes(app, settings=settings)
     return app
 
 

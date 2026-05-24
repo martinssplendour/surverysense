@@ -5,6 +5,7 @@
 @import url("./styles/02-layout.css") layer(layout);
 
 @import url("./styles/features/upload.css") layer(app-base);
+@import url("./styles/features/landing.css") layer(app-base);
 @import url("./styles/features/auth.css") layer(app-base);
 @import url("./styles/features/dashboard.css") layer(app-base);
 @import url("./styles/components/data-export-menu.css") layer(app-base);

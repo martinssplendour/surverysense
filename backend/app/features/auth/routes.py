@@ -86,6 +86,6 @@ def build_auth_router(
             # removes any result ids registered to this browser session.
             for result_id in session_result_ids:
                 result_store_service.delete(result_id)
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
     return router

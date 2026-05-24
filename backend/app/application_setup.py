@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -240,8 +242,49 @@ def register_startup_hooks(
                 pass
 
 
-def register_frontend_routes(app: FastAPI, *, frontend_dir: Path = FRONTEND_DIR) -> None:
+def register_frontend_routes(app: FastAPI, *, settings: Settings, frontend_dir: Path = FRONTEND_DIR) -> None:
+    def public_base_url(request: Request) -> str:
+        return settings.public_site_url or str(request.base_url).rstrip("/")
+
+    @app.get("/robots.txt", include_in_schema=False, response_class=PlainTextResponse)
+    async def robots_txt(request: Request) -> str:
+        base_url = public_base_url(request)
+        return "\n".join(
+            (
+                "User-agent: *",
+                "Allow: /",
+                f"Sitemap: {base_url}/sitemap.xml",
+                "",
+            )
+        )
+
+    @app.get("/sitemap.xml", include_in_schema=False, response_class=Response)
+    async def sitemap_xml(request: Request) -> Response:
+        base_url = public_base_url(request)
+        lastmod = datetime.now(UTC).date().isoformat()
+        public_paths = ("/",)
+        urls = "\n".join(
+            "  <url>"
+            f"<loc>{escape(base_url + path)}</loc>"
+            f"<lastmod>{lastmod}</lastmod>"
+            "<changefreq>weekly</changefreq>"
+            "<priority>1.0</priority>"
+            "</url>"
+            for path in public_paths
+        )
+        sitemap = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"{urls}\n"
+            "</urlset>\n"
+        )
+        return Response(content=sitemap, media_type="application/xml")
+
     @app.get("/", include_in_schema=False, response_model=None)
+    async def landing() -> FileResponse:
+        return FileResponse(frontend_dir / "landing.html")
+
+    @app.get("/app", include_in_schema=False, response_model=None)
     async def index(request: Request) -> FileResponse | RedirectResponse:
         if get_authenticated_user(request) is None:
             return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
@@ -250,7 +293,7 @@ def register_frontend_routes(app: FastAPI, *, frontend_dir: Path = FRONTEND_DIR)
     @app.get("/login", include_in_schema=False, response_model=None)
     async def login(request: Request) -> FileResponse | RedirectResponse:
         if get_authenticated_user(request) is not None:
-            return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+            return RedirectResponse(url="/app", status_code=status.HTTP_303_SEE_OTHER)
         return FileResponse(frontend_dir / "login.html")
 
     @app.get("/health", tags=["health"])

@@ -55,6 +55,8 @@ Open:
 http://127.0.0.1:8000
 ```
 
+The public landing page is served at `/`; the authenticated workspace is served at `/app`.
+
 ## Environment Variables
 
 Copy `backend/.env.example` to `backend/.env`.
@@ -64,6 +66,7 @@ Minimum useful setup:
 ```bash
 SESSION_SECRET=change-me-to-a-random-secret
 SESSION_HTTPS_ONLY=false
+PUBLIC_SITE_URL=https://splendoure.com
 GOOGLE_OAUTH_CLIENT_ID=...
 GOOGLE_OAUTH_ALLOWED_DOMAINS=twinkl.co.uk,twinkl.com
 ```

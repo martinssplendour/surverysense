@@ -10,9 +10,19 @@ class AuthRedirectTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(create_app())
 
-    def test_root_redirects_to_login_when_not_authenticated(self) -> None:
+    def test_root_serves_public_landing_page(self) -> None:
         response = self.client.get(
             "/",
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Splendoure Verbatim", response.text)
+
+    def test_app_redirects_to_login_when_not_authenticated(self) -> None:
+        response = self.client.get(
+            "/app",
             headers={"accept": "text/html"},
             follow_redirects=False,
         )
@@ -38,6 +48,16 @@ class AuthRedirectTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+    def test_crawl_files_are_public(self) -> None:
+        robots_response = self.client.get("/robots.txt", follow_redirects=False)
+        sitemap_response = self.client.get("/sitemap.xml", follow_redirects=False)
+
+        self.assertEqual(robots_response.status_code, 200)
+        self.assertIn("Sitemap: https://splendoure.com/sitemap.xml", robots_response.text)
+        self.assertEqual(sitemap_response.status_code, 200)
+        self.assertIn("<loc>https://splendoure.com/</loc>", sitemap_response.text)
+        self.assertNotIn("<loc>https://splendoure.com/login</loc>", sitemap_response.text)
 
     def test_create_app_rejects_missing_session_secret(self) -> None:
         production_settings = Settings(app_env="production", session_secret="")

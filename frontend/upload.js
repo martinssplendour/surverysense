@@ -149,9 +149,9 @@ async function handleSubmit(event) {
             setBusyState(false);
             return;
         }
-        // Navigate to the root with ?handoff=1 so the results page knows this is a fresh upload,
+        // Navigate to the app with ?handoff=1 so the results page knows this is a fresh upload,
         // not a browser reload that should clear the stored result.
-        window.location.assign("/?handoff=1");
+        window.location.assign("/app?handoff=1");
     } catch (error) {
         const message = error instanceof Error ? error.message : "Processing failed.";
         showStatus("error", message);

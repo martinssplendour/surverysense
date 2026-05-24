@@ -33,6 +33,7 @@ def _parse_csv_env(name: str) -> tuple[str, ...]:
 class Settings:
     """All runtime configuration values, each read from an environment variable with a safe default."""
     app_env: str = os.getenv("APP_ENV", "development").strip().casefold() or "development"
+    public_site_url: str = os.getenv("PUBLIC_SITE_URL", "https://splendoure.com").strip().rstrip("/")
     ingest_sample_size: int = int(os.getenv("INGEST_SAMPLE_SIZE", "25"))
     architect_sample_size: int = int(os.getenv("ARCHITECT_SAMPLE_SIZE", "25"))
     row_limit: int = int(os.getenv("TRANSFORM_ROW_LIMIT", "5000"))
