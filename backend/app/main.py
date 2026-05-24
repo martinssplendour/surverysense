@@ -1,8 +1,7 @@
 """Application factory: wires together all services and mounts the FastAPI app."""
 from __future__ import annotations
 
-from fastapi import FastAPI, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
@@ -15,35 +14,10 @@ from app.application_setup import (
     register_startup_hooks,
     validate_runtime_settings,
 )
-from app.core.auth import get_authenticated_user
 from app.core.settings import get_settings
 
-PUBLIC_PATH_PREFIXES = ("/static", "/auth", "/health")
-PUBLIC_PATHS = {"/", "/login", "/robots.txt", "/sitemap.xml"}
 NO_CACHE_PATH_PREFIXES = ("/static",)
 NO_CACHE_PATHS = {"/", "/login"}
-
-
-def _should_redirect_to_login(request: Request) -> bool:
-    path = request.url.path
-    if path in PUBLIC_PATHS:
-        return False
-    if any(path.startswith(prefix) for prefix in PUBLIC_PATH_PREFIXES):
-        return False
-    if request.method not in {"GET", "HEAD"}:
-        return False
-
-    accept_header = request.headers.get("accept", "")
-    return "text/html" in accept_header
-
-
-class AuthRedirectMiddleware(BaseHTTPMiddleware):
-    """Redirects unauthenticated browser GET requests to the login page."""
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if get_authenticated_user(request) is None and _should_redirect_to_login(request):
-            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-        return await call_next(request)
 
 
 class FrontendCacheControlMiddleware(BaseHTTPMiddleware):
@@ -65,9 +39,6 @@ def create_app() -> FastAPI:
     services = build_application_services(settings)
 
     app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
-    # Auth redirect runs outermost so browser page requests bounce to /login before
-    # any view logic tries to serve HTML to an unauthenticated user.
-    app.add_middleware(AuthRedirectMiddleware)
     app.add_middleware(FrontendCacheControlMiddleware)
     configure_session_middleware(app, settings)
     register_application_routers(app, settings=settings, services=services)

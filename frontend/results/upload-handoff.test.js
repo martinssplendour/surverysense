@@ -171,7 +171,7 @@ describe("upload handoff", () => {
         const stored = JSON.parse(harness.storage.get("verbatim-app:last-upload-result"));
         expect(stored.payload).toEqual(harness.uploadPayload);
         expect(stored.expires_at).toBeGreaterThan(Date.now());
-        expect(harness.locationAssign).toHaveBeenCalledWith("/?handoff=1");
+        expect(harness.locationAssign).toHaveBeenCalledWith("/app?handoff=1");
     });
 
     it("uses the same navigation handoff path every time", async () => {
@@ -186,6 +186,6 @@ describe("upload handoff", () => {
             preventDefault() {},
         });
 
-        expect(harness.locationAssign).toHaveBeenCalledWith("/?handoff=1");
+        expect(harness.locationAssign).toHaveBeenCalledWith("/app?handoff=1");
     });
 });

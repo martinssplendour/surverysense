@@ -30,15 +30,15 @@ class AuthRedirectTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers.get("location"), "/login")
 
-    def test_results_redirects_to_login_when_not_authenticated(self) -> None:
+    def test_unknown_page_loads_do_not_redirect_to_login(self) -> None:
         response = self.client.get(
             "/results",
             headers={"accept": "text/html"},
             follow_redirects=False,
         )
 
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(response.headers.get("location"), "/login")
+        self.assertEqual(response.status_code, 404)
+        self.assertIsNone(response.headers.get("location"))
 
     def test_api_request_stays_unauthorized_instead_of_html_redirect(self) -> None:
         response = self.client.get(
