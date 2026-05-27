@@ -56,7 +56,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "response_id": "resp-001",
                     "survey_title": "Our promise to you",
                     "question_order_number": "25",
-                    "main_title": "What more could Twinkl do to save you time?",
+                    "main_title": "What more could SurveySense do to save you time?",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "More ready-made packs",
@@ -68,7 +68,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "response_id": "resp-001",
                     "survey_title": "Our promise to you",
                     "question_order_number": "366",
-                    "main_title": "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                    "main_title": "Thanks, we'd love to know more about why you'd recommend SurveySense",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "It saves me planning time.",
@@ -83,7 +83,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "main_title": "Being effective and created by experts",
                     "full_title": "ABCmouse: Being effective and created by experts",
                     "sub_title": "",
-                    "answer_value": "Better than Twinkl",
+                    "answer_value": "Better than SurveySense",
                     "answer_number": "1",
                     "user_id": "1001",
                     "country": "United Kingdom",
@@ -92,7 +92,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "response_id": "resp-002",
                     "survey_title": "Our promise to you",
                     "question_order_number": "25",
-                    "main_title": "What more could Twinkl do to save you time?",
+                    "main_title": "What more could SurveySense do to save you time?",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "Bundle the best resources together.",
@@ -104,7 +104,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "response_id": "resp-002",
                     "survey_title": "Our promise to you",
                     "question_order_number": "366",
-                    "main_title": "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                    "main_title": "Thanks, we'd love to know more about why you'd recommend SurveySense",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "The resources are easy to adapt.",
@@ -119,7 +119,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "main_title": "Being effective and created by experts",
                     "full_title": "ABCmouse: Being effective and created by experts",
                     "sub_title": "",
-                    "answer_value": "The same as Twinkl",
+                    "answer_value": "The same as SurveySense",
                     "answer_number": "1",
                     "user_id": "1002",
                     "country": "United States",
@@ -128,7 +128,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "response_id": "resp-003",
                     "survey_title": "Our promise to you",
                     "question_order_number": "25",
-                    "main_title": "What more could Twinkl do to save you time?",
+                    "main_title": "What more could SurveySense do to save you time?",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "Create clearer curriculum pathways.",
@@ -140,7 +140,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "response_id": "resp-003",
                     "survey_title": "Our promise to you",
                     "question_order_number": "366",
-                    "main_title": "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                    "main_title": "Thanks, we'd love to know more about why you'd recommend SurveySense",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "It gives me strong lesson starting points.",
@@ -155,7 +155,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                     "main_title": "Being effective and created by experts",
                     "full_title": "ABCmouse: Being effective and created by experts",
                     "sub_title": "",
-                    "answer_value": "Less well than Twinkl",
+                    "answer_value": "Less well than SurveySense",
                     "answer_number": "1",
                     "user_id": "1003",
                     "country": "Canada",
@@ -181,14 +181,14 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
             metadata_columns=metadata_columns,
         )
 
-        self.assertIn("What more could Twinkl do to save you time?", transformed.columns.tolist())
+        self.assertIn("What more could SurveySense do to save you time?", transformed.columns.tolist())
         self.assertIn(
-            "Thanks, we'd love to know more about why you'd recommend Twinkl",
+            "Thanks, we'd love to know more about why you'd recommend SurveySense",
             transformed.columns.tolist(),
         )
-        self.assertIn("What more could Twinkl do to save you time?", selected_columns)
+        self.assertIn("What more could SurveySense do to save you time?", selected_columns)
         self.assertIn(
-            "Thanks, we'd love to know more about why you'd recommend Twinkl",
+            "Thanks, we'd love to know more about why you'd recommend SurveySense",
             selected_columns,
         )
         self.assertNotIn("Our promise to you", transformed.columns.tolist())
@@ -219,7 +219,7 @@ class ManifestArchitectServiceHeuristicTests(unittest.TestCase):
                 {
                     "response_id": "019bf585-6242-f925-950a-8a940b2d4198",
                     "survey_month": "2026-02",
-                    "main_title": "How can Twinkl better equip you with the skills and confidence you need to support your child's learning journey?",
+                    "main_title": "How can SurveySense better equip you with the skills and confidence you need to support your child's learning journey?",
                     "full_title": "",
                     "sub_title": "",
                     "answer_value": "Add more short guides that show how to use each activity.",

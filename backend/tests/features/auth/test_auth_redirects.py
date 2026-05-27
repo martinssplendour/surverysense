@@ -18,7 +18,7 @@ class AuthRedirectTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Splendoure Verbatim", response.text)
+        self.assertIn("SurveySense", response.text)
 
     def test_app_redirects_to_login_when_not_authenticated(self) -> None:
         response = self.client.get(
@@ -54,10 +54,10 @@ class AuthRedirectTests(unittest.TestCase):
         sitemap_response = self.client.get("/sitemap.xml", follow_redirects=False)
 
         self.assertEqual(robots_response.status_code, 200)
-        self.assertIn("Sitemap: https://splendoure.com/sitemap.xml", robots_response.text)
+        self.assertIn("Sitemap: http://testserver/sitemap.xml", robots_response.text)
         self.assertEqual(sitemap_response.status_code, 200)
-        self.assertIn("<loc>https://splendoure.com/</loc>", sitemap_response.text)
-        self.assertNotIn("<loc>https://splendoure.com/login</loc>", sitemap_response.text)
+        self.assertIn("<loc>http://testserver/</loc>", sitemap_response.text)
+        self.assertNotIn("<loc>http://testserver/login</loc>", sitemap_response.text)
 
     def test_create_app_rejects_missing_session_secret(self) -> None:
         production_settings = Settings(app_env="production", session_secret="")

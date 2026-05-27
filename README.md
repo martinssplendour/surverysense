@@ -1,8 +1,8 @@
-# Verbatim App
+# SurveySense
 
-Internal verbatim-analysis app for uploading CSV survey data, selecting freeform text columns, running topic modelling, and exporting stakeholder-ready reports.
+AI survey-analysis app for uploading CSV survey data, selecting free-text response columns, running topic modelling, and exporting stakeholder-ready reports.
 
-The app is designed for small-team internal use. It runs on a single Render web service and does not use durable server-side storage for uploaded results.
+SurveySense is designed for lightweight qualitative research workflows. It can run on a single Render web service and does not use durable server-side storage for uploaded results.
 
 ## What It Does
 
@@ -66,9 +66,9 @@ Minimum useful setup:
 ```bash
 SESSION_SECRET=change-me-to-a-random-secret
 SESSION_HTTPS_ONLY=false
-PUBLIC_SITE_URL=https://splendoure.com
+PUBLIC_SITE_URL=
 GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_ALLOWED_DOMAINS=twinkl.co.uk,twinkl.com
+GOOGLE_OAUTH_ALLOWED_DOMAINS=example.com
 ```
 
 `SESSION_SECRET` is required in every environment; the app no longer falls back to an in-code default.
@@ -135,7 +135,7 @@ SESSION_IDLE_TIMEOUT_SECONDS=1800
 
 ## Auth
 
-The app uses Google OAuth and only allows users from configured Twinkl domains.
+The app uses Google OAuth and only allows users from configured allowed domains.
 
 Current auth model:
 
@@ -253,7 +253,7 @@ The repo ignores local caches, generated reports, temporary review folders, logs
 - very large files can still take time because embeddings are generated through hosted APIs before community detection runs
 - uploaded results are not durable across app restarts
 - only the active session result is retained for the signed browser session; replacing an upload purges previous session result ids
-- the app is intended for a small internal user group, not large-scale concurrent analysis
+- the app is intended for small-team use, not large-scale concurrent analysis
 
 ## Current User Flow
 

@@ -16,7 +16,7 @@ export function persistCurrentResultPayload() {
         sessionStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(wrapStoredPayload(response)));
     } catch (error) {
         console.warn(
-            "[Verbatim App] Failed to update the cached processed result; the current screen still works, but a later restore may be out of date.",
+            "[SurveySense] Failed to update the cached processed result; the current screen still works, but a later restore may be out of date.",
             error,
         );
     }

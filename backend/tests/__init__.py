@@ -1,4 +1,4 @@
-"""Unit tests for the Verbatim App backend."""
+"""Unit tests for the SurveySense backend."""
 from __future__ import annotations
 
 import os

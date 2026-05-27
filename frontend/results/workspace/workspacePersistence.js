@@ -57,7 +57,7 @@ export function persistCurrentPayload() {
 }
 
 export function handleMissingResultState(message = "The processed result is no longer available. Upload the file again.") {
-    console.warn(`[Verbatim App] Result state reset required. ${message}`);
+    console.warn(`[SurveySense] Result state reset required. ${message}`);
     resetToUploadState();
 }
 
@@ -117,7 +117,7 @@ async function deleteServerResult(resultId) {
             method: "DELETE",
         });
     } catch (error) {
-        console.warn("[Verbatim App] Failed to delete server-side result during workspace reset.", error);
+        console.warn("[SurveySense] Failed to delete server-side result during workspace reset.", error);
     }
 }
 

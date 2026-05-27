@@ -135,7 +135,7 @@ def _load_standard_stopwords() -> frozenset[str]:
             "need",
             "resource",
             "resources",
-            "twinkl",
+            "surveysense",
             "using",
         }
     )

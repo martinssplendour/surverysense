@@ -33,7 +33,7 @@ def _parse_csv_env(name: str) -> tuple[str, ...]:
 class Settings:
     """All runtime configuration values, each read from an environment variable with a safe default."""
     app_env: str = os.getenv("APP_ENV", "development").strip().casefold() or "development"
-    public_site_url: str = os.getenv("PUBLIC_SITE_URL", "https://splendoure.com").strip().rstrip("/")
+    public_site_url: str = os.getenv("PUBLIC_SITE_URL", "").strip().rstrip("/")
     ingest_sample_size: int = int(os.getenv("INGEST_SAMPLE_SIZE", "25"))
     architect_sample_size: int = int(os.getenv("ARCHITECT_SAMPLE_SIZE", "25"))
     row_limit: int = int(os.getenv("TRANSFORM_ROW_LIMIT", "5000"))
@@ -90,10 +90,7 @@ class Settings:
     google_oauth_redirect_uris: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_REDIRECT_URIS")
     google_oauth_javascript_origins: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_JAVASCRIPT_ORIGINS")
     google_oauth_client_json_path: str = os.getenv("GOOGLE_OAUTH_CLIENT_JSON_PATH", "").strip()
-    google_oauth_allowed_domains: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_ALLOWED_DOMAINS") or (
-        "twinkl.co.uk",
-        "twinkl.com",
-    )
+    google_oauth_allowed_domains: tuple[str, ...] = _parse_csv_env("GOOGLE_OAUTH_ALLOWED_DOMAINS") or ("example.com",)
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "").strip()
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
     gemini_temperature: float = float(os.getenv("GEMINI_TEMPERATURE", "0.1"))

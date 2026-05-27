@@ -64,7 +64,7 @@ export async function captureRenderedAnalysisCharts() {
                 };
             } catch (error) {
                 console.warn(
-                    `[Verbatim App] Failed to capture export image for chart ${index + 1}; the report will skip that chart.`,
+                    `[SurveySense] Failed to capture export image for chart ${index + 1}; the report will skip that chart.`,
                     error,
                 );
                 return null;
@@ -150,7 +150,7 @@ async function captureGeneratedNgramChart(plotly, bucket, definition, index) {
         };
     } catch (error) {
         console.warn(
-            `[Verbatim App] Failed to generate n-gram export chart ${index + 1}; the report will skip that chart.`,
+            `[SurveySense] Failed to generate n-gram export chart ${index + 1}; the report will skip that chart.`,
             error,
         );
         return null;
@@ -222,7 +222,7 @@ async function captureGeneratedGroupBarChart(plotly) {
             }),
         };
     } catch (error) {
-        console.warn("[Verbatim App] Failed to generate the export bar chart; the report will skip that chart.", error);
+        console.warn("[SurveySense] Failed to generate the export bar chart; the report will skip that chart.", error);
         return null;
     } finally {
         if (typeof plotly.purge === "function") {

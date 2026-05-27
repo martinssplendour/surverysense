@@ -89,7 +89,7 @@ class GeminiManifestDiagnosisService:
             "The downstream Builder is deterministic and index-driven. It will use only integer column indices from your manifest.\n"
             "Do not rely on header names at execution time. Use headers only as weak context while diagnosing the sample.\n\n"
             "Primary objective:\n"
-            "- This is a verbatim app.\n"
+            "- This is a survey text analytics app.\n"
             "- Identify the columns needed to produce a clean verbatim-ready dataframe.\n"
             "- If the file is vertical, the result should become one row per respondent or submission record.\n"
             "- In vertical files, repeated question rows must be consolidated so each respondent/submission has one answer per verbatim/question column.\n"

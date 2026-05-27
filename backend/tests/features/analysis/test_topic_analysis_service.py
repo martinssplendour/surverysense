@@ -466,7 +466,7 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
             [
                 "curriculum of",
                 "search the search",
-                "twinkl is twinkl",
+                "surveysense is surveysense",
                 "using resources",
                 "to",
             ]
@@ -479,8 +479,8 @@ class TopicAnalysisKeywordServiceTests(unittest.TestCase):
 
         ngrams = service.top_ngrams(
             [
-                "What I am looking for is more of the Twinkl resources in the classroom",
-                "I am using Twinkl in the classroom and of the resources",
+                "What I am looking for is more of the SurveySense resources in the classroom",
+                "I am using SurveySense in the classroom and of the resources",
             ],
             ngram_size=1,
             top_n=10,

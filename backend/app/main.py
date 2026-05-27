@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
     validate_runtime_settings(settings)
     services = build_application_services(settings)
 
-    app = FastAPI(title="Verbatim App Ingestion Engine", version="0.1.0")
+    app = FastAPI(title="SurveySense Ingestion Engine", version="0.1.0")
     app.add_middleware(FrontendCacheControlMiddleware)
     configure_session_middleware(app, settings)
     register_application_routers(app, settings=settings, services=services)

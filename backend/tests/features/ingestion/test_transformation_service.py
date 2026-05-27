@@ -173,9 +173,9 @@ class DataTransformationServiceVerticalTests(unittest.TestCase):
             ],
             columns=[
                 "Response ID",
-                "24.1: What three words best describe the frustrations of Twinkl?: Word 1",
-                "24.2: What three words best describe the frustrations of Twinkl?: Word 2",
-                "24.3: What three words best describe the frustrations of Twinkl?: Word 3",
+                "24.1: What three words best describe the frustrations of SurveySense?: Word 1",
+                "24.2: What three words best describe the frustrations of SurveySense?: Word 2",
+                "24.3: What three words best describe the frustrations of SurveySense?: Word 3",
                 "Country",
             ],
         )
@@ -197,11 +197,11 @@ class DataTransformationServiceVerticalTests(unittest.TestCase):
             [
                 "Response ID__idx_0",
                 "Country__idx_4",
-                "What three words best describe the frustrations of Twinkl?",
+                "What three words best describe the frustrations of SurveySense?",
             ],
         )
         self.assertEqual(
-            transformed["What three words best describe the frustrations of Twinkl?"].tolist(),
+            transformed["What three words best describe the frustrations of SurveySense?"].tolist(),
             [
                 "Slow, Clunky, Confusing",
                 "Helpful, Creative",
@@ -315,7 +315,7 @@ class QuestionHeaderResolutionServiceTests(unittest.TestCase):
             [
                 {
                     "full_title": float("nan"),
-                    "main_title": "What more could Twinkl do to save you time?",
+                    "main_title": "What more could SurveySense do to save you time?",
                     "sub_title": None,
                 },
                 {
@@ -336,7 +336,7 @@ class QuestionHeaderResolutionServiceTests(unittest.TestCase):
         self.assertEqual(
             resolved.tolist(),
             [
-                "What more could Twinkl do to save you time?",
+                "What more could SurveySense do to save you time?",
                 "Thanks, please tell us more about your score",
                 "Fallback subtitle",
             ],
@@ -348,19 +348,19 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
         service = VerbatimQuestionSelectionService()
         rows = []
         role_values = ["Teacher", "Senior Leader", "Headteacher", "Teacher"]
-        matrix_values = ["Yes, Twinkl is better", "No", "Yes, Twinkl is better", "Yes, Twinkl is better"]
+        matrix_values = ["Yes, SurveySense is better", "No", "Yes, SurveySense is better", "Yes, SurveySense is better"]
         permission_values = ["Yes, I give permission", "No, I do not give permission"]
         for idx in range(24):
             rows.append(
                 {
                     "response_id__idx_0": str(idx + 1),
                     "country__idx_1": ["UK", "US", "CA"][idx % 3],
-                    "What more could Twinkl do to save you time?": f"Open answer about saving time number {idx}.",
-                    "How likely are you to recommend Twinkl to a friend or colleague?": f"{(idx % 11)}",
+                    "What more could SurveySense do to save you time?": f"Open answer about saving time number {idx}.",
+                    "How likely are you to recommend SurveySense to a friend or colleague?": f"{(idx % 11)}",
                     "Which of the following best describes your role?": role_values[idx % len(role_values)],
                     "Building your confidence | Brand A": matrix_values[idx % len(matrix_values)],
-                    "We'd love to share some of the feedback you've given today to help others learn about Twinkl. Are you happy for us to use your comments in marketing?": permission_values[idx % len(permission_values)],
-                    "Thanks, we'd love to know more about why you'd recommend Twinkl": f"Recommendation reason number {idx} with different wording.",
+                    "We'd love to share some of the feedback you've given today to help others learn about SurveySense. Are you happy for us to use your comments in marketing?": permission_values[idx % len(permission_values)],
+                    "Thanks, we'd love to know more about why you'd recommend SurveySense": f"Recommendation reason number {idx} with different wording.",
                 }
             )
         df = pd.DataFrame(rows)
@@ -371,8 +371,8 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
         self.assertEqual(
             selected_columns,
             [
-                "What more could Twinkl do to save you time?",
-                "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                "What more could SurveySense do to save you time?",
+                "Thanks, we'd love to know more about why you'd recommend SurveySense",
             ],
         )
 
@@ -408,15 +408,15 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
             [
                 {
                     "response_id__idx_0": "1",
-                    "What more could Twinkl do to improve your rating?": "10",
+                    "What more could SurveySense do to improve your rating?": "10",
                 },
                 {
                     "response_id__idx_0": "2",
-                    "What more could Twinkl do to improve your rating?": "8",
+                    "What more could SurveySense do to improve your rating?": "8",
                 },
                 {
                     "response_id__idx_0": "3",
-                    "What more could Twinkl do to improve your rating?": "9",
+                    "What more could SurveySense do to improve your rating?": "9",
                 },
             ]
         )
@@ -433,7 +433,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
                 {
                     "response_id__idx_0": str(idx + 1),
                     "t_u_id__idx_10": "bad-id" if idx == 0 else str(100000 + idx),
-                    "What more could Twinkl do to save you time?": f"Open answer number {idx} with varied wording.",
+                    "What more could SurveySense do to save you time?": f"Open answer number {idx} with varied wording.",
                 }
             )
         df = pd.DataFrame(rows)
@@ -442,7 +442,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
 
         self.assertEqual(
             selected_columns,
-            ["What more could Twinkl do to save you time?"],
+            ["What more could SurveySense do to save you time?"],
         )
 
     def test_rejects_date_time_columns_as_verbatim_even_when_values_are_unique_text(self) -> None:
@@ -453,7 +453,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
                 {
                     "response_id__idx_0": str(idx + 1),
                     "Date & Time__idx_1": f"February {10 + (idx // 24)}, 2025 {idx % 24:02d}:{idx % 60:02d}:47",
-                    "What more could Twinkl do to save you time?": f"Open answer number {idx} with varied wording.",
+                    "What more could SurveySense do to save you time?": f"Open answer number {idx} with varied wording.",
                 }
             )
         df = pd.DataFrame(rows)
@@ -462,7 +462,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
 
         self.assertEqual(
             selected_columns,
-            ["What more could Twinkl do to save you time?"],
+            ["What more could SurveySense do to save you time?"],
         )
 
     def test_rejects_numeric_heavy_mixed_content_columns_as_verbatim(self) -> None:
@@ -473,7 +473,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
                 {
                     "response_id__idx_0": str(idx + 1),
                     "Submission marker__idx_1": f"Ref {20250210000000 + idx} code {10000 + idx}",
-                    "What more could Twinkl do to save you time?": f"Open answer number {idx} with varied wording.",
+                    "What more could SurveySense do to save you time?": f"Open answer number {idx} with varied wording.",
                 }
             )
         df = pd.DataFrame(rows)
@@ -482,7 +482,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
 
         self.assertEqual(
             selected_columns,
-            ["What more could Twinkl do to save you time?"],
+            ["What more could SurveySense do to save you time?"],
         )
 
     def test_selects_columns_with_short_headers_when_answers_are_text(self) -> None:
@@ -491,22 +491,22 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
             [
                 {
                     "response_id__idx_0": "1",
-                    "Why Twinkl?": "It saves me time every week.",
+                    "Why SurveySense?": "It saves me time every week.",
                 },
                 {
                     "response_id__idx_0": "2",
-                    "Why Twinkl?": "The resources are easy to adapt.",
+                    "Why SurveySense?": "The resources are easy to adapt.",
                 },
                 {
                     "response_id__idx_0": "3",
-                    "Why Twinkl?": "It gives me good lesson ideas.",
+                    "Why SurveySense?": "It gives me good lesson ideas.",
                 },
             ]
         )
 
         selected_columns = service.select_columns(df, metadata_columns=["response_id__idx_0"])
 
-        self.assertEqual(selected_columns, ["Why Twinkl?"])
+        self.assertEqual(selected_columns, ["Why SurveySense?"])
 
     def test_selects_open_ended_short_label_columns_when_question_cues_and_variation_support_it(self) -> None:
         service = VerbatimQuestionSelectionService()
@@ -529,7 +529,7 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
             rows.append(
                 {
                     "response_id__idx_0": str(idx),
-                    "Other than Twinkl, which ONE teaching resource brand that you use comes to mind?": brand,
+                    "Other than SurveySense, which ONE teaching resource brand that you use comes to mind?": brand,
                 }
             )
         df = pd.DataFrame(rows)
@@ -538,13 +538,13 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
 
         self.assertEqual(
             selected_columns,
-            ["Other than Twinkl, which ONE teaching resource brand that you use comes to mind?"],
+            ["Other than SurveySense, which ONE teaching resource brand that you use comes to mind?"],
         )
 
     def test_rejects_pipe_separated_headers_when_answers_are_fixed_response_text(self) -> None:
         service = VerbatimQuestionSelectionService()
         rows = []
-        values = ["Yes, Twinkl is better", "No", "Yes, Twinkl is better", "Yes, Twinkl is better"]
+        values = ["Yes, SurveySense is better", "No", "Yes, SurveySense is better", "Yes, SurveySense is better"]
         for idx in range(24):
             rows.append(
                 {
@@ -610,15 +610,15 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
             [
                 {
                     "response_id__idx_0": "1",
-                    "Building your confidence | Lingo Kids": "The same as Twinkl",
+                    "Building your confidence | Lingo Kids": "The same as SurveySense",
                 },
                 {
                     "response_id__idx_0": "2",
-                    "Building your confidence | Lingo Kids": "Better than Twinkl",
+                    "Building your confidence | Lingo Kids": "Better than SurveySense",
                 },
                 {
                     "response_id__idx_0": "3",
-                    "Building your confidence | Lingo Kids": "Less well than Twinkl",
+                    "Building your confidence | Lingo Kids": "Less well than SurveySense",
                 },
                 {
                     "response_id__idx_0": "4",
@@ -639,10 +639,10 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
                 {
                     "response_id__idx_0": str(idx + 1),
                     "country__idx_1": "UK" if idx % 2 == 0 else "US",
-                    "What more could Twinkl do to give you confidence?": f"Confidence answer {idx}",
-                    "How can Twinkl better support you to achieve excellence in your role?": f"Excellence answer {idx}",
-                    "What more could Twinkl do to save you time?": f"Time answer {idx}",
-                    "Thanks, we'd love to know more about why you'd recommend Twinkl": f"Recommend answer {idx}",
+                    "What more could SurveySense do to give you confidence?": f"Confidence answer {idx}",
+                    "How can SurveySense better support you to achieve excellence in your role?": f"Excellence answer {idx}",
+                    "What more could SurveySense do to save you time?": f"Time answer {idx}",
+                    "Thanks, we'd love to know more about why you'd recommend SurveySense": f"Recommend answer {idx}",
                     "How can we better help you see and track the progress your child is making with their learning?": f"Progress answer {idx}",
                 }
             )
@@ -656,10 +656,10 @@ class VerbatimQuestionSelectionServiceTests(unittest.TestCase):
         self.assertEqual(
             selected_columns,
             [
-                "What more could Twinkl do to give you confidence?",
-                "How can Twinkl better support you to achieve excellence in your role?",
-                "What more could Twinkl do to save you time?",
-                "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                "What more could SurveySense do to give you confidence?",
+                "How can SurveySense better support you to achieve excellence in your role?",
+                "What more could SurveySense do to save you time?",
+                "Thanks, we'd love to know more about why you'd recommend SurveySense",
                 "How can we better help you see and track the progress your child is making with their learning?",
             ],
         )
@@ -710,7 +710,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "country__idx_9",
                 "county__idx_10",
                 "Date & Time__idx_11",
-                "What more could Twinkl do to save you time?",
+                "What more could SurveySense do to save you time?",
                 "Which of the following best describes your role?",
             ]
         )
@@ -742,7 +742,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "group__idx_3",
                 "18.2 With Regards To Science We'd Love To Know Your Awareness And Usage Of The Following Brands I Have Used This Brand Within The Last 6 Months__idx_201",
                 "Which group of resources do you use most often?__idx_250",
-                "27.1 To What Extent Do The Following Statements Resonate With You When You Think Of Twinkl Made By Educators__idx_301",
+                "27.1 To What Extent Do The Following Statements Resonate With You When You Think Of SurveySense Made By Educators__idx_301",
             ]
         )
 
@@ -762,7 +762,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "month__idx_1",
                 "group__idx_2",
                 "career__idx_3",
-                "Which month did you first hear about Twinkl?__idx_10",
+                "Which month did you first hear about SurveySense?__idx_10",
                 "Which group best describes your needs?__idx_11",
             ]
         )
@@ -818,7 +818,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "t_c_id__idx_3",
                 "t_ca_id__idx_4",
                 "t_co_id__idx_5",
-                "What more could Twinkl do to save you time?__idx_20",
+                "What more could SurveySense do to save you time?__idx_20",
             ]
         )
 
@@ -841,7 +841,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "email_address__idx_2",
                 "school_name__idx_3",
                 "What is the name of your favourite resource?__idx_20",
-                "What more could Twinkl do to save you time?__idx_21",
+                "What more could SurveySense do to save you time?__idx_21",
             ]
         )
 
@@ -871,7 +871,7 @@ class MetadataColumnSelectionServiceTests(unittest.TestCase):
                 "renewal_group__idx_22",
                 "subscription_tenure__idx_23",
                 "rfm_status__idx_24",
-                "What more could Twinkl do to save you time?",
+                "What more could SurveySense do to save you time?",
             ]
         )
 
@@ -912,8 +912,8 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
                     "started_at__idx_2": "2026-01-01 10:00:00 UTC",
                     "country__idx_3": "UK",
                     "bundle__idx_4": "ultimate",
-                    "What more could Twinkl do to save you time?": "Provide weekly packs tailored to my class.",
-                    "Thanks, we'd love to know more about why you'd recommend Twinkl": "It saves me planning time every week.",
+                    "What more could SurveySense do to save you time?": "Provide weekly packs tailored to my class.",
+                    "Thanks, we'd love to know more about why you'd recommend SurveySense": "It saves me planning time every week.",
                 },
                 {
                     "response_id__idx_0": "2",
@@ -921,8 +921,8 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
                     "started_at__idx_2": "2026-01-02 10:00:00 UTC",
                     "country__idx_3": "US",
                     "bundle__idx_4": "core",
-                    "What more could Twinkl do to save you time?": "Bundle the best matching resources together.",
-                    "Thanks, we'd love to know more about why you'd recommend Twinkl": "The resources are easy to find and adapt.",
+                    "What more could SurveySense do to save you time?": "Bundle the best matching resources together.",
+                    "Thanks, we'd love to know more about why you'd recommend SurveySense": "The resources are easy to find and adapt.",
                 },
             ]
         )
@@ -942,8 +942,8 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
         self.assertEqual(
             verbatim_columns,
             [
-                "What more could Twinkl do to save you time?",
-                "Thanks, we'd love to know more about why you'd recommend Twinkl",
+                "What more could SurveySense do to save you time?",
+                "Thanks, we'd love to know more about why you'd recommend SurveySense",
             ],
         )
         self.assertEqual(analysis_df.columns.tolist(), metadata_columns + verbatim_columns)
@@ -961,23 +961,23 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
                 {
                     "response_id__idx_0": "1",
                     "country__idx_1": "UK",
-                    "24.1: What three words best describe the frustrations of Twinkl?: Word 1__idx_137": "Slow",
-                    "24.2: What three words best describe the frustrations of Twinkl?: Word 2__idx_138": "Clunky",
-                    "24.3: What three words best describe the frustrations of Twinkl?: Word 3__idx_139": "Confusing",
+                    "24.1: What three words best describe the frustrations of SurveySense?: Word 1__idx_137": "Slow",
+                    "24.2: What three words best describe the frustrations of SurveySense?: Word 2__idx_138": "Clunky",
+                    "24.3: What three words best describe the frustrations of SurveySense?: Word 3__idx_139": "Confusing",
                 },
                 {
                     "response_id__idx_0": "2",
                     "country__idx_1": "US",
-                    "24.1: What three words best describe the frustrations of Twinkl?: Word 1__idx_137": "Helpful",
-                    "24.2: What three words best describe the frustrations of Twinkl?: Word 2__idx_138": "Creative",
-                    "24.3: What three words best describe the frustrations of Twinkl?: Word 3__idx_139": "Reliable",
+                    "24.1: What three words best describe the frustrations of SurveySense?: Word 1__idx_137": "Helpful",
+                    "24.2: What three words best describe the frustrations of SurveySense?: Word 2__idx_138": "Creative",
+                    "24.3: What three words best describe the frustrations of SurveySense?: Word 3__idx_139": "Reliable",
                 },
                 {
                     "response_id__idx_0": "3",
                     "country__idx_1": "CA",
-                    "24.1: What three words best describe the frustrations of Twinkl?: Word 1__idx_137": "Expensive",
-                    "24.2: What three words best describe the frustrations of Twinkl?: Word 2__idx_138": "Dated",
-                    "24.3: What three words best describe the frustrations of Twinkl?: Word 3__idx_139": "Crowded",
+                    "24.1: What three words best describe the frustrations of SurveySense?: Word 1__idx_137": "Expensive",
+                    "24.2: What three words best describe the frustrations of SurveySense?: Word 2__idx_138": "Dated",
+                    "24.3: What three words best describe the frustrations of SurveySense?: Word 3__idx_139": "Crowded",
                 },
             ]
         )
@@ -990,10 +990,10 @@ class AnalysisReadyDatasetServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             verbatim_columns,
-            ["What three words best describe the frustrations of Twinkl?"],
+            ["What three words best describe the frustrations of SurveySense?"],
         )
         self.assertEqual(
-            analysis_df["What three words best describe the frustrations of Twinkl?"].tolist(),
+            analysis_df["What three words best describe the frustrations of SurveySense?"].tolist(),
             [
                 "Slow, Clunky, Confusing",
                 "Helpful, Creative, Reliable",

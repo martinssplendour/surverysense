@@ -43,7 +43,7 @@ class DocumentRelevanceSorter:
             "this",
             "to",
             "too",
-            "twinkl",
+            "surveysense",
             "we",
             "with",
         }

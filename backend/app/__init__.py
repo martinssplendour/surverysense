@@ -1,1 +1,1 @@
-"""Verbatim App backend package."""
+"""SurveySense backend package."""

@@ -42,7 +42,7 @@ class SurveyPreparationServicesTests(unittest.TestCase):
                     "country_tier": "Tier 1",
                     "career_category": "Teacher",
                     "career_group": "Primary",
-                    "main_title": "What more could Twinkl do to give you confidence?",
+                    "main_title": "What more could SurveySense do to give you confidence?",
                     "full_title": None,
                     "answer_value": "More curriculum guidance",
                 },
@@ -53,7 +53,7 @@ class SurveyPreparationServicesTests(unittest.TestCase):
                     "country_tier": "Tier 1",
                     "career_category": "Teacher",
                     "career_group": "Primary",
-                    "main_title": "Thanks, we\u2019d love to know more about why you\u2019d recommend Twinkl",
+                    "main_title": "Thanks, we\u2019d love to know more about why you\u2019d recommend SurveySense",
                     "full_title": "Recommend reason",
                     "answer_value": "It saves time",
                 },
@@ -64,7 +64,7 @@ class SurveyPreparationServicesTests(unittest.TestCase):
                     "country_tier": "Tier 1",
                     "career_category": "Leader",
                     "career_group": "SLT",
-                    "main_title": "What more could Twinkl do to give you confidence?",
+                    "main_title": "What more could SurveySense do to give you confidence?",
                     "full_title": "Confidence detail",
                     "answer_value": "  ",
                 },
@@ -96,17 +96,17 @@ class SurveyPreparationServicesTests(unittest.TestCase):
         self.assertEqual(str(cleaned_df["user_id"].dtype), "Int64")
         self.assertEqual(
             cleaned_df.loc[0, "full_title_fixed"],
-            "What more could Twinkl do to give you confidence?",
+            "What more could SurveySense do to give you confidence?",
         )
         self.assertEqual(
             cleaned_df.loc[1, "main_title_norm"],
-            "Thanks, we'd love to know more about why you'd recommend Twinkl",
+            "Thanks, we'd love to know more about why you'd recommend SurveySense",
         )
 
         wide_df = self.wide_pivot_service.build(cleaned_df)
         records_df = self.question_record_extractor.extract(
             wide_df,
-            "What more could Twinkl do to give you confidence?",
+            "What more could SurveySense do to give you confidence?",
         )
 
         self.assertEqual(len(records_df), 1)
@@ -128,13 +128,13 @@ class SurveyPreparationServicesTests(unittest.TestCase):
         self.assertIn("user_id", analysis_df.columns.get_level_values(0))
 
         main_titles = list(analysis_df.columns.get_level_values(0))
-        self.assertIn("What more could Twinkl do to give you confidence?", main_titles)
-        self.assertIn("Thanks, we'd love to know more about why you'd recommend Twinkl", main_titles)
+        self.assertIn("What more could SurveySense do to give you confidence?", main_titles)
+        self.assertIn("Thanks, we'd love to know more about why you'd recommend SurveySense", main_titles)
         self.assertNotIn("Non target question", main_titles)
 
         text_df = self.question_text_service.run(
             analysis_df,
-            "Thanks, we'd love to know more about why you'd recommend Twinkl",
+            "Thanks, we'd love to know more about why you'd recommend SurveySense",
         )
         self.assertEqual(len(text_df), 1)
         self.assertEqual(text_df.iloc[0]["text"], "It saves time")
@@ -145,7 +145,7 @@ class SurveyPreparationServicesTests(unittest.TestCase):
         wide_df = self.wide_pivot_service.build(cleaned_df)
         records_df = self.question_record_extractor.extract(
             wide_df,
-            "What more could Twinkl do to give you confidence?",
+            "What more could SurveySense do to give you confidence?",
         )
 
         stripped_df = records_df.copy()
@@ -154,7 +154,7 @@ class SurveyPreparationServicesTests(unittest.TestCase):
 
         backfilled_df = self.backfill_service.backfill(
             stripped_df,
-            question_title="What more could Twinkl do to give you confidence?",
+            question_title="What more could SurveySense do to give you confidence?",
             wide_df=wide_df,
         )
 

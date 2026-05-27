@@ -1,4 +1,4 @@
-# Verbatim App Backend
+# SurveySense Backend
 
 Backend-specific notes live here. The main project documentation is in the repo-root `README.md`.
 

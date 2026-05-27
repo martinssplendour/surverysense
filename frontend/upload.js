@@ -142,7 +142,7 @@ async function handleSubmit(event) {
             }));
         } catch (error) {
             console.warn(
-                "[Verbatim App] Failed to cache the processed result in session storage; upload succeeded but the dashboard handoff cannot continue.",
+                "[SurveySense] Failed to cache the processed result in session storage; upload succeeded but the dashboard handoff cannot continue.",
                 error,
             );
             showStatus("error", "Unable to save results — browser storage may be full.");

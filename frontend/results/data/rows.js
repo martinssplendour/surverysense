@@ -106,7 +106,7 @@ export async function refreshFilteredDatasets({ suppressAnalysisRender = false }
             applyRowsPayload("community_analysis", communityAnalysisPayload);
         }
     } catch (error) {
-        console.error("[Verbatim App] Failed to refresh preview rows after the filter change.", error);
+        console.error("[SurveySense] Failed to refresh preview rows after the filter change.", error);
     }
 
     callbacks.renderFilterBar();
@@ -210,7 +210,7 @@ async function loadMoreRows(dataset, limit = getRowPageSize(dataset)) {
             setDatasetStatus("analysis", { hasMore: false });
         }
         console.error(
-            `[Verbatim App] Failed to load ${dataset === "community_analysis" ? "community assignment" : dataset === "analysis" ? "verbatim" : "processed"} preview rows.`,
+            `[SurveySense] Failed to load ${dataset === "community_analysis" ? "community assignment" : dataset === "analysis" ? "verbatim" : "processed"} preview rows.`,
             error,
         );
     } finally {

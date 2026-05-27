@@ -81,7 +81,7 @@ export async function removeActiveFilter(columnName) {
         await applyActiveFilters(nextFilters);
         callbacks.closeFilterModal();
     } catch (error) {
-        console.error(`[Verbatim App] Failed to remove the filter for "${columnName}".`, error);
+        console.error(`[SurveySense] Failed to remove the filter for "${columnName}".`, error);
     }
 }
 
